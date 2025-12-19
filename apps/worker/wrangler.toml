@@ -1,0 +1,14 @@
+name = "podcast-worker"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+PODCAST_TITLE = "番組名"
+WEBSITE_URL = "https://example.com"
+
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "podcast-bucket"
+
+[triggers]
+crons = ["*/5 * * * *"]
