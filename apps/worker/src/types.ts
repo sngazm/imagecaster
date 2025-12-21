@@ -5,8 +5,12 @@ export interface Env {
   R2_BUCKET: R2Bucket;
   PODCAST_TITLE: string;
   WEBSITE_URL: string;
+  R2_ACCOUNT_ID: string;
+  R2_BUCKET_NAME: string;
   ADMIN_API_KEY: string;
   TRANSCRIBER_API_KEY: string;
+  R2_ACCESS_KEY_ID: string;
+  R2_SECRET_ACCESS_KEY: string;
   TRANSCRIBER_WEBHOOK_URL?: string;
 }
 
@@ -36,6 +40,7 @@ export interface PodcastIndex {
  */
 export type EpisodeStatus =
   | "draft"
+  | "uploading"
   | "processing"
   | "transcribing"
   | "scheduled"
@@ -54,6 +59,7 @@ export interface EpisodeMeta {
   fileSize: number;
   audioUrl: string;
   transcriptUrl: string | null;
+  skipTranscription: boolean;
   status: EpisodeStatus;
   createdAt: string;
   publishAt: string;
@@ -65,9 +71,9 @@ export interface EpisodeMeta {
  */
 export interface CreateEpisodeRequest {
   title: string;
-  description: string;
-  sourceUrl: string;
+  description?: string;
   publishAt: string;
+  skipTranscription?: boolean;
 }
 
 /**
@@ -88,6 +94,36 @@ export interface TranscriptionCompleteRequest {
 }
 
 /**
+ * Presigned URL 発行リクエスト
+ */
+export interface UploadUrlRequest {
+  contentType: string;
+  fileSize: number;
+}
+
+/**
+ * Presigned URL 発行レスポンス
+ */
+export interface UploadUrlResponse {
+  uploadUrl: string;
+  expiresIn: number;
+}
+
+/**
+ * アップロード完了通知リクエスト
+ */
+export interface UploadCompleteRequest {
+  duration: number;
+}
+
+/**
+ * URL からアップロードリクエスト
+ */
+export interface UploadFromUrlRequest {
+  sourceUrl: string;
+}
+
+/**
  * エピソード一覧レスポンス
  */
 export interface EpisodesListResponse {
@@ -105,5 +141,6 @@ export interface EpisodesListResponse {
  */
 export interface CreateEpisodeResponse {
   id: string;
+  episodeNumber: number;
   status: EpisodeStatus;
 }

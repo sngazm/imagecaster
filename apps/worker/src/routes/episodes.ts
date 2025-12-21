@@ -60,13 +60,13 @@ episodes.get("/:id", async (c) => {
 });
 
 /**
- * POST /api/episodes - 新規エピソード作成
+ * POST /api/episodes - 新規エピソード作成（メタデータのみ）
  */
 episodes.post("/", async (c) => {
   const body = await c.req.json<CreateEpisodeRequest>();
 
   // バリデーション
-  if (!body.title || !body.sourceUrl || !body.publishAt) {
+  if (!body.title || !body.publishAt) {
     return c.json({ error: "Missing required fields" }, 400);
   }
 
@@ -92,7 +92,8 @@ episodes.post("/", async (c) => {
     fileSize: 0,
     audioUrl: "",
     transcriptUrl: null,
-    status: "processing",
+    skipTranscription: body.skipTranscription ?? false,
+    status: "draft",
     createdAt: now,
     publishAt: body.publishAt,
     publishedAt: null,
@@ -108,12 +109,10 @@ episodes.post("/", async (c) => {
   });
   await saveIndex(c.env, index);
 
-  // TODO: sourceUrl から音声をダウンロードして R2 に保存
-  // TODO: 文字起こしクライアントに通知
-
   const response: CreateEpisodeResponse = {
     id: newId,
-    status: "processing",
+    episodeNumber: newEpisodeNumber,
+    status: "draft",
   };
 
   return c.json(response, 201);

@@ -3,6 +3,7 @@ import { bearerAuth } from "hono/bearer-auth";
 import { cors } from "hono/cors";
 import type { Env, EpisodeMeta } from "./types";
 import { episodes } from "./routes/episodes";
+import { upload } from "./routes/upload";
 import { getIndex, getEpisodeMeta, saveEpisodeMeta } from "./services/r2";
 import { getFeed, regenerateFeed } from "./services/feed";
 
@@ -57,6 +58,9 @@ api.use("*", async (c, next) => {
 
 // エピソード関連のルートをマウント
 api.route("/episodes", episodes);
+
+// アップロード関連のルートをマウント（/api/episodes/:id/upload-* の形式）
+api.route("/episodes", upload);
 
 // API ルートをマウント
 app.route("/api", api);

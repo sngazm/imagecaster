@@ -5,6 +5,8 @@ compatibility_date = "2024-01-01"
 [vars]
 PODCAST_TITLE = "番組名"
 WEBSITE_URL = "https://example.com"
+R2_ACCOUNT_ID = "xxx"
+R2_BUCKET_NAME = "podcast-bucket"
 
 [[r2_buckets]]
 binding = "R2_BUCKET"
