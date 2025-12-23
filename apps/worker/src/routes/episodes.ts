@@ -138,6 +138,12 @@ episodes.put("/:id", async (c) => {
     if (body.publishAt !== undefined) {
       meta.publishAt = body.publishAt;
     }
+    // skipTranscription は draft または failed 状態のときのみ変更可能
+    if (body.skipTranscription !== undefined) {
+      if (meta.status === "draft" || meta.status === "failed") {
+        meta.skipTranscription = body.skipTranscription;
+      }
+    }
 
     await saveEpisodeMeta(c.env, meta);
 

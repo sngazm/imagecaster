@@ -83,6 +83,7 @@ export interface UpdateEpisodeRequest {
   title?: string;
   description?: string;
   publishAt?: string;
+  skipTranscription?: boolean;
 }
 
 /**
