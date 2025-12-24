@@ -1,0 +1,345 @@
+# Podcast Platform セットアップガイド
+
+このドキュメントでは、Podcast Platform を一から構築する手順を説明します。
+
+## 目次
+
+1. [前提条件](#前提条件)
+2. [リポジトリのセットアップ](#リポジトリのセットアップ)
+3. [Cloudflare R2 の設定](#cloudflare-r2-の設定)
+4. [Cloudflare Access の設定](#cloudflare-access-の設定)
+5. [Worker の設定](#worker-の設定)
+6. [ローカル開発環境の設定](#ローカル開発環境の設定)
+7. [本番デプロイ](#本番デプロイ)
+8. [トラブルシューティング](#トラブルシューティング)
+
+---
+
+## 前提条件
+
+以下がインストールされていること:
+
+- Node.js 18+
+- pnpm (`npm install -g pnpm`)
+- Cloudflare アカウント（無料プランで可）
+
+---
+
+## リポジトリのセットアップ
+
+```bash
+# リポジトリをクローン
+git clone https://github.com/your-username/podcast-platform.git
+cd podcast-platform
+
+# 依存関係をインストール
+pnpm install
+```
+
+---
+
+## Cloudflare R2 の設定
+
+### 1. R2 を有効化
+
+1. [Cloudflare ダッシュボード](https://dash.cloudflare.com/) にログイン
+2. 左メニューから **R2** を選択
+3. 初回の場合は R2 を有効化（クレジットカード登録が必要だが、無料枠あり）
+
+### 2. バケットを作成
+
+**本番用バケット:**
+
+1. **Create bucket** をクリック
+2. **Bucket name**: `podcast-bucket`（任意の名前）
+3. **Location**: お好みのリージョン
+4. **Create bucket** をクリック
+
+**開発用バケット:**
+
+1. 同様に `podcast-bucket-dev` を作成
+
+### 3. 開発用バケットの CORS 設定
+
+1. `podcast-bucket-dev` を開く
+2. **Settings** タブ
+3. **CORS Policy** セクションで **Edit CORS policy**
+4. 以下を入力:
+
+```json
+[
+  {
+    "AllowedOrigins": ["http://localhost:5173"],
+    "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
+    "AllowedHeaders": ["*"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+5. **Save** をクリック
+
+### 4. R2 API Token を作成
+
+Presigned URL の生成に必要です。
+
+1. R2 ダッシュボードで右側の **Manage R2 API Tokens** をクリック
+   - または **Account Details** → **API Tokens** → **Manage**
+2. **Create API Token** をクリック
+3. 設定:
+   - **Token name**: `podcast-platform`（任意）
+   - **Permissions**: `Object Read & Write`
+   - **Specify bucket(s)**: `All buckets` または特定のバケットを選択
+   - **TTL**: 必要に応じて設定
+4. **Create API Token** をクリック
+5. 表示された値を**必ずメモ**（この画面を閉じると二度と表示されません）:
+   - **Access Key ID**
+   - **Secret Access Key**
+
+### 5. Account ID を確認
+
+1. Cloudflare ダッシュボードの任意のページ
+2. 右側サイドバーに **Account ID** が表示されている
+3. この値をメモ（32文字の英数字）
+
+---
+
+## Cloudflare Access の設定
+
+管理画面の認証に使用します。
+
+### 1. Zero Trust ダッシュボードにアクセス
+
+1. Cloudflare ダッシュボード左メニューから **Zero Trust** を選択
+2. 初回の場合はチーム名を設定（例: `myteam`）
+   - これが `myteam.cloudflareaccess.com` のようなドメインになります
+
+### 2. アプリケーションを作成
+
+1. **Access** → **Applications** を選択
+2. **Add an application** をクリック
+3. **Self-hosted** を選択
+
+### 3. アプリケーション設定
+
+**Configure app:**
+
+1. **Application name**: `Podcast Admin`（任意）
+2. **Session Duration**: お好みで設定
+3. **Application domain**:
+   - **Subdomain**: Worker のサブドメイン（例: `podcast-worker`）
+   - **Domain**: 使用するドメイン（例: `your-domain.workers.dev`）
+4. **Next** をクリック
+
+**Add policies:**
+
+1. **Policy name**: `Allow Admins`（任意）
+2. **Action**: `Allow`
+3. **Configure rules**:
+   - **Selector**: `Emails`
+   - **Value**: 許可するメールアドレス
+   - または **Selector**: `Emails ending in` で `@your-domain.com` など
+4. **Next** をクリック
+
+**Setup:**
+
+1. 追加設定は必要に応じて
+2. **Add application** をクリック
+
+### 4. AUD を確認
+
+1. 作成したアプリケーションの詳細を開く
+2. **Overview** タブ
+3. **Application Audience (AUD) Tag** をメモ
+
+### 5. Team Domain を確認
+
+1. **Settings** → **Custom Pages** または
+2. Zero Trust ダッシュボードの URL から確認
+   - `https://one.dash.cloudflare.com/<account-id>/<team-name>/...`
+   - Team Domain は `<team-name>.cloudflareaccess.com`
+
+### 6. Google アカウントでログインできるようにする（オプション）
+
+メールアドレス認証の代わりに Google アカウントでログインできるようにするには、以下のドキュメントを参照してください:
+
+https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/google/
+
+---
+
+## Worker の設定
+
+### 1. wrangler.toml を編集
+
+`apps/worker/wrangler.toml` を開き、以下の値を設定:
+
+```toml
+[vars]
+PODCAST_TITLE = "あなたの番組名"
+WEBSITE_URL = "https://your-website.com"
+R2_ACCOUNT_ID = "あなたのAccount ID"
+R2_BUCKET_NAME = "podcast-bucket"
+CF_ACCESS_TEAM_DOMAIN = "your-team.cloudflareaccess.com"
+CF_ACCESS_AUD = "あなたのAUD Tag"
+
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "podcast-bucket"
+preview_bucket_name = "podcast-bucket-dev"
+```
+
+### 2. シークレットを設定（本番用）
+
+```bash
+cd apps/worker
+
+# R2 API Token を設定
+npx wrangler secret put R2_ACCESS_KEY_ID
+# プロンプトで Access Key ID を入力
+
+npx wrangler secret put R2_SECRET_ACCESS_KEY
+# プロンプトで Secret Access Key を入力
+```
+
+---
+
+## ローカル開発環境の設定
+
+### 1. .dev.vars を作成
+
+`apps/worker/.dev.vars` を作成（このファイルは .gitignore に含まれています）:
+
+```bash
+# ローカル開発用
+SKIP_AUTH=true
+
+# 開発用バケット名
+R2_BUCKET_NAME=podcast-bucket-dev
+
+# R2 API Token
+R2_ACCESS_KEY_ID=あなたのAccess Key ID
+R2_SECRET_ACCESS_KEY=あなたのSecret Access Key
+```
+
+### 2. 開発サーバーを起動
+
+```bash
+# プロジェクトルートで
+pnpm dev
+
+# または個別に起動
+pnpm dev:worker   # http://localhost:8787
+pnpm dev:admin    # http://localhost:5173
+```
+
+### 3. 動作確認
+
+1. ブラウザで http://localhost:5173 を開く
+2. タイトルと音声ファイルを入力
+3. 「登録」ボタンをクリック
+4. 成功メッセージが表示されれば OK
+
+---
+
+## 本番デプロイ
+
+### 1. Worker をデプロイ
+
+```bash
+pnpm deploy:worker
+```
+
+### 2. Admin をデプロイ
+
+```bash
+# 環境変数を設定（.env.production を作成）
+echo "VITE_API_BASE=https://podcast-worker.your-domain.workers.dev" > apps/admin/.env.production
+
+# デプロイ
+pnpm deploy:admin
+```
+
+### 3. 本番用バケットの CORS 設定
+
+`podcast-bucket` にも CORS を設定:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://your-admin-domain.pages.dev"],
+    "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
+    "AllowedHeaders": ["*"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+---
+
+## トラブルシューティング
+
+### CORS エラーが発生する
+
+**症状**: `Access to fetch has been blocked by CORS policy`
+
+**解決策**:
+1. R2 バケットの CORS 設定を確認
+2. `AllowedOrigins` にリクエスト元のドメインが含まれているか確認
+3. Worker の CORS 設定が正しいか確認
+
+### 401 Unauthorized エラー
+
+**症状**: `Unauthorized: Missing Access token`
+
+**解決策**:
+- ローカル開発時: `.dev.vars` に `SKIP_AUTH=true` があるか確認
+- 本番: Cloudflare Access の設定を確認
+
+### Episode not found エラー
+
+**症状**: エピソード作成後に `Episode not found`
+
+**解決策**:
+1. Worker のログを確認
+2. R2 API Token が正しく設定されているか確認
+3. `.dev.vars` の設定を確認
+
+### ERR_SSL_VERSION_OR_CIPHER_MISMATCH
+
+**症状**: R2 へのアップロード時に SSL エラー
+
+**解決策**:
+- R2 の URL 形式が正しいか確認
+- 正しい形式: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com/<BUCKET>/<KEY>`
+- 間違い: `https://<BUCKET>.<ACCOUNT_ID>.r2.cloudflarestorage.com/<KEY>`
+
+### ローカルで R2 ファイルが見つからない
+
+**症状**: `Audio file not found in R2`
+
+**解決策**:
+- これは既知の問題です
+- ローカル開発時は Presigned URL が実際の R2 にアップロードしますが、R2 Binding はローカルストレージを参照するため発生します
+- `SKIP_AUTH=true` が設定されていれば、この確認はスキップされます
+
+---
+
+## 設定値の一覧
+
+| 設定項目 | 取得場所 | 設定場所 |
+|---------|---------|---------|
+| Account ID | Cloudflare ダッシュボード右側 | wrangler.toml |
+| R2 Bucket Name | R2 ダッシュボード | wrangler.toml |
+| CF Access Team Domain | Zero Trust 設定 | wrangler.toml |
+| CF Access AUD | Access Application 詳細 | wrangler.toml |
+| R2 Access Key ID | R2 API Token 作成時 | .dev.vars / wrangler secret |
+| R2 Secret Access Key | R2 API Token 作成時 | .dev.vars / wrangler secret |
+
+---
+
+## 参考リンク
+
+- [Cloudflare R2 ドキュメント](https://developers.cloudflare.com/r2/)
+- [Cloudflare Access ドキュメント](https://developers.cloudflare.com/cloudflare-one/policies/access/)
+- [Cloudflare Access + Google 認証](https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/google/)
+- [Wrangler ドキュメント](https://developers.cloudflare.com/workers/wrangler/)
