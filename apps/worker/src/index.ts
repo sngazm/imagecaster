@@ -13,9 +13,10 @@ const app = new Hono<{ Bindings: Env }>();
 app.use(
   "*",
   cors({
-    origin: "*",
+    origin: (origin) => origin || "",  // リクエスト元をそのまま許可
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: ["Content-Type", "Cf-Access-Jwt-Assertion"],
+    credentials: true,
   })
 );
 
@@ -37,6 +38,12 @@ const api = new Hono<{ Bindings: Env }>();
 
 // Cloudflare Access JWT 認証
 api.use("*", async (c, next) => {
+  // ローカル開発時は認証スキップ
+  if (c.env.SKIP_AUTH === "true") {
+    await next();
+    return;
+  }
+
   const jwt = c.req.header("Cf-Access-Jwt-Assertion");
 
   if (!jwt) {

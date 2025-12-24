@@ -100,7 +100,9 @@ episodes.post("/", async (c) => {
   };
 
   // メタデータを保存
+  console.log(`[create] Saving episode meta: ${newId}`);
   await saveEpisodeMeta(c.env, newMeta);
+  console.log(`[create] Saved episode meta: ${newId}`);
 
   // インデックスを更新
   index.episodes.push({
@@ -108,6 +110,7 @@ episodes.post("/", async (c) => {
     episodeNumber: newEpisodeNumber,
   });
   await saveIndex(c.env, index);
+  console.log(`[create] Updated index with: ${newId}`);
 
   const response: CreateEpisodeResponse = {
     id: newId,

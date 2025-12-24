@@ -29,7 +29,9 @@ upload.post("/:id/upload-url", async (c) => {
   }
 
   try {
+    console.log(`[upload-url] Looking for episode: ${id}`);
     const meta = await getEpisodeMeta(c.env, id);
+    console.log(`[upload-url] Found episode:`, meta);
 
     // draft または failed 状態のみ許可
     if (meta.status !== "draft" && meta.status !== "failed") {
@@ -47,7 +49,7 @@ upload.post("/:id/upload-url", async (c) => {
 
     const key = `episodes/${id}/audio.mp3`;
     const url = new URL(
-      `https://${c.env.R2_BUCKET_NAME}.${c.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${key}`
+      `https://${c.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${c.env.R2_BUCKET_NAME}/${key}`
     );
 
     const signed = await r2.sign(
@@ -69,7 +71,8 @@ upload.post("/:id/upload-url", async (c) => {
     };
 
     return c.json(response);
-  } catch {
+  } catch (err) {
+    console.error(`[upload-url] Error for episode ${id}:`, err);
     return c.json({ error: "Episode not found" }, 404);
   }
 });
@@ -83,24 +86,36 @@ upload.post("/:id/upload-complete", async (c) => {
 
   try {
     const meta = await getEpisodeMeta(c.env, id);
+    console.log(`[upload-complete] Episode ${id} status: ${meta.status}`);
 
     // uploading 状態のみ許可
     if (meta.status !== "uploading") {
+      console.log(`[upload-complete] Rejected: status is ${meta.status}, expected uploading`);
       return c.json({ error: "Episode is not in uploading status" }, 400);
     }
 
     // R2 にファイルが存在するか確認
     const audioKey = `episodes/${id}/audio.mp3`;
-    const audioObj = await c.env.R2_BUCKET.head(audioKey);
+    let fileSize = body.fileSize || 0;
 
-    if (!audioObj) {
-      return c.json({ error: "Audio file not found in R2" }, 400);
+    // ローカル開発時は R2 Binding が実際のバケットを参照しないためスキップ
+    if (c.env.SKIP_AUTH !== "true") {
+      console.log(`[upload-complete] Checking R2 for key: ${audioKey}`);
+      const audioObj = await c.env.R2_BUCKET.head(audioKey);
+      console.log(`[upload-complete] R2 head result:`, audioObj ? `found (${audioObj.size} bytes)` : "not found");
+
+      if (!audioObj) {
+        return c.json({ error: "Audio file not found in R2" }, 400);
+      }
+      fileSize = audioObj.size;
+    } else {
+      console.log(`[upload-complete] Skipping R2 check (dev mode)`);
     }
 
     // メタデータ更新
     meta.duration = body.duration;
-    meta.fileSize = audioObj.size;
-    meta.audioUrl = `https://${c.env.R2_BUCKET_NAME}.${c.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${audioKey}`;
+    meta.fileSize = fileSize;
+    meta.audioUrl = `https://${c.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${c.env.R2_BUCKET_NAME}/${audioKey}`;
 
     // skipTranscription に応じてステータスを設定
     if (meta.skipTranscription) {
@@ -171,7 +186,7 @@ upload.post("/:id/upload-from-url", async (c) => {
 
     // メタデータ更新
     meta.fileSize = size;
-    meta.audioUrl = `https://${c.env.R2_BUCKET_NAME}.${c.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/episodes/${id}/audio.mp3`;
+    meta.audioUrl = `https://${c.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${c.env.R2_BUCKET_NAME}/episodes/${id}/audio.mp3`;
 
     // skipTranscription に応じてステータスを設定
     if (meta.skipTranscription) {

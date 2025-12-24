@@ -12,6 +12,8 @@ export interface Env {
   // Cloudflare Access
   CF_ACCESS_TEAM_DOMAIN: string;
   CF_ACCESS_AUD: string;
+  // ローカル開発用
+  SKIP_AUTH?: string;
 }
 
 /**
@@ -115,6 +117,7 @@ export interface UploadUrlResponse {
  */
 export interface UploadCompleteRequest {
   duration: number;
+  fileSize?: number;  // 開発時のみ使用（R2 Binding が使えない場合）
 }
 
 /**

@@ -5,14 +5,18 @@ compatibility_date = "2024-01-01"
 [vars]
 PODCAST_TITLE = "番組名"
 WEBSITE_URL = "https://example.com"
-R2_ACCOUNT_ID = "xxx"
+R2_ACCOUNT_ID = "f79879b4bd3520260744db022329425d"
 R2_BUCKET_NAME = "podcast-bucket"
-CF_ACCESS_TEAM_DOMAIN = "your-team.cloudflareaccess.com"
-CF_ACCESS_AUD = "your-application-audience-tag"
+CF_ACCESS_TEAM_DOMAIN = "sngazm.cloudflareaccess.com"
+CF_ACCESS_AUD = "241931ff44a448e8a53cbaf504e62605cbc5e2bd347e12b96b92fe36878ecd73"
 
 [[r2_buckets]]
 binding = "R2_BUCKET"
 bucket_name = "podcast-bucket"
+preview_bucket_name = "podcast-bucket-dev"  # wrangler dev 時に使用
 
 [triggers]
 crons = ["*/5 * * * *"]
+
+[dev]
+persist = true

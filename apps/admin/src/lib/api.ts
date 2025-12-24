@@ -45,10 +45,10 @@ export const api = {
       body: JSON.stringify({ contentType, fileSize }),
     }),
 
-  completeUpload: (id: string, duration: number) =>
+  completeUpload: (id: string, duration: number, fileSize: number) =>
     request<{ id: string; status: string }>(`/api/episodes/${id}/upload-complete`, {
       method: "POST",
-      body: JSON.stringify({ duration }),
+      body: JSON.stringify({ duration, fileSize }),
     }),
 };
 

@@ -54,7 +54,7 @@ export default function App() {
       setMessage("処理を完了中...");
 
       const duration = await getAudioDuration(file);
-      await api.completeUpload(episode.id, duration);
+      await api.completeUpload(episode.id, duration, file.size);
 
       // 完了
       setStatus("done");
