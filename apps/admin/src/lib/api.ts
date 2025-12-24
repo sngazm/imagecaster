@@ -21,6 +21,18 @@ async function request<T>(
   return res.json();
 }
 
+export interface Episode {
+  id: string;
+  episodeNumber: number;
+  title: string;
+  status: string;
+  publishedAt: string | null;
+}
+
+export interface EpisodesListResponse {
+  episodes: Episode[];
+}
+
 export interface CreateEpisodeResponse {
   id: string;
   episodeNumber: number;
@@ -33,6 +45,9 @@ export interface UploadUrlResponse {
 }
 
 export const api = {
+  getEpisodes: () =>
+    request<EpisodesListResponse>("/api/episodes"),
+
   createEpisode: (data: { title: string; publishAt: string; skipTranscription: boolean }) =>
     request<CreateEpisodeResponse>("/api/episodes", {
       method: "POST",
