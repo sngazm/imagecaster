@@ -1,5 +1,4 @@
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8787";
-const API_KEY = import.meta.env.VITE_API_KEY || "";
 
 async function request<T>(
   path: string,
@@ -7,8 +6,8 @@ async function request<T>(
 ): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
+    credentials: "include", // Cloudflare Access のクッキーを送信
     headers: {
-      Authorization: `Bearer ${API_KEY}`,
       "Content-Type": "application/json",
       ...options?.headers,
     },

@@ -7,11 +7,11 @@ export interface Env {
   WEBSITE_URL: string;
   R2_ACCOUNT_ID: string;
   R2_BUCKET_NAME: string;
-  ADMIN_API_KEY: string;
-  TRANSCRIBER_API_KEY: string;
   R2_ACCESS_KEY_ID: string;
   R2_SECRET_ACCESS_KEY: string;
-  TRANSCRIBER_WEBHOOK_URL?: string;
+  // Cloudflare Access
+  CF_ACCESS_TEAM_DOMAIN: string;
+  CF_ACCESS_AUD: string;
 }
 
 /**

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import { bearerAuth } from "hono/bearer-auth";
 import { cors } from "hono/cors";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { Env, EpisodeMeta } from "./types";
 import { episodes } from "./routes/episodes";
 import { upload } from "./routes/upload";
@@ -35,22 +35,26 @@ app.get("/health", (c) => {
 // API ルート（認証必要）
 const api = new Hono<{ Bindings: Env }>();
 
-// Bearer Token 認証
+// Cloudflare Access JWT 認証
 api.use("*", async (c, next) => {
-  const authHeader = c.req.header("Authorization");
+  const jwt = c.req.header("Cf-Access-Jwt-Assertion");
 
-  if (!authHeader?.startsWith("Bearer ")) {
-    return c.json({ error: "Unauthorized" }, 401);
+  if (!jwt) {
+    return c.json({ error: "Unauthorized: Missing Access token" }, 401);
   }
 
-  const token = authHeader.slice(7);
+  try {
+    const jwksUrl = new URL(
+      `https://${c.env.CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/certs`
+    );
+    const JWKS = createRemoteJWKSet(jwksUrl);
 
-  // ADMIN_API_KEY または TRANSCRIBER_API_KEY で認証
-  if (
-    token !== c.env.ADMIN_API_KEY &&
-    token !== c.env.TRANSCRIBER_API_KEY
-  ) {
-    return c.json({ error: "Unauthorized" }, 401);
+    await jwtVerify(jwt, JWKS, {
+      audience: c.env.CF_ACCESS_AUD,
+    });
+  } catch (err) {
+    console.error("JWT verification failed:", err);
+    return c.json({ error: "Unauthorized: Invalid token" }, 401);
   }
 
   await next();

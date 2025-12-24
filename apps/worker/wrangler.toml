@@ -7,6 +7,8 @@ PODCAST_TITLE = "番組名"
 WEBSITE_URL = "https://example.com"
 R2_ACCOUNT_ID = "xxx"
 R2_BUCKET_NAME = "podcast-bucket"
+CF_ACCESS_TEAM_DOMAIN = "your-team.cloudflareaccess.com"
+CF_ACCESS_AUD = "your-application-audience-tag"
 
 [[r2_buckets]]
 binding = "R2_BUCKET"
