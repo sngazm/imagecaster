@@ -22,6 +22,21 @@ h1 {
   font-size: 24px;
 }
 
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.page-header h1 {
+  margin-bottom: 0;
+}
+
+.page-header .button {
+  width: auto;
+}
+
 .form-group {
   margin-bottom: 20px;
 }
@@ -45,24 +60,49 @@ input[type="file"] {
   background: white;
 }
 
-button {
-  background: #0066cc;
-  color: white;
+button,
+.button {
+  display: inline-block;
   border: none;
   padding: 12px 24px;
   border-radius: 8px;
   font-size: 16px;
   cursor: pointer;
+  text-decoration: none;
+  text-align: center;
+}
+
+button:disabled,
+.button:disabled {
+  background: #ccc;
+  color: #666;
+  cursor: not-allowed;
+}
+
+.button.primary,
+button.primary,
+form button {
+  background: #0066cc;
+  color: white;
   width: 100%;
 }
 
-button:hover {
+.button.primary:hover,
+button.primary:hover,
+form button:hover {
   background: #0052a3;
 }
 
-button:disabled {
-  background: #ccc;
-  cursor: not-allowed;
+.button.secondary,
+button.secondary {
+  background: #6c757d;
+  color: white;
+  width: auto;
+}
+
+.button.secondary:hover,
+button.secondary:hover {
+  background: #5a6268;
 }
 
 .progress {
@@ -169,13 +209,3 @@ button:disabled {
   color: #721c24;
 }
 
-.refresh-button {
-  width: auto;
-  padding: 8px 16px;
-  font-size: 14px;
-  background: #6c757d;
-}
-
-.refresh-button:hover {
-  background: #5a6268;
-}
