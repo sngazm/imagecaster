@@ -1,14 +1,18 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import EpisodeList from "./pages/EpisodeList";
 import EpisodeNew from "./pages/EpisodeNew";
+import EpisodeDetail from "./pages/EpisodeDetail";
 
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<EpisodeList />} />
-        <Route path="/new" element={<EpisodeNew />} />
-      </Routes>
+      <div className="min-h-screen bg-zinc-950 text-zinc-100">
+        <Routes>
+          <Route path="/" element={<EpisodeList />} />
+          <Route path="/new" element={<EpisodeNew />} />
+          <Route path="/episodes/:id" element={<EpisodeDetail />} />
+        </Routes>
+      </div>
     </BrowserRouter>
   );
 }

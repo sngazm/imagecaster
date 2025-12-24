@@ -6,7 +6,7 @@ async function request<T>(
 ): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
-    credentials: "include", // Cloudflare Access のクッキーを送信
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...options?.headers,
@@ -29,6 +29,22 @@ export interface Episode {
   publishedAt: string | null;
 }
 
+export interface EpisodeDetail {
+  id: string;
+  episodeNumber: number;
+  title: string;
+  description: string;
+  duration: number;
+  fileSize: number;
+  audioUrl: string;
+  transcriptUrl: string | null;
+  skipTranscription: boolean;
+  status: string;
+  createdAt: string;
+  publishAt: string;
+  publishedAt: string | null;
+}
+
 export interface EpisodesListResponse {
   episodes: Episode[];
 }
@@ -48,10 +64,34 @@ export const api = {
   getEpisodes: () =>
     request<EpisodesListResponse>("/api/episodes"),
 
-  createEpisode: (data: { title: string; publishAt: string; skipTranscription: boolean }) =>
+  getEpisode: (id: string) =>
+    request<EpisodeDetail>(`/api/episodes/${id}`),
+
+  createEpisode: (data: {
+    title: string;
+    description?: string;
+    publishAt: string;
+    skipTranscription: boolean;
+  }) =>
     request<CreateEpisodeResponse>("/api/episodes", {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+
+  updateEpisode: (id: string, data: {
+    title?: string;
+    description?: string;
+    publishAt?: string;
+    skipTranscription?: boolean;
+  }) =>
+    request<EpisodeDetail>(`/api/episodes/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  deleteEpisode: (id: string) =>
+    request<{ success: boolean }>(`/api/episodes/${id}`, {
+      method: "DELETE",
     }),
 
   getUploadUrl: (id: string, contentType: string, fileSize: number) =>
@@ -94,4 +134,20 @@ export function getAudioDuration(file: File): Promise<number> {
       reject(new Error("Failed to load audio"));
     };
   });
+}
+
+export function formatDuration(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) {
+    return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  }
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
