@@ -12,6 +12,8 @@ export interface Env {
   // Cloudflare Access
   CF_ACCESS_TEAM_DOMAIN: string;
   CF_ACCESS_AUD: string;
+  // Deploy Hook（Cloudflare Pages）
+  WEB_DEPLOY_HOOK_URL?: string;
   // ローカル開発用
   SKIP_AUTH?: string;
 }

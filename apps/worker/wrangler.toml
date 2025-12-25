@@ -18,5 +18,10 @@ preview_bucket_name = "podcast-bucket-dev"  # wrangler dev 時に使用
 [triggers]
 crons = ["*/5 * * * *"]
 
+# Secrets (set via `wrangler secret put <NAME>`):
+# - R2_ACCESS_KEY_ID
+# - R2_SECRET_ACCESS_KEY
+# - WEB_DEPLOY_HOOK_URL (optional: Cloudflare Pages Deploy Hook URL)
+
 [dev]
 persist = true
