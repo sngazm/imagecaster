@@ -59,25 +59,19 @@ pnpm install
 
 1. 同様に `podcast-bucket-dev` を作成
 
-### 3. 開発用バケットの CORS 設定
+### 3. CORS 設定を適用
 
-1. `podcast-bucket-dev` を開く
-2. **Settings** タブ
-3. **CORS Policy** セクションで **Edit CORS policy**
-4. 以下を入力:
+ブラウザからのアップロード・再生に必要です。`apps/worker/r2-cors.json` に設定が用意されています。
 
-```json
-[
-  {
-    "AllowedOrigins": ["http://localhost:5173"],
-    "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
-    "AllowedHeaders": ["*"],
-    "MaxAgeSeconds": 3600
-  }
-]
+```bash
+cd apps/worker
+wrangler r2 bucket cors set podcast-bucket --file r2-cors.json
+wrangler r2 bucket cors set podcast-bucket-dev --file r2-cors.json
 ```
 
-5. **Save** をクリック
+この設定では:
+- **GET/HEAD**: 全オリジン許可（ポッドキャストアプリ、Web プレイヤー向け）
+- **PUT**: 管理画面のオリジンのみ許可（セキュリティのため）
 
 ### 4. R2 API Token を作成
 
@@ -108,6 +102,15 @@ Presigned URL の生成に必要です。
 
 管理画面の認証に使用します。
 
+### ⚠️ 重要: Admin と Worker を同一アプリケーションに登録
+
+**異なるドメイン間で SSO を有効にするため、Admin と Worker を同一の Access アプリケーションに登録する必要があります。**
+
+別々のアプリケーションにすると:
+- AUD（Audience）が異なる
+- JWT 検証が失敗する
+- CORS エラーや 401 エラーが発生する
+
 ### 1. Zero Trust ダッシュボードにアクセス
 
 1. Cloudflare ダッシュボード左メニューから **Zero Trust** を選択
@@ -124,11 +127,11 @@ Presigned URL の生成に必要です。
 
 **Configure app:**
 
-1. **Application name**: `Podcast Admin`（任意）
+1. **Application name**: `Podcast Platform`（任意）
 2. **Session Duration**: お好みで設定
-3. **Application domain**:
-   - **Subdomain**: Worker のサブドメイン（例: `podcast-worker`）
-   - **Domain**: 使用するドメイン（例: `your-domain.workers.dev`）
+3. **Application domain に両方追加:**
+   - Admin: `xxx.pages.dev`
+   - Worker: `podcast-worker.xxx.workers.dev`
 4. **Next** をクリック
 
 **Add policies:**
@@ -141,9 +144,10 @@ Presigned URL の生成に必要です。
    - または **Selector**: `Emails ending in` で `@your-domain.com` など
 4. **Next** をクリック
 
-**Setup:**
+**Setup / CORS 設定:**
 
-1. 追加設定は必要に応じて
+1. **「オリジンへのオプション リクエストをバイパスする」を ON** にする
+   - これをしないと CORS preflight が失敗します
 2. **Add application** をクリック
 
 ### 4. AUD を確認
@@ -151,6 +155,7 @@ Presigned URL の生成に必要です。
 1. 作成したアプリケーションの詳細を開く
 2. **Overview** タブ
 3. **Application Audience (AUD) Tag** をメモ
+4. **この AUD を Worker の `CF_ACCESS_AUD` に設定**
 
 ### 5. Team Domain を確認
 
@@ -261,18 +266,7 @@ pnpm deploy:admin
 
 ### 3. 本番用バケットの CORS 設定
 
-`podcast-bucket` にも CORS を設定:
-
-```json
-[
-  {
-    "AllowedOrigins": ["https://your-admin-domain.pages.dev"],
-    "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
-    "AllowedHeaders": ["*"],
-    "MaxAgeSeconds": 3600
-  }
-]
-```
+セットアップ時に `r2-cors.json` を適用済みであれば、追加設定は不要です。
 
 ---
 
@@ -283,17 +277,26 @@ pnpm deploy:admin
 **症状**: `Access to fetch has been blocked by CORS policy`
 
 **解決策**:
-1. R2 バケットの CORS 設定を確認
-2. `AllowedOrigins` にリクエスト元のドメインが含まれているか確認
-3. Worker の CORS 設定が正しいか確認
+1. R2 バケットの CORS 設定を確認（`wrangler r2 bucket cors list podcast-bucket`）
+2. Cloudflare Access で「オリジンへのオプション リクエストをバイパスする」が ON か確認
+3. Worker の CORS 設定で対象オリジンが許可されているか確認
 
-### 401 Unauthorized エラー
+### 401 Unauthorized: Missing Access token
 
 **症状**: `Unauthorized: Missing Access token`
 
 **解決策**:
 - ローカル開発時: `.dev.vars` に `SKIP_AUTH=true` があるか確認
-- 本番: Cloudflare Access の設定を確認
+- 本番: Cloudflare Access でログインしているか確認
+
+### 401 Unauthorized: Invalid token
+
+**症状**: `Unauthorized: Invalid token`
+
+**解決策**:
+1. **Admin と Worker が同一の Access アプリケーションに登録されているか確認**
+2. `CF_ACCESS_AUD` が正しいか確認（Access アプリケーションの AUD と完全一致）
+3. Worker を再デプロイ（`wrangler deploy`）
 
 ### Episode not found エラー
 
