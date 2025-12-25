@@ -1,0 +1,72 @@
+---
+const feedUrl = import.meta.env.FEED_URL || "/feed.xml";
+---
+
+<section class="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+  <h2 class="mb-4 text-lg font-bold text-zinc-900 dark:text-zinc-100">
+    番組を購読
+  </h2>
+
+  <p class="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
+    お好みのポッドキャストアプリで購読できます
+  </p>
+
+  <div class="flex flex-wrap gap-3">
+    <a
+      href={`https://podcasts.apple.com/podcast/feed/${encodeURIComponent(feedUrl)}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-b from-purple-500 to-purple-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:from-purple-600 hover:to-purple-700"
+    >
+      <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
+      </svg>
+      Apple Podcasts
+    </a>
+
+    <a
+      href={`https://www.google.com/podcasts?feed=${encodeURIComponent(feedUrl)}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-b from-blue-500 to-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:from-blue-600 hover:to-blue-700"
+    >
+      <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
+      </svg>
+      Google Podcasts
+    </a>
+
+    <a
+      href={feedUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-b from-orange-500 to-orange-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:from-orange-600 hover:to-orange-700"
+    >
+      <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M6.18 15.64a2.18 2.18 0 1 1 0 4.36 2.18 2.18 0 0 1 0-4.36m0-12a14.18 14.18 0 0 1 14.18 14.18h-3.27A10.91 10.91 0 0 0 6.18 6.91V3.64m0 6.55a7.64 7.64 0 0 1 7.64 7.63H10.5a4.36 4.36 0 0 0-4.32-4.36v-3.27Z"/>
+      </svg>
+      RSS フィード
+    </a>
+  </div>
+
+  <div class="mt-4">
+    <label class="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
+      RSS URL
+    </label>
+    <div class="flex rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800">
+      <input
+        type="text"
+        readonly
+        value={feedUrl}
+        class="flex-1 bg-transparent px-3 py-2 text-sm text-zinc-700 outline-none dark:text-zinc-300"
+      />
+      <button
+        type="button"
+        onclick={`navigator.clipboard.writeText('${feedUrl}'); this.textContent = 'コピーしました！'; setTimeout(() => this.textContent = 'コピー', 2000);`}
+        class="border-l border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-700"
+      >
+        コピー
+      </button>
+    </div>
+  </div>
+</section>
