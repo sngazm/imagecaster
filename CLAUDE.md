@@ -138,8 +138,20 @@ podcast-bucket/
 
 ## Cloudflare Access 設定手順
 
+### 重要: Admin と Worker を同一アプリケーションに登録
+
+異なるドメイン間で SSO を有効にするため、**Admin と Worker を同一の Access アプリケーション**に登録する必要がある。
+
 1. Zero Trust ダッシュボードでアプリケーション作成
-2. Worker/Pages のドメインを保護対象に設定
+2. **Application domain に両方追加:**
+   - Admin: `xxx.pages.dev`
+   - Worker: `podcast-worker.xxx.workers.dev`
 3. 認証ポリシー設定（メール、Google等）
-4. Service Token 作成（transcriber用）
-5. AUD をメモして Worker の環境変数に設定
+4. **CORS 設定で「オリジンへのオプション リクエストをバイパスする」を ON**
+5. Application Audience (AUD) をコピーして Worker の `CF_ACCESS_AUD` に設定
+6. Service Token 作成（transcriber用）
+
+### なぜ同一アプリケーションが必要か
+
+- 別々のアプリケーションだと AUD が異なり、JWT 検証が失敗する
+- 同一アプリケーションなら SSO が効き、Admin でログイン済みなら Worker へのリクエストも認証される

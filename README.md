@@ -102,10 +102,17 @@ wrangler secret put WEB_DEPLOY_HOOK_URL
 
 ### 5. Cloudflare Access 設定
 
+**重要:** Admin と Worker は **同一の Access アプリケーション** に登録する必要があります（異なるアプリケーションだと AUD が異なり、認証が失敗します）。
+
 1. [Zero Trust ダッシュボード](https://one.dash.cloudflare.com/) でアプリケーション作成
-2. Worker と Pages のドメインを保護対象に設定
+2. **Application domain に両方追加:**
+   - Admin: `xxx.pages.dev`
+   - Worker: `podcast-worker.xxx.workers.dev`
 3. 認証ポリシー設定（メール、Google 等）
-4. AUD を `wrangler.toml` の `CF_ACCESS_AUD` に設定
+4. **CORS 設定:**
+   - 「オリジンへのオプション リクエストをバイパスする」を **ON**
+5. Application Audience (AUD) をコピーして `wrangler.toml` の `CF_ACCESS_AUD` に設定
+6. Service Token 作成（transcriber 用、任意）
 
 ## 開発
 
