@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import EpisodeList from "./pages/EpisodeList";
 import EpisodeNew from "./pages/EpisodeNew";
 import EpisodeDetail from "./pages/EpisodeDetail";
+import Settings from "./pages/Settings";
 
 export default function App() {
   return (
@@ -11,6 +12,7 @@ export default function App() {
           <Route path="/" element={<EpisodeList />} />
           <Route path="/new" element={<EpisodeNew />} />
           <Route path="/episodes/:id" element={<EpisodeDetail />} />
+          <Route path="/settings" element={<Settings />} />
         </Routes>
       </div>
     </BrowserRouter>

@@ -117,8 +117,11 @@ upload.post("/:id/upload-complete", async (c) => {
     meta.fileSize = fileSize;
     meta.audioUrl = `https://${c.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${c.env.R2_BUCKET_NAME}/${audioKey}`;
 
-    // skipTranscription に応じてステータスを設定
-    if (meta.skipTranscription) {
+    // publishAt がnullの場合はdraft状態を維持（下書き保存）
+    if (meta.publishAt === null) {
+      meta.status = "draft";
+    } else if (meta.skipTranscription) {
+      // skipTranscription に応じてステータスを設定
       const now = new Date();
       if (new Date(meta.publishAt) <= now) {
         meta.status = "published";
@@ -188,8 +191,11 @@ upload.post("/:id/upload-from-url", async (c) => {
     meta.fileSize = size;
     meta.audioUrl = `https://${c.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${c.env.R2_BUCKET_NAME}/episodes/${id}/audio.mp3`;
 
-    // skipTranscription に応じてステータスを設定
-    if (meta.skipTranscription) {
+    // publishAt がnullの場合はdraft状態を維持（下書き保存）
+    if (meta.publishAt === null) {
+      meta.status = "draft";
+    } else if (meta.skipTranscription) {
+      // skipTranscription に応じてステータスを設定
       const now = new Date();
       if (new Date(meta.publishAt) <= now) {
         meta.status = "published";

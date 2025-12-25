@@ -23,26 +23,80 @@ async function request<T>(
 
 export interface Episode {
   id: string;
+  slug: string;
   episodeNumber: number;
   title: string;
   status: string;
+  publishAt: string | null;
   publishedAt: string | null;
 }
 
 export interface EpisodeDetail {
   id: string;
+  slug: string;
   episodeNumber: number;
   title: string;
   description: string;
   duration: number;
   fileSize: number;
   audioUrl: string;
+  sourceAudioUrl: string | null;
   transcriptUrl: string | null;
   skipTranscription: boolean;
   status: string;
   createdAt: string;
-  publishAt: string;
+  publishAt: string | null;
   publishedAt: string | null;
+}
+
+export interface PodcastSettings {
+  title: string;
+  description: string;
+  author: string;
+  email: string;
+  language: string;
+  category: string;
+  artworkUrl: string;
+  websiteUrl: string;
+  explicit: boolean;
+}
+
+export interface DescriptionTemplate {
+  id: string;
+  name: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RssPreviewResponse {
+  podcast: {
+    title: string;
+    description: string;
+    author: string;
+    artworkUrl: string;
+    language: string;
+    category: string;
+  };
+  episodeCount: number;
+  episodes: Array<{
+    episodeNumber: number;
+    title: string;
+    pubDate: string;
+    duration: number;
+    hasAudio: boolean;
+  }>;
+}
+
+export interface RssImportResponse {
+  imported: number;
+  skipped: number;
+  episodes: Array<{
+    title: string;
+    slug: string;
+    status: "imported" | "skipped";
+    reason?: string;
+  }>;
 }
 
 export interface EpisodesListResponse {
@@ -51,6 +105,7 @@ export interface EpisodesListResponse {
 
 export interface CreateEpisodeResponse {
   id: string;
+  slug: string;
   episodeNumber: number;
   status: string;
 }
@@ -60,7 +115,14 @@ export interface UploadUrlResponse {
   expiresIn: number;
 }
 
+export interface ArtworkUploadUrlResponse {
+  uploadUrl: string;
+  expiresIn: number;
+  artworkUrl: string;
+}
+
 export const api = {
+  // Episodes
   getEpisodes: () =>
     request<EpisodesListResponse>("/api/episodes"),
 
@@ -69,9 +131,11 @@ export const api = {
 
   createEpisode: (data: {
     title: string;
+    slug?: string;
+    episodeNumber?: number;
     description?: string;
-    publishAt: string;
-    skipTranscription: boolean;
+    publishAt?: string | null;
+    skipTranscription?: boolean;
   }) =>
     request<CreateEpisodeResponse>("/api/episodes", {
       method: "POST",
@@ -80,8 +144,10 @@ export const api = {
 
   updateEpisode: (id: string, data: {
     title?: string;
+    slug?: string;
+    episodeNumber?: number;
     description?: string;
-    publishAt?: string;
+    publishAt?: string | null;
     skipTranscription?: boolean;
   }) =>
     request<EpisodeDetail>(`/api/episodes/${id}`, {
@@ -104,6 +170,62 @@ export const api = {
     request<{ id: string; status: string }>(`/api/episodes/${id}/upload-complete`, {
       method: "POST",
       body: JSON.stringify({ duration, fileSize }),
+    }),
+
+  // Settings
+  getSettings: () =>
+    request<PodcastSettings>("/api/settings"),
+
+  updateSettings: (data: Partial<PodcastSettings>) =>
+    request<PodcastSettings>("/api/settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  getArtworkUploadUrl: (contentType: string, fileSize: number) =>
+    request<ArtworkUploadUrlResponse>("/api/settings/artwork/upload-url", {
+      method: "POST",
+      body: JSON.stringify({ contentType, fileSize }),
+    }),
+
+  completeArtworkUpload: (artworkUrl: string) =>
+    request<{ success: boolean; artworkUrl: string }>("/api/settings/artwork/upload-complete", {
+      method: "POST",
+      body: JSON.stringify({ artworkUrl }),
+    }),
+
+  // Templates
+  getTemplates: () =>
+    request<DescriptionTemplate[]>("/api/templates"),
+
+  createTemplate: (data: { name: string; content: string }) =>
+    request<DescriptionTemplate>("/api/templates", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateTemplate: (id: string, data: { name?: string; content?: string }) =>
+    request<DescriptionTemplate>(`/api/templates/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  deleteTemplate: (id: string) =>
+    request<{ success: boolean }>(`/api/templates/${id}`, {
+      method: "DELETE",
+    }),
+
+  // Import
+  previewRssImport: (rssUrl: string) =>
+    request<RssPreviewResponse>("/api/import/rss/preview", {
+      method: "POST",
+      body: JSON.stringify({ rssUrl }),
+    }),
+
+  importRss: (rssUrl: string) =>
+    request<RssImportResponse>("/api/import/rss", {
+      method: "POST",
+      body: JSON.stringify({ rssUrl }),
     }),
 };
 

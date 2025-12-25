@@ -1,17 +1,28 @@
-import { useState, FormEvent, ChangeEvent } from "react";
+import { useState, useEffect, FormEvent, ChangeEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, uploadToR2, getAudioDuration } from "../lib/api";
+import type { DescriptionTemplate } from "../lib/api";
+import { HtmlEditor } from "../components/HtmlEditor";
 
 type Status = "idle" | "creating" | "uploading" | "completing" | "done" | "error";
 
 export default function EpisodeNew() {
   const navigate = useNavigate();
   const [title, setTitle] = useState("");
+  const [slug, setSlug] = useState("");
+  const [episodeNumber, setEpisodeNumber] = useState<number | "">("");
   const [description, setDescription] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [skipTranscription, setSkipTranscription] = useState(true);
+  const [publishAt, setPublishAt] = useState<string>("");
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState("");
+  const [templates, setTemplates] = useState<DescriptionTemplate[]>([]);
+  const [showTemplates, setShowTemplates] = useState(false);
+
+  useEffect(() => {
+    api.getTemplates().then(setTemplates).catch(console.error);
+  }, []);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
@@ -20,12 +31,12 @@ export default function EpisodeNew() {
     }
   };
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent, isDraft: boolean = false) => {
     e.preventDefault();
 
-    if (!title.trim() || !file) {
+    if (!title.trim()) {
       setStatus("error");
-      setMessage("タイトルと音声ファイルを入力してください");
+      setMessage("タイトルを入力してください");
       return;
     }
 
@@ -35,36 +46,49 @@ export default function EpisodeNew() {
 
       const episode = await api.createEpisode({
         title: title.trim(),
+        slug: slug.trim() || undefined,
+        episodeNumber: episodeNumber === "" ? undefined : episodeNumber,
         description: description.trim(),
-        publishAt: new Date().toISOString(),
+        publishAt: isDraft ? null : (publishAt || new Date().toISOString()),
         skipTranscription,
       });
 
-      setStatus("uploading");
-      setMessage("音声をアップロード中...");
+      // 音声ファイルがある場合のみアップロード
+      if (file) {
+        setStatus("uploading");
+        setMessage("音声をアップロード中...");
 
-      const { uploadUrl } = await api.getUploadUrl(
-        episode.id,
-        file.type || "audio/mpeg",
-        file.size
-      );
+        const { uploadUrl } = await api.getUploadUrl(
+          episode.id,
+          file.type || "audio/mpeg",
+          file.size
+        );
 
-      await uploadToR2(uploadUrl, file);
+        await uploadToR2(uploadUrl, file);
 
-      setStatus("completing");
-      setMessage("処理を完了中...");
+        setStatus("completing");
+        setMessage("処理を完了中...");
 
-      const duration = await getAudioDuration(file);
-      await api.completeUpload(episode.id, duration, file.size);
+        const duration = await getAudioDuration(file);
+        await api.completeUpload(episode.id, duration, file.size);
+      }
 
       setStatus("done");
-      setMessage(`エピソード "${title}" を登録しました`);
+      setMessage(isDraft
+        ? `エピソード "${title}" を下書き保存しました`
+        : `エピソード "${title}" を登録しました`
+      );
 
       setTimeout(() => navigate("/"), 1500);
     } catch (err) {
       setStatus("error");
       setMessage(err instanceof Error ? err.message : "エラーが発生しました");
     }
+  };
+
+  const applyTemplate = (template: DescriptionTemplate) => {
+    setDescription(template.content);
+    setShowTemplates(false);
   };
 
   const isSubmitting = status === "creating" || status === "uploading" || status === "completing";
@@ -84,8 +108,9 @@ export default function EpisodeNew() {
         <h1 className="text-2xl font-bold tracking-tight">新規エピソード</h1>
       </header>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
         <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 space-y-6">
+          {/* Title */}
           <div>
             <label htmlFor="title" className="block text-sm font-medium text-zinc-400 mb-2">
               タイトル
@@ -101,24 +126,84 @@ export default function EpisodeNew() {
             />
           </div>
 
+          {/* Slug and Episode Number */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="slug" className="block text-sm font-medium text-zinc-400 mb-2">
+                Slug（任意）
+              </label>
+              <input
+                type="text"
+                id="slug"
+                value={slug}
+                onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                placeholder="my-episode"
+                disabled={isSubmitting || status === "done"}
+                className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all disabled:opacity-50 font-mono text-sm"
+              />
+              <p className="text-xs text-zinc-600 mt-1">URLに使用されます。空欄で自動生成</p>
+            </div>
+            <div>
+              <label htmlFor="episodeNumber" className="block text-sm font-medium text-zinc-400 mb-2">
+                エピソード番号（任意）
+              </label>
+              <input
+                type="number"
+                id="episodeNumber"
+                value={episodeNumber}
+                onChange={(e) => setEpisodeNumber(e.target.value === "" ? "" : parseInt(e.target.value, 10))}
+                placeholder="自動採番"
+                min={1}
+                disabled={isSubmitting || status === "done"}
+                className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all disabled:opacity-50"
+              />
+              <p className="text-xs text-zinc-600 mt-1">空欄で連番を自動設定</p>
+            </div>
+          </div>
+
+          {/* Description with template selector */}
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-zinc-400 mb-2">
-              説明（任意）
-            </label>
-            <textarea
-              id="description"
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-zinc-400">
+                説明（任意）
+              </label>
+              {templates.length > 0 && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowTemplates(!showTemplates)}
+                    className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                  >
+                    テンプレートから挿入
+                  </button>
+                  {showTemplates && (
+                    <div className="absolute right-0 top-full mt-1 w-64 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-10">
+                      {templates.map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => applyTemplate(t)}
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-zinc-700 first:rounded-t-lg last:rounded-b-lg"
+                        >
+                          {t.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <HtmlEditor
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="エピソードの説明"
-              rows={4}
-              disabled={isSubmitting || status === "done"}
-              className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all resize-none disabled:opacity-50"
+              onChange={setDescription}
+              placeholder="エピソードの説明を入力..."
             />
           </div>
 
+          {/* Audio file */}
           <div>
             <label htmlFor="audio" className="block text-sm font-medium text-zinc-400 mb-2">
-              音声ファイル
+              音声ファイル（任意）
             </label>
             <div className="relative">
               <input
@@ -135,8 +220,26 @@ export default function EpisodeNew() {
                 </div>
               )}
             </div>
+            <p className="text-xs text-zinc-600 mt-1">後からアップロードすることもできます</p>
           </div>
 
+          {/* Publish At */}
+          <div>
+            <label htmlFor="publishAt" className="block text-sm font-medium text-zinc-400 mb-2">
+              公開日時（任意）
+            </label>
+            <input
+              type="datetime-local"
+              id="publishAt"
+              value={publishAt}
+              onChange={(e) => setPublishAt(e.target.value)}
+              disabled={isSubmitting || status === "done"}
+              className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-100 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all disabled:opacity-50"
+            />
+            <p className="text-xs text-zinc-600 mt-1">空欄で即時公開（下書き保存の場合は無視）</p>
+          </div>
+
+          {/* Skip transcription */}
           <label className="flex items-start gap-3 p-4 bg-zinc-900 border border-zinc-800 rounded-lg cursor-pointer hover:border-zinc-700 transition-colors">
             <input
               type="checkbox"
@@ -150,12 +253,13 @@ export default function EpisodeNew() {
                 文字起こしをスキップ
               </span>
               <span className="block text-xs text-zinc-500 mt-1">
-                スキップすると即座に公開予約状態になります
+                スキップすると音声アップロード後すぐに公開予約状態になります
               </span>
             </div>
           </label>
         </div>
 
+        {/* Status messages */}
         {status !== "idle" && status !== "done" && status !== "error" && (
           <div className="flex items-center gap-3 p-4 bg-blue-500/10 border border-blue-500/50 rounded-lg text-blue-400">
             <div className="w-5 h-5 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
@@ -181,13 +285,24 @@ export default function EpisodeNew() {
           </div>
         )}
 
-        <button
-          type="submit"
-          disabled={isSubmitting || status === "done"}
-          className="w-full py-3 bg-violet-600 hover:bg-violet-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-medium rounded-lg transition-all hover:shadow-lg hover:shadow-violet-500/25 disabled:shadow-none disabled:cursor-not-allowed"
-        >
-          {isSubmitting ? "処理中..." : "登録"}
-        </button>
+        {/* Submit buttons */}
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={(e) => handleSubmit(e, true)}
+            disabled={isSubmitting || status === "done"}
+            className="flex-1 py-3 bg-zinc-800 hover:bg-zinc-700 disabled:bg-zinc-900 disabled:text-zinc-600 text-white font-medium rounded-lg transition-all disabled:cursor-not-allowed"
+          >
+            下書き保存
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting || status === "done"}
+            className="flex-1 py-3 bg-violet-600 hover:bg-violet-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-medium rounded-lg transition-all hover:shadow-lg hover:shadow-violet-500/25 disabled:shadow-none disabled:cursor-not-allowed"
+          >
+            {isSubmitting ? "処理中..." : "公開予約"}
+          </button>
+        </div>
       </form>
     </div>
   );

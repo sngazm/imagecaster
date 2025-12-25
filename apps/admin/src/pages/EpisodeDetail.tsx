@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { api, EpisodeDetail as EpisodeDetailType, formatDuration, formatFileSize } from "../lib/api";
+import { api, EpisodeDetail as EpisodeDetailType, formatDuration, formatFileSize, uploadToR2, getAudioDuration } from "../lib/api";
+import type { DescriptionTemplate } from "../lib/api";
+import { HtmlEditor } from "../components/HtmlEditor";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   draft: { label: "下書き", color: "bg-zinc-800 text-zinc-400" },
@@ -31,38 +33,71 @@ export default function EpisodeDetail() {
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
+  const [editSlug, setEditSlug] = useState("");
+  const [editEpisodeNumber, setEditEpisodeNumber] = useState<number | "">("");
   const [editDescription, setEditDescription] = useState("");
+  const [editPublishAt, setEditPublishAt] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [templates, setTemplates] = useState<DescriptionTemplate[]>([]);
+  const [showTemplates, setShowTemplates] = useState(false);
+
+  // Audio upload
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState("");
 
   useEffect(() => {
-    const fetchEpisode = async () => {
+    const fetchData = async () => {
       if (!id) return;
       try {
         setIsLoading(true);
-        const data = await api.getEpisode(id);
+        const [data, templatesData] = await Promise.all([
+          api.getEpisode(id),
+          api.getTemplates(),
+        ]);
         setEpisode(data);
         setEditTitle(data.title);
+        setEditSlug(data.slug || data.id);
+        setEditEpisodeNumber(data.episodeNumber);
         setEditDescription(data.description);
+        setEditPublishAt(data.publishAt ? data.publishAt.slice(0, 16) : "");
+        setTemplates(templatesData);
       } catch (err) {
         setError(err instanceof Error ? err.message : "エピソードの取得に失敗しました");
       } finally {
         setIsLoading(false);
       }
     };
-    fetchEpisode();
+    fetchData();
   }, [id]);
 
   const handleSave = async () => {
     if (!id || !episode) return;
     try {
       setIsSaving(true);
-      const updated = await api.updateEpisode(id, {
+      setError(null);
+
+      const updateData: Parameters<typeof api.updateEpisode>[1] = {
         title: editTitle,
         description: editDescription,
-      });
+        episodeNumber: editEpisodeNumber === "" ? undefined : editEpisodeNumber,
+        publishAt: editPublishAt ? new Date(editPublishAt).toISOString() : null,
+      };
+
+      // slugの変更はdraft状態のみ
+      if (episode.status === "draft" && editSlug !== episode.slug) {
+        updateData.slug = editSlug;
+      }
+
+      const updated = await api.updateEpisode(id, updateData);
       setEpisode(updated);
       setIsEditing(false);
+
+      // slugが変わった場合はURLを更新
+      if (updated.id !== id) {
+        navigate(`/episodes/${updated.id}`, { replace: true });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "更新に失敗しました");
     } finally {
@@ -82,6 +117,43 @@ export default function EpisodeDetail() {
     }
   };
 
+  const handleAudioUpload = async () => {
+    if (!id || !audioFile || !episode) return;
+
+    try {
+      setIsUploading(true);
+      setUploadMessage("アップロード用URLを取得中...");
+
+      const { uploadUrl } = await api.getUploadUrl(
+        id,
+        audioFile.type || "audio/mpeg",
+        audioFile.size
+      );
+
+      setUploadMessage("音声をアップロード中...");
+      await uploadToR2(uploadUrl, audioFile);
+
+      setUploadMessage("処理を完了中...");
+      const duration = await getAudioDuration(audioFile);
+      await api.completeUpload(id, duration, audioFile.size);
+
+      // リロード
+      const updated = await api.getEpisode(id);
+      setEpisode(updated);
+      setAudioFile(null);
+      setUploadMessage("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "アップロードに失敗しました");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const applyTemplate = (template: DescriptionTemplate) => {
+    setEditDescription(template.content);
+    setShowTemplates(false);
+  };
+
   if (isLoading) {
     return (
       <div className="max-w-4xl mx-auto px-6 py-10">
@@ -93,7 +165,7 @@ export default function EpisodeDetail() {
     );
   }
 
-  if (error || !episode) {
+  if (!episode) {
     return (
       <div className="max-w-4xl mx-auto px-6 py-10">
         <Link to="/" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-4">
@@ -110,6 +182,8 @@ export default function EpisodeDetail() {
   }
 
   const status = STATUS_CONFIG[episode.status] || { label: episode.status, color: "bg-zinc-800 text-zinc-400" };
+  const audioUrl = episode.audioUrl || episode.sourceAudioUrl;
+  const canEditSlug = episode.status === "draft";
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-10">
@@ -121,8 +195,18 @@ export default function EpisodeDetail() {
           戻る
         </Link>
         <div className="flex items-start justify-between gap-4">
-          <div>
-            <span className="text-sm font-semibold text-violet-500">#{episode.episodeNumber}</span>
+          <div className="flex-1 min-w-0">
+            {isEditing ? (
+              <input
+                type="number"
+                value={editEpisodeNumber}
+                onChange={(e) => setEditEpisodeNumber(e.target.value === "" ? "" : parseInt(e.target.value, 10))}
+                className="text-sm font-semibold text-violet-500 bg-transparent border-b border-violet-500 focus:outline-none w-20"
+                placeholder="#"
+              />
+            ) : (
+              <span className="text-sm font-semibold text-violet-500">#{episode.episodeNumber}</span>
+            )}
             {isEditing ? (
               <input
                 type="text"
@@ -133,6 +217,20 @@ export default function EpisodeDetail() {
             ) : (
               <h1 className="text-2xl font-bold tracking-tight mt-1">{episode.title}</h1>
             )}
+            {isEditing && canEditSlug && (
+              <div className="mt-2">
+                <label className="text-xs text-zinc-500">Slug:</label>
+                <input
+                  type="text"
+                  value={editSlug}
+                  onChange={(e) => setEditSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                  className="ml-2 text-sm font-mono text-zinc-400 bg-transparent border-b border-zinc-600 focus:outline-none focus:border-violet-500"
+                />
+              </div>
+            )}
+            {!isEditing && (
+              <p className="text-xs text-zinc-500 mt-1 font-mono">{episode.slug || episode.id}</p>
+            )}
           </div>
           <span className={`px-3 py-1 rounded-full text-xs font-medium shrink-0 ${status.color}`}>
             {status.label}
@@ -140,10 +238,49 @@ export default function EpisodeDetail() {
         </div>
       </header>
 
+      {/* Error */}
+      {error && (
+        <div className="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-lg text-red-400">
+          {error}
+          <button onClick={() => setError(null)} className="ml-2 underline">閉じる</button>
+        </div>
+      )}
+
       {/* 音声プレイヤー */}
-      {episode.audioUrl && (
+      {audioUrl ? (
         <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 mb-6">
-          <audio src={episode.audioUrl} controls className="w-full" />
+          <audio src={audioUrl} controls className="w-full" />
+          {episode.sourceAudioUrl && !episode.audioUrl && (
+            <p className="text-xs text-zinc-500 mt-2">外部音声ファイルを参照しています</p>
+          )}
+        </div>
+      ) : (
+        <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 mb-6">
+          <h2 className="text-sm font-medium text-zinc-400 mb-4">音声ファイル</h2>
+          <p className="text-zinc-500 text-sm mb-4">音声ファイルがまだアップロードされていません。</p>
+
+          <input
+            type="file"
+            accept="audio/*"
+            onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
+            disabled={isUploading}
+            className="block w-full text-sm text-zinc-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-zinc-800 file:text-zinc-300 hover:file:bg-zinc-700 disabled:opacity-50"
+          />
+
+          {audioFile && (
+            <div className="mt-3">
+              <p className="text-sm text-zinc-400 mb-2">
+                {audioFile.name} ({(audioFile.size / 1024 / 1024).toFixed(1)} MB)
+              </p>
+              <button
+                onClick={handleAudioUpload}
+                disabled={isUploading}
+                className="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-sm font-medium disabled:opacity-50"
+              >
+                {isUploading ? uploadMessage : "アップロード"}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -169,20 +306,61 @@ export default function EpisodeDetail() {
           </div>
         </div>
 
+        {/* 公開日時 */}
+        {isEditing && (
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-zinc-400 mb-2">公開日時</label>
+            <input
+              type="datetime-local"
+              value={editPublishAt}
+              onChange={(e) => setEditPublishAt(e.target.value)}
+              className="w-full px-4 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-100 focus:outline-none focus:border-violet-500"
+            />
+            <p className="text-xs text-zinc-600 mt-1">空欄にすると下書き状態になります</p>
+          </div>
+        )}
+
         {/* 説明 */}
         <div className="mt-6">
-          <h3 className="text-sm font-medium text-zinc-400 mb-2">説明</h3>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-zinc-400">説明</h3>
+            {isEditing && templates.length > 0 && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowTemplates(!showTemplates)}
+                  className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                >
+                  テンプレートから挿入
+                </button>
+                {showTemplates && (
+                  <div className="absolute right-0 top-full mt-1 w-64 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-10">
+                    {templates.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => applyTemplate(t)}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-zinc-700 first:rounded-t-lg last:rounded-b-lg"
+                      >
+                        {t.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           {isEditing ? (
-            <textarea
+            <HtmlEditor
               value={editDescription}
-              onChange={(e) => setEditDescription(e.target.value)}
-              rows={4}
-              className="w-full px-4 py-3 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-100 focus:outline-none focus:border-violet-500 resize-none"
+              onChange={setEditDescription}
+              placeholder="エピソードの説明を入力..."
             />
           ) : (
-            <div className="bg-zinc-900 rounded-lg p-4 text-zinc-400 text-sm whitespace-pre-wrap">
-              {episode.description || "説明がありません"}
-            </div>
+            <div
+              className="bg-zinc-900 rounded-lg p-4 text-zinc-400 text-sm prose prose-invert prose-sm max-w-none"
+              dangerouslySetInnerHTML={{ __html: episode.description || "<p>説明がありません</p>" }}
+            />
           )}
         </div>
 
@@ -201,7 +379,11 @@ export default function EpisodeDetail() {
                 onClick={() => {
                   setIsEditing(false);
                   setEditTitle(episode.title);
+                  setEditSlug(episode.slug || episode.id);
+                  setEditEpisodeNumber(episode.episodeNumber);
                   setEditDescription(episode.description);
+                  setEditPublishAt(episode.publishAt ? episode.publishAt.slice(0, 16) : "");
+                  setError(null);
                 }}
                 className="px-5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium rounded-lg transition-all"
               >

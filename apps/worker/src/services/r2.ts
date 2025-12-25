@@ -1,4 +1,4 @@
-import type { Env, PodcastIndex, EpisodeMeta } from "../types";
+import type { Env, PodcastIndex, EpisodeMeta, TemplatesIndex, DescriptionTemplate } from "../types";
 
 /**
  * デフォルトの Podcast インデックス
@@ -148,4 +148,111 @@ export async function getPublishedEpisodes(env: Env): Promise<EpisodeMeta[]> {
       (a, b) =>
         new Date(b.publishedAt!).getTime() - new Date(a.publishedAt!).getTime()
     );
+}
+
+/**
+ * テンプレートインデックスを取得
+ */
+export async function getTemplatesIndex(env: Env): Promise<TemplatesIndex> {
+  const obj = await env.R2_BUCKET.get("templates/descriptions.json");
+
+  if (!obj) {
+    return { templates: [] };
+  }
+
+  const text = await obj.text();
+  return JSON.parse(text) as TemplatesIndex;
+}
+
+/**
+ * テンプレートインデックスを保存
+ */
+export async function saveTemplatesIndex(env: Env, index: TemplatesIndex): Promise<void> {
+  await env.R2_BUCKET.put("templates/descriptions.json", JSON.stringify(index, null, 2), {
+    httpMetadata: {
+      contentType: "application/json",
+    },
+  });
+}
+
+/**
+ * アートワークを保存
+ */
+export async function saveArtwork(
+  env: Env,
+  data: ArrayBuffer,
+  contentType: string
+): Promise<string> {
+  const extension = contentType === "image/png" ? "png" : "jpg";
+  const key = `assets/artwork.${extension}`;
+
+  await env.R2_BUCKET.put(key, data, {
+    httpMetadata: {
+      contentType,
+    },
+  });
+
+  // 公開URLを返す
+  return `${env.WEBSITE_URL}/${key}`;
+}
+
+/**
+ * エピソードをslugで検索
+ */
+export async function findEpisodeBySlug(env: Env, slug: string): Promise<EpisodeMeta | null> {
+  const index = await getIndex(env);
+
+  for (const ref of index.episodes) {
+    try {
+      const meta = await getEpisodeMeta(env, ref.id);
+      if (meta.slug === slug) {
+        return meta;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 次のエピソード番号を取得
+ */
+export async function getNextEpisodeNumber(env: Env): Promise<number> {
+  const index = await getIndex(env);
+
+  if (index.episodes.length === 0) {
+    return 1;
+  }
+
+  const maxNumber = Math.max(...index.episodes.map((ep) => ep.episodeNumber));
+  return maxNumber + 1;
+}
+
+/**
+ * エピソードを別のslug（フォルダ）に移動
+ */
+export async function moveEpisode(
+  env: Env,
+  oldId: string,
+  newSlug: string
+): Promise<void> {
+  const oldPrefix = `episodes/${oldId}/`;
+  const newPrefix = `episodes/${newSlug}/`;
+
+  // 古いフォルダ内のオブジェクトを一覧
+  const listed = await env.R2_BUCKET.list({ prefix: oldPrefix });
+
+  // 各オブジェクトをコピーして削除
+  for (const obj of listed.objects) {
+    const newKey = obj.key.replace(oldPrefix, newPrefix);
+    const data = await env.R2_BUCKET.get(obj.key);
+    if (data) {
+      await env.R2_BUCKET.put(newKey, await data.arrayBuffer(), {
+        httpMetadata: data.httpMetadata,
+      });
+      await env.R2_BUCKET.delete(obj.key);
+    }
+  }
 }

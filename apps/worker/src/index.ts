@@ -4,6 +4,9 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { Env, EpisodeMeta } from "./types";
 import { episodes } from "./routes/episodes";
 import { upload } from "./routes/upload";
+import { settings } from "./routes/settings";
+import { templates } from "./routes/templates";
+import { importRoutes } from "./routes/import";
 import { getIndex, getEpisodeMeta, saveEpisodeMeta } from "./services/r2";
 import { getFeed, regenerateFeed } from "./services/feed";
 
@@ -84,6 +87,15 @@ api.route("/episodes", episodes);
 
 // アップロード関連のルートをマウント（/api/episodes/:id/upload-* の形式）
 api.route("/episodes", upload);
+
+// 設定関連のルートをマウント
+api.route("/settings", settings);
+
+// テンプレート関連のルートをマウント
+api.route("/templates", templates);
+
+// インポート関連のルートをマウント
+api.route("/import", importRoutes);
 
 // API ルートをマウント
 app.route("/api", api);
