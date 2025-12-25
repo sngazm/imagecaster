@@ -10,10 +10,22 @@ import { getFeed, regenerateFeed } from "./services/feed";
 const app = new Hono<{ Bindings: Env }>();
 
 // CORS 設定
+const ALLOWED_ORIGINS = [
+  "http://localhost:5173",
+  "http://localhost:4321",
+];
+
 app.use(
   "*",
   cors({
-    origin: (origin) => origin || "",  // リクエスト元をそのまま許可
+    origin: (origin) => {
+      if (!origin) return "";
+      // 開発環境 or *.pages.dev ドメインを許可
+      if (ALLOWED_ORIGINS.includes(origin) || origin.endsWith(".pages.dev")) {
+        return origin;
+      }
+      return "";
+    },
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Cf-Access-Jwt-Assertion"],
     credentials: true,

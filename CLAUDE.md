@@ -136,10 +136,8 @@ podcast-bucket/
     └── artwork.jpg         # カバーアート
 ```
 
-## Cloudflare Access 設定手順
+## Cloudflare Access 設定
 
-1. Zero Trust ダッシュボードでアプリケーション作成
-2. Worker/Pages のドメインを保護対象に設定
-3. 認証ポリシー設定（メール、Google等）
-4. Service Token 作成（transcriber用）
-5. AUD をメモして Worker の環境変数に設定
+**⚠️ Admin と Worker は同一の Access アプリケーションに登録が必要**（別々だと AUD が異なり認証失敗）
+
+詳細な設定手順は **[docs/SETUP.md](docs/SETUP.md)** を参照。

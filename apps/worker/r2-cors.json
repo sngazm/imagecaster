@@ -1,0 +1,23 @@
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": ["*"],
+        "methods": ["GET", "HEAD"],
+        "headers": ["*"]
+      },
+      "maxAgeSeconds": 86400
+    },
+    {
+      "allowed": {
+        "origins": [
+          "http://localhost:5173",
+          "https://*.pages.dev"
+        ],
+        "methods": ["PUT"],
+        "headers": ["*"]
+      },
+      "maxAgeSeconds": 3600
+    }
+  ]
+}
