@@ -74,6 +74,9 @@ pnpm install
 # Cloudflare ダッシュボードまたは Wrangler CLI で作成
 wrangler r2 bucket create podcast-bucket
 wrangler r2 bucket create podcast-bucket-dev  # 開発用
+
+# CORS 設定を適用（ブラウザからのアップロード・再生に必要）
+wrangler r2 bucket cors put podcast-bucket --file apps/worker/r2-cors.json
 ```
 
 ### 3. R2 API トークン作成
