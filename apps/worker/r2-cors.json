@@ -1,17 +1,19 @@
-[
-  {
-    "AllowedOrigins": ["*"],
-    "AllowedMethods": ["GET", "HEAD"],
-    "AllowedHeaders": ["*"],
-    "MaxAgeSeconds": 86400
-  },
-  {
-    "AllowedOrigins": [
-      "http://localhost:5173",
-      "https://*.pages.dev"
-    ],
-    "AllowedMethods": ["PUT"],
-    "AllowedHeaders": ["*"],
-    "MaxAgeSeconds": 3600
-  }
-]
+{
+  "rules": [
+    {
+      "allowedOrigins": ["*"],
+      "allowedMethods": ["GET", "HEAD"],
+      "allowedHeaders": ["*"],
+      "maxAgeSeconds": 86400
+    },
+    {
+      "allowedOrigins": [
+        "http://localhost:5173",
+        "https://*.pages.dev"
+      ],
+      "allowedMethods": ["PUT"],
+      "allowedHeaders": ["*"],
+      "maxAgeSeconds": 3600
+    }
+  ]
+}
