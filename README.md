@@ -76,8 +76,9 @@ wrangler r2 bucket create podcast-bucket
 wrangler r2 bucket create podcast-bucket-dev  # 開発用
 
 # CORS 設定を適用（ブラウザからのアップロード・再生に必要）
-wrangler r2 bucket cors put podcast-bucket --file apps/worker/r2-cors.json
-wrangler r2 bucket cors put podcast-bucket-dev --file apps/worker/r2-cors.json
+cd apps/worker
+wrangler r2 bucket cors set podcast-bucket --file r2-cors.json
+wrangler r2 bucket cors set podcast-bucket-dev --file r2-cors.json
 ```
 
 ### 3. R2 API トークン作成
