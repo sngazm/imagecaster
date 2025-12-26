@@ -10,7 +10,6 @@ export default function EpisodeNew() {
   const navigate = useNavigate();
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
-  const [episodeNumber, setEpisodeNumber] = useState<number | "">("");
   const [description, setDescription] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [skipTranscription, setSkipTranscription] = useState(true);
@@ -47,7 +46,6 @@ export default function EpisodeNew() {
       const episode = await api.createEpisode({
         title: title.trim(),
         slug: slug.trim() || undefined,
-        episodeNumber: episodeNumber === "" ? undefined : episodeNumber,
         description: description.trim(),
         publishAt: isDraft ? null : (publishAt || new Date().toISOString()),
         skipTranscription,
@@ -142,22 +140,6 @@ export default function EpisodeNew() {
                 className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all disabled:opacity-50 font-mono text-sm"
               />
               <p className="text-xs text-zinc-600 mt-1">URLに使用されます。空欄で自動生成</p>
-            </div>
-            <div>
-              <label htmlFor="episodeNumber" className="block text-sm font-medium text-zinc-400 mb-2">
-                エピソード番号（任意）
-              </label>
-              <input
-                type="number"
-                id="episodeNumber"
-                value={episodeNumber}
-                onChange={(e) => setEpisodeNumber(e.target.value === "" ? "" : parseInt(e.target.value, 10))}
-                placeholder="自動採番"
-                min={1}
-                disabled={isSubmitting || status === "done"}
-                className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all disabled:opacity-50"
-              />
-              <p className="text-xs text-zinc-600 mt-1">空欄で連番を自動設定</p>
             </div>
           </div>
 

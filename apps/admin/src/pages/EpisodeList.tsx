@@ -113,15 +113,12 @@ export default function EpisodeList() {
                 to={`/episodes/${ep.id}`}
                 className="flex items-center gap-4 p-4 bg-zinc-900/50 border border-zinc-800 rounded-xl hover:bg-zinc-900 hover:border-violet-500/50 transition-all group"
               >
-                <span className="text-sm font-semibold text-violet-500 min-w-[48px]">
-                  #{ep.episodeNumber}
-                </span>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-medium text-zinc-200 truncate group-hover:text-white transition-colors">
                     {ep.title}
                   </h3>
                   <p className="text-sm text-zinc-500 mt-0.5">
-                    {formatDate(ep.publishedAt)}
+                    {ep.publishAt ? formatDate(ep.publishAt) : "下書き"}
                   </p>
                 </div>
                 <span className={`px-3 py-1 rounded-full text-xs font-medium ${status.color}`}>

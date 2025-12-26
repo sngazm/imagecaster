@@ -218,20 +218,6 @@ export async function findEpisodeBySlug(env: Env, slug: string): Promise<Episode
 }
 
 /**
- * 次のエピソード番号を取得
- */
-export async function getNextEpisodeNumber(env: Env): Promise<number> {
-  const index = await getIndex(env);
-
-  if (index.episodes.length === 0) {
-    return 1;
-  }
-
-  const maxNumber = Math.max(...index.episodes.map((ep) => ep.episodeNumber));
-  return maxNumber + 1;
-}
-
-/**
  * エピソードを別のslug（フォルダ）に移動
  */
 export async function moveEpisode(

@@ -15,7 +15,6 @@ import {
   saveIndex,
   deleteEpisode,
   findEpisodeBySlug,
-  getNextEpisodeNumber,
   moveEpisode,
 } from "../services/r2";
 import { regenerateFeed } from "../services/feed";
@@ -23,7 +22,7 @@ import { regenerateFeed } from "../services/feed";
 const episodes = new Hono<{ Bindings: Env }>();
 
 /**
- * GET /api/episodes - エピソード一覧を取得
+ * GET /api/episodes - エピソード一覧を取得（publishAt降順）
  */
 episodes.get("/", async (c) => {
   const index = await getIndex(c.env);
@@ -33,8 +32,7 @@ episodes.get("/", async (c) => {
       const meta = await getEpisodeMeta(c.env, ref.id);
       return {
         id: meta.id,
-        slug: meta.slug || meta.id, // 後方互換性のためidをフォールバック
-        episodeNumber: meta.episodeNumber,
+        slug: meta.slug || meta.id,
         title: meta.title,
         status: meta.status,
         publishAt: meta.publishAt,
@@ -42,6 +40,14 @@ episodes.get("/", async (c) => {
       };
     })
   );
+
+  // publishAt降順でソート（nullは最後）
+  episodeList.sort((a, b) => {
+    if (!a.publishAt && !b.publishAt) return 0;
+    if (!a.publishAt) return 1;
+    if (!b.publishAt) return -1;
+    return new Date(b.publishAt).getTime() - new Date(a.publishAt).getTime();
+  });
 
   return c.json({ episodes: episodeList });
 });
@@ -68,6 +74,15 @@ function isValidSlug(slug: string): boolean {
 }
 
 /**
+ * ユニークなslugを生成
+ */
+function generateUniqueSlug(): string {
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).slice(2, 6);
+  return `ep-${timestamp}-${random}`;
+}
+
+/**
  * POST /api/episodes - 新規エピソード作成（メタデータのみ）
  */
 episodes.post("/", async (c) => {
@@ -80,20 +95,7 @@ episodes.post("/", async (c) => {
 
   const index = await getIndex(c.env);
 
-  // エピソード番号の決定（指定がなければ自動採番）
-  let newEpisodeNumber: number;
-  if (body.episodeNumber !== undefined) {
-    // 重複チェック
-    const existing = index.episodes.find((ep) => ep.episodeNumber === body.episodeNumber);
-    if (existing) {
-      return c.json({ error: `Episode number ${body.episodeNumber} already exists` }, 400);
-    }
-    newEpisodeNumber = body.episodeNumber;
-  } else {
-    newEpisodeNumber = await getNextEpisodeNumber(c.env);
-  }
-
-  // slugの決定（指定がなければエピソード番号から自動生成）
+  // slugの決定（指定がなければ自動生成）
   let slug: string;
   if (body.slug) {
     // バリデーション
@@ -107,16 +109,15 @@ episodes.post("/", async (c) => {
     }
     slug = body.slug;
   } else {
-    slug = `ep-${String(newEpisodeNumber).padStart(3, "0")}`;
+    slug = generateUniqueSlug();
   }
 
   const now = new Date().toISOString();
 
   // 新しいエピソードメタデータを作成
   const newMeta: EpisodeMeta = {
-    id: slug, // slugをIDとして使用（フォルダ名になる）
+    id: slug,
     slug,
-    episodeNumber: newEpisodeNumber,
     title: body.title,
     description: body.description || "",
     duration: 0,
@@ -124,30 +125,24 @@ episodes.post("/", async (c) => {
     audioUrl: "",
     sourceAudioUrl: null,
     transcriptUrl: null,
+    ogImageUrl: null,
     skipTranscription: body.skipTranscription ?? false,
     status: "draft",
     createdAt: now,
-    publishAt: body.publishAt ?? null, // nullなら下書き
+    publishAt: body.publishAt ?? null,
     publishedAt: null,
   };
 
   // メタデータを保存
-  console.log(`[create] Saving episode meta: ${slug}`);
   await saveEpisodeMeta(c.env, newMeta);
-  console.log(`[create] Saved episode meta: ${slug}`);
 
   // インデックスを更新
-  index.episodes.push({
-    id: slug,
-    episodeNumber: newEpisodeNumber,
-  });
+  index.episodes.push({ id: slug });
   await saveIndex(c.env, index);
-  console.log(`[create] Updated index with: ${slug}`);
 
   const response: CreateEpisodeResponse = {
     id: slug,
     slug,
-    episodeNumber: newEpisodeNumber,
     status: "draft",
   };
 
@@ -181,22 +176,6 @@ episodes.put("/:id", async (c) => {
       }
       newSlug = body.slug;
       needsMove = true;
-    }
-
-    // episodeNumberの更新
-    if (body.episodeNumber !== undefined && body.episodeNumber !== meta.episodeNumber) {
-      const existing = index.episodes.find(
-        (ep) => ep.episodeNumber === body.episodeNumber && ep.id !== meta.id
-      );
-      if (existing) {
-        return c.json({ error: `Episode number ${body.episodeNumber} already exists` }, 400);
-      }
-      meta.episodeNumber = body.episodeNumber;
-      // インデックスも更新
-      const indexEntry = index.episodes.find((ep) => ep.id === meta.id);
-      if (indexEntry) {
-        indexEntry.episodeNumber = body.episodeNumber;
-      }
     }
 
     // 更新可能なフィールドを更新

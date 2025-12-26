@@ -119,7 +119,7 @@ function parsePodcastMeta(xml: string): {
 /**
  * タイトルからslugを生成
  */
-function generateSlug(title: string, episodeNumber: number): string {
+function generateSlug(title: string): string {
   // 簡易的なslug生成（英数字とハイフンのみ）
   let slug = title
     .toLowerCase()
@@ -128,9 +128,9 @@ function generateSlug(title: string, episodeNumber: number): string {
     .replace(/-+/g, "-")
     .slice(0, 50);
 
-  // 空の場合はエピソード番号でフォールバック
+  // 空の場合はタイムスタンプでフォールバック
   if (!slug) {
-    slug = `episode-${episodeNumber}`;
+    slug = `episode-${Date.now().toString(36)}`;
   }
 
   return slug;
@@ -169,11 +169,6 @@ importRoutes.post("/rss", async (c) => {
   // 既存のslug一覧を作成（高速チェック用）
   const existingSlugs = new Set(index.episodes.map((ep) => ep.id));
 
-  // 現在の最大エピソード番号を取得
-  let nextEpisodeNumber = index.episodes.length > 0
-    ? Math.max(...index.episodes.map((ep) => ep.episodeNumber)) + 1
-    : 1;
-
   // エピソードを古い順に処理（pubDateでソート）
   const sortedEpisodes = [...rssEpisodes].sort((a, b) =>
     new Date(a.pubDate).getTime() - new Date(b.pubDate).getTime()
@@ -184,10 +179,10 @@ importRoutes.post("/rss", async (c) => {
 
   for (const rssEp of sortedEpisodes) {
     // slugを生成
-    let slug = generateSlug(rssEp.title, nextEpisodeNumber);
+    let slug = generateSlug(rssEp.title);
 
     // 重複を避けるためにサフィックスを追加
-    let originalSlug = slug;
+    const originalSlug = slug;
     let suffix = 1;
     while (existingSlugs.has(slug)) {
       slug = `${originalSlug}-${suffix}`;
@@ -212,7 +207,6 @@ importRoutes.post("/rss", async (c) => {
     const meta: EpisodeMeta = {
       id: slug,
       slug,
-      episodeNumber: nextEpisodeNumber,
       title: rssEp.title,
       description: rssEp.description,
       duration: rssEp.duration,
@@ -229,13 +223,10 @@ importRoutes.post("/rss", async (c) => {
     };
 
     episodesToSave.push(meta);
-    existingSlugs.add(slug); // 今回のインポート内での重複を防ぐ
+    existingSlugs.add(slug);
 
     // インデックスに追加
-    index.episodes.push({
-      id: slug,
-      episodeNumber: nextEpisodeNumber,
-    });
+    index.episodes.push({ id: slug });
 
     results.push({
       title: rssEp.title,
@@ -244,7 +235,6 @@ importRoutes.post("/rss", async (c) => {
     });
 
     imported++;
-    nextEpisodeNumber++;
   }
 
   // バッチでR2に保存（並列実行）
@@ -295,8 +285,7 @@ importRoutes.post("/rss/preview", async (c) => {
   return c.json({
     podcast: podcastMeta,
     episodeCount: episodes.length,
-    episodes: episodes.map((ep, i) => ({
-      episodeNumber: episodes.length - i, // 新しい順に番号付け
+    episodes: episodes.map((ep) => ({
       title: ep.title,
       pubDate: ep.pubDate,
       duration: ep.duration,

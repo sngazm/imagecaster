@@ -34,7 +34,6 @@ export default function EpisodeDetail() {
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editSlug, setEditSlug] = useState("");
-  const [editEpisodeNumber, setEditEpisodeNumber] = useState<number | "">("");
   const [editDescription, setEditDescription] = useState("");
   const [editPublishAt, setEditPublishAt] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -64,7 +63,6 @@ export default function EpisodeDetail() {
         setEpisode(data);
         setEditTitle(data.title);
         setEditSlug(data.slug || data.id);
-        setEditEpisodeNumber(data.episodeNumber);
         setEditDescription(data.description);
         setEditPublishAt(data.publishAt ? data.publishAt.slice(0, 16) : "");
         setTemplates(templatesData);
@@ -86,7 +84,6 @@ export default function EpisodeDetail() {
       const updateData: Parameters<typeof api.updateEpisode>[1] = {
         title: editTitle,
         description: editDescription,
-        episodeNumber: editEpisodeNumber === "" ? undefined : editEpisodeNumber,
         publishAt: editPublishAt ? new Date(editPublishAt).toISOString() : null,
       };
 
@@ -237,24 +234,13 @@ export default function EpisodeDetail() {
           <div className="flex-1 min-w-0">
             {isEditing ? (
               <input
-                type="number"
-                value={editEpisodeNumber}
-                onChange={(e) => setEditEpisodeNumber(e.target.value === "" ? "" : parseInt(e.target.value, 10))}
-                className="text-sm font-semibold text-violet-500 bg-transparent border-b border-violet-500 focus:outline-none w-20"
-                placeholder="#"
-              />
-            ) : (
-              <span className="text-sm font-semibold text-violet-500">#{episode.episodeNumber}</span>
-            )}
-            {isEditing ? (
-              <input
                 type="text"
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
-                className="mt-1 block w-full text-2xl font-bold bg-transparent border-b-2 border-violet-500 focus:outline-none"
+                className="block w-full text-2xl font-bold bg-transparent border-b-2 border-violet-500 focus:outline-none"
               />
             ) : (
-              <h1 className="text-2xl font-bold tracking-tight mt-1">{episode.title}</h1>
+              <h1 className="text-2xl font-bold tracking-tight">{episode.title}</h1>
             )}
             {isEditing && canEditSlug && (
               <div className="mt-2">
@@ -419,7 +405,6 @@ export default function EpisodeDetail() {
                   setIsEditing(false);
                   setEditTitle(episode.title);
                   setEditSlug(episode.slug || episode.id);
-                  setEditEpisodeNumber(episode.episodeNumber);
                   setEditDescription(episode.description);
                   setEditPublishAt(episode.publishAt ? episode.publishAt.slice(0, 16) : "");
                   setError(null);

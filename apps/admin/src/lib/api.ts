@@ -24,7 +24,6 @@ async function request<T>(
 export interface Episode {
   id: string;
   slug: string;
-  episodeNumber: number;
   title: string;
   status: string;
   publishAt: string | null;
@@ -34,7 +33,6 @@ export interface Episode {
 export interface EpisodeDetail {
   id: string;
   slug: string;
-  episodeNumber: number;
   title: string;
   description: string;
   duration: number;
@@ -82,7 +80,6 @@ export interface RssPreviewResponse {
   };
   episodeCount: number;
   episodes: Array<{
-    episodeNumber: number;
     title: string;
     pubDate: string;
     duration: number;
@@ -108,7 +105,6 @@ export interface EpisodesListResponse {
 export interface CreateEpisodeResponse {
   id: string;
   slug: string;
-  episodeNumber: number;
   status: string;
 }
 
@@ -140,7 +136,6 @@ export const api = {
   createEpisode: (data: {
     title: string;
     slug?: string;
-    episodeNumber?: number;
     description?: string;
     publishAt?: string | null;
     skipTranscription?: boolean;
@@ -153,7 +148,6 @@ export const api = {
   updateEpisode: (id: string, data: {
     title?: string;
     slug?: string;
-    episodeNumber?: number;
     description?: string;
     publishAt?: string | null;
     skipTranscription?: boolean;

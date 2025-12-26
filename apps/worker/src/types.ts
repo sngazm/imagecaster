@@ -36,7 +36,6 @@ export interface PodcastIndex {
   };
   episodes: Array<{
     id: string;
-    episodeNumber: number;
   }>;
 }
 
@@ -58,7 +57,6 @@ export type EpisodeStatus =
 export interface EpisodeMeta {
   id: string;
   slug: string;
-  episodeNumber: number;
   title: string;
   description: string;
   duration: number;
@@ -80,7 +78,6 @@ export interface EpisodeMeta {
 export interface CreateEpisodeRequest {
   title: string;
   slug?: string;
-  episodeNumber?: number;
   description?: string;
   publishAt?: string | null;
   skipTranscription?: boolean;
@@ -92,7 +89,6 @@ export interface CreateEpisodeRequest {
 export interface UpdateEpisodeRequest {
   title?: string;
   slug?: string;
-  episodeNumber?: number;
   description?: string;
   publishAt?: string | null;
   skipTranscription?: boolean;
@@ -143,9 +139,9 @@ export interface UploadFromUrlRequest {
 export interface EpisodesListResponse {
   episodes: Array<{
     id: string;
-    episodeNumber: number;
     title: string;
     status: EpisodeStatus;
+    publishAt: string | null;
     publishedAt: string | null;
   }>;
 }
@@ -156,7 +152,6 @@ export interface EpisodesListResponse {
 export interface CreateEpisodeResponse {
   id: string;
   slug: string;
-  episodeNumber: number;
   status: EpisodeStatus;
 }
 
