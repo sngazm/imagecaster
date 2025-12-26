@@ -24,4 +24,4 @@ crons = ["*/5 * * * *"]
 # - WEB_DEPLOY_HOOK_URL (optional: Cloudflare Pages Deploy Hook URL)
 
 [dev]
-persist = true
+persist = false  # 常に R2 dev バケットを使用（ローカルとの不整合を防ぐ）
