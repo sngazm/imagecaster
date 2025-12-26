@@ -30,6 +30,7 @@ export interface PodcastIndex {
     language: string;
     category: string;
     artworkUrl: string;
+    ogImageUrl: string; // OGP画像URL
     websiteUrl: string;
     explicit: boolean;
   };
@@ -65,6 +66,7 @@ export interface EpisodeMeta {
   audioUrl: string;
   sourceAudioUrl: string | null; // 外部参照の音声URL（インポート時）
   transcriptUrl: string | null;
+  ogImageUrl: string | null; // OGP画像URL
   skipTranscription: boolean;
   status: EpisodeStatus;
   createdAt: string;

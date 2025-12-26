@@ -47,6 +47,11 @@ export default function EpisodeDetail() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState("");
 
+  // OGP image upload
+  const [ogImageFile, setOgImageFile] = useState<File | null>(null);
+  const [ogImagePreview, setOgImagePreview] = useState<string | null>(null);
+  const [uploadingOgImage, setUploadingOgImage] = useState(false);
+
   useEffect(() => {
     const fetchData = async () => {
       if (!id) return;
@@ -152,6 +157,40 @@ export default function EpisodeDetail() {
   const applyTemplate = (template: DescriptionTemplate) => {
     setEditDescription(template.content);
     setShowTemplates(false);
+  };
+
+  const handleOgImageUpload = async () => {
+    if (!id || !ogImageFile) return;
+
+    setUploadingOgImage(true);
+    setError(null);
+
+    try {
+      const { uploadUrl, ogImageUrl } = await api.getEpisodeOgImageUploadUrl(
+        id,
+        ogImageFile.type,
+        ogImageFile.size
+      );
+
+      await uploadToR2(uploadUrl, ogImageFile);
+      await api.completeEpisodeOgImageUpload(id, ogImageUrl);
+
+      setEpisode((prev) => (prev ? { ...prev, ogImageUrl } : null));
+      setOgImageFile(null);
+      setOgImagePreview(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "OGP画像のアップロードに失敗しました");
+    } finally {
+      setUploadingOgImage(false);
+    }
+  };
+
+  const handleOgImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setOgImageFile(file);
+      setOgImagePreview(URL.createObjectURL(file));
+    }
   };
 
   if (isLoading) {
@@ -421,6 +460,64 @@ export default function EpisodeDetail() {
         ) : (
           <p className="text-zinc-500 text-sm">文字起こしはまだありません</p>
         )}
+      </div>
+
+      {/* OGP画像 */}
+      <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 mb-6">
+        <h2 className="text-sm font-medium text-zinc-400 mb-4">OGP画像</h2>
+        <p className="text-xs text-zinc-500 mb-4">
+          SNSでこのエピソードがシェアされた時に表示される画像です。
+        </p>
+        <div className="flex items-start gap-6">
+          <div className="w-48 h-24 rounded-lg bg-zinc-800 overflow-hidden flex-shrink-0">
+            {(ogImagePreview || episode.ogImageUrl) ? (
+              <img
+                src={ogImagePreview || episode.ogImageUrl || ""}
+                alt="OGP image"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-zinc-600">
+                <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
+                </svg>
+              </div>
+            )}
+          </div>
+          <div className="flex-1">
+            <input
+              type="file"
+              accept="image/jpeg,image/png"
+              onChange={handleOgImageSelect}
+              className="hidden"
+              id="episode-og-image-upload"
+            />
+            <label
+              htmlFor="episode-og-image-upload"
+              className="inline-block px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg cursor-pointer text-sm font-medium transition-colors"
+            >
+              画像を選択
+            </label>
+            {ogImageFile && (
+              <div className="mt-3">
+                <p className="text-sm text-zinc-400 mb-2">
+                  {ogImageFile.name} ({(ogImageFile.size / 1024 / 1024).toFixed(2)} MB)
+                </p>
+                <button
+                  type="button"
+                  onClick={handleOgImageUpload}
+                  disabled={uploadingOgImage}
+                  className="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                >
+                  {uploadingOgImage ? "アップロード中..." : "アップロード"}
+                </button>
+              </div>
+            )}
+            <p className="text-xs text-zinc-500 mt-2">
+              推奨: 1200x630px、JPEGまたはPNG、最大5MB
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* 削除 */}

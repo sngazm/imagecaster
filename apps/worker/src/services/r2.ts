@@ -13,6 +13,7 @@ function createDefaultIndex(env: Env): PodcastIndex {
       language: "ja",
       category: "Technology",
       artworkUrl: "",
+      ogImageUrl: "",
       websiteUrl: env.WEBSITE_URL || "",
       explicit: false,
     },
