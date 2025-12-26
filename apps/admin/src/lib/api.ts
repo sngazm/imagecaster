@@ -174,6 +174,12 @@ export const api = {
       body: JSON.stringify({ duration, fileSize }),
     }),
 
+  uploadFromUrl: (id: string, sourceUrl: string) =>
+    request<{ id: string; status: string }>(`/api/episodes/${id}/upload-from-url`, {
+      method: "POST",
+      body: JSON.stringify({ sourceUrl }),
+    }),
+
   // Settings
   getSettings: () =>
     request<PodcastSettings>("/api/settings"),
