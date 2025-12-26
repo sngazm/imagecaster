@@ -9,10 +9,10 @@ interface Props {
 const { episode } = Astro.props;
 ---
 
-<article class="group rounded-xl border border-zinc-200 bg-white p-5 transition-shadow hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
+<article class="gaming-card group rounded-xl border border-zinc-200 bg-white p-5 transition-all hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
   <a href={`/episodes/${episode.id}`} class="block">
     <div class="mb-3 flex items-center gap-2">
-      <span class="inline-flex items-center justify-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+      <span class="gaming-badge inline-flex items-center justify-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-semibold text-zinc-600 dark:bg-transparent dark:text-white">
         EP.{episode.episodeNumber}
       </span>
       <time class="text-sm text-zinc-500 dark:text-zinc-400" datetime={episode.publishedAt || episode.publishAt}>
@@ -20,7 +20,7 @@ const { episode } = Astro.props;
       </time>
     </div>
 
-    <h2 class="mb-2 text-lg font-bold leading-tight text-zinc-900 group-hover:text-blue-600 dark:text-zinc-100 dark:group-hover:text-blue-400">
+    <h2 class="mb-2 text-lg font-bold leading-tight text-zinc-900 transition-all group-hover:text-blue-600 dark:text-zinc-100 dark:group-hover:neon-text">
       {episode.title}
     </h2>
 
@@ -38,7 +38,7 @@ const { episode } = Astro.props;
     </div>
   </a>
 
-  <div class="mt-4 border-t border-zinc-100 pt-4 dark:border-zinc-800">
+  <div class="gaming-player mt-4 rounded-lg border-t border-zinc-100 pt-4 dark:border-transparent dark:p-3">
     <audio controls preload="none" class="h-10 w-full">
       <source src={episode.audioUrl} type="audio/mpeg" />
     </audio>
