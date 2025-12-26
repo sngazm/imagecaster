@@ -1,5 +1,8 @@
 ---
-const feedUrl = import.meta.env.FEED_URL || "/feed.xml";
+// サイトの絶対URLを構築（Podcast アプリ登録用）
+const siteUrl = import.meta.env.SITE_URL || Astro.site?.origin || "";
+const feedPath = "/feed.xml";
+const absoluteFeedUrl = siteUrl ? `${siteUrl}${feedPath}` : feedPath;
 ---
 
 <section class="gaming-card rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
@@ -13,7 +16,7 @@ const feedUrl = import.meta.env.FEED_URL || "/feed.xml";
 
   <div class="flex flex-wrap gap-3">
     <a
-      href={`https://podcasts.apple.com/podcast/feed/${encodeURIComponent(feedUrl)}`}
+      href={`https://podcasts.apple.com/podcast/feed/${encodeURIComponent(absoluteFeedUrl)}`}
       target="_blank"
       rel="noopener noreferrer"
       class="gaming-button inline-flex items-center gap-2 rounded-lg bg-gradient-to-b from-purple-500 to-purple-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:from-purple-600 hover:to-purple-700"
@@ -25,7 +28,7 @@ const feedUrl = import.meta.env.FEED_URL || "/feed.xml";
     </a>
 
     <a
-      href={`https://www.google.com/podcasts?feed=${encodeURIComponent(feedUrl)}`}
+      href={`https://www.google.com/podcasts?feed=${encodeURIComponent(absoluteFeedUrl)}`}
       target="_blank"
       rel="noopener noreferrer"
       class="gaming-button inline-flex items-center gap-2 rounded-lg bg-gradient-to-b from-blue-500 to-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:from-blue-600 hover:to-blue-700"
@@ -37,7 +40,7 @@ const feedUrl = import.meta.env.FEED_URL || "/feed.xml";
     </a>
 
     <a
-      href={feedUrl}
+      href={feedPath}
       target="_blank"
       rel="noopener noreferrer"
       class="gaming-rss inline-flex items-center gap-2 rounded-lg bg-gradient-to-b from-orange-500 to-orange-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:from-orange-600 hover:to-orange-700"
@@ -57,12 +60,12 @@ const feedUrl = import.meta.env.FEED_URL || "/feed.xml";
       <input
         type="text"
         readonly
-        value={feedUrl}
+        value={absoluteFeedUrl}
         class="flex-1 bg-transparent px-3 py-2 text-sm text-zinc-700 outline-none dark:text-zinc-300"
       />
       <button
         type="button"
-        onclick={`navigator.clipboard.writeText('${feedUrl}'); this.textContent = 'コピーしました！'; setTimeout(() => this.textContent = 'コピー', 2000);`}
+        onclick={`navigator.clipboard.writeText('${absoluteFeedUrl}'); this.textContent = 'コピーしました！'; setTimeout(() => this.textContent = 'コピー', 2000);`}
         class="border-l border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-700"
       >
         コピー
