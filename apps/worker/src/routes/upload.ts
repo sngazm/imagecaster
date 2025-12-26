@@ -17,6 +17,24 @@ import { regenerateFeed } from "../services/feed";
 const upload = new Hono<{ Bindings: Env }>();
 
 /**
+ * NextCloud共有リンクを直接ダウンロードURLに変換
+ * 例: https://cloud.example.com/s/AbCdEf123 -> https://cloud.example.com/s/AbCdEf123/download
+ */
+function convertToDirectDownloadUrl(url: string): string {
+  // NextCloud/ownCloud共有リンクのパターン: /s/ または /index.php/s/
+  const nextcloudPattern = /^(https?:\/\/[^/]+)(\/index\.php)?(\/s\/[a-zA-Z0-9]+)\/?$/;
+  const match = url.match(nextcloudPattern);
+
+  if (match) {
+    // 既に /download が付いていなければ追加
+    const baseUrl = match[1] + (match[2] || "") + match[3];
+    return `${baseUrl}/download`;
+  }
+
+  return url;
+}
+
+/**
  * POST /api/episodes/:id/upload-url - Presigned URL 発行
  */
 upload.post("/:id/upload-url", async (c) => {
@@ -173,8 +191,9 @@ upload.post("/:id/upload-from-url", async (c) => {
     meta.status = "processing";
     await saveEpisodeMeta(c.env, meta);
 
-    // 音声ファイルをダウンロード
-    const audioResponse = await fetch(body.sourceUrl);
+    // 音声ファイルをダウンロード（NextCloud共有リンクは自動変換）
+    const downloadUrl = convertToDirectDownloadUrl(body.sourceUrl);
+    const audioResponse = await fetch(downloadUrl);
 
     if (!audioResponse.ok) {
       meta.status = "failed";
