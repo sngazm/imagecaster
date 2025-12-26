@@ -85,3 +85,17 @@ export function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+/**
+ * R2 から RSS フィードを取得
+ */
+export async function getFeed(): Promise<string> {
+  const url = `${R2_PUBLIC_URL}/feed.xml`;
+  const res = await fetch(url);
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch feed: ${res.status}`);
+  }
+
+  return res.text();
+}
