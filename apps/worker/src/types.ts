@@ -9,6 +9,7 @@ export interface Env {
   R2_BUCKET_NAME: string;
   R2_ACCESS_KEY_ID: string;
   R2_SECRET_ACCESS_KEY: string;
+  R2_PUBLIC_URL: string; // e.g., https://bucket.account.r2.dev or custom domain
   // Cloudflare Access
   CF_ACCESS_TEAM_DOMAIN: string;
   CF_ACCESS_AUD: string;

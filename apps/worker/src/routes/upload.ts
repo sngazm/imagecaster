@@ -133,7 +133,7 @@ upload.post("/:id/upload-complete", async (c) => {
     // メタデータ更新
     meta.duration = body.duration;
     meta.fileSize = fileSize;
-    meta.audioUrl = `https://${c.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${c.env.R2_BUCKET_NAME}/${audioKey}`;
+    meta.audioUrl = `${c.env.R2_PUBLIC_URL}/${audioKey}`;
 
     // publishAt がnullの場合はdraft状態を維持（下書き保存）
     if (meta.publishAt === null) {
@@ -208,7 +208,7 @@ upload.post("/:id/upload-from-url", async (c) => {
 
     // メタデータ更新
     meta.fileSize = size;
-    meta.audioUrl = `https://${c.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${c.env.R2_BUCKET_NAME}/episodes/${id}/audio.mp3`;
+    meta.audioUrl = `${c.env.R2_PUBLIC_URL}/episodes/${id}/audio.mp3`;
 
     // publishAt がnullの場合はdraft状態を維持（下書き保存）
     if (meta.publishAt === null) {

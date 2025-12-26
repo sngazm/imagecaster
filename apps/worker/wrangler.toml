@@ -7,6 +7,7 @@ PODCAST_TITLE = "番組名"
 WEBSITE_URL = "https://example.com"
 R2_ACCOUNT_ID = "f79879b4bd3520260744db022329425d"
 R2_BUCKET_NAME = "podcast-bucket"
+R2_PUBLIC_URL = "https://pub-xxxxxxxx.r2.dev"  # R2 Public Access を有効化後に設定
 CF_ACCESS_TEAM_DOMAIN = "sngazm.cloudflareaccess.com"
 CF_ACCESS_AUD = "5269d12ad25457e6c5f25a6c8565eafab46cc4817164401abe12982c405263a9"
 
