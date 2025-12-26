@@ -30,6 +30,7 @@ export interface PodcastIndex {
     language: string;
     category: string;
     artworkUrl: string;
+    ogImageUrl: string; // OGP画像URL
     websiteUrl: string;
     explicit: boolean;
   };
@@ -56,17 +57,20 @@ export type EpisodeStatus =
  */
 export interface EpisodeMeta {
   id: string;
+  slug: string;
   episodeNumber: number;
   title: string;
   description: string;
   duration: number;
   fileSize: number;
   audioUrl: string;
+  sourceAudioUrl: string | null; // 外部参照の音声URL（インポート時）
   transcriptUrl: string | null;
+  ogImageUrl: string | null; // OGP画像URL
   skipTranscription: boolean;
   status: EpisodeStatus;
   createdAt: string;
-  publishAt: string;
+  publishAt: string | null; // nullの場合はドラフト
   publishedAt: string | null;
 }
 
@@ -75,8 +79,10 @@ export interface EpisodeMeta {
  */
 export interface CreateEpisodeRequest {
   title: string;
+  slug?: string;
+  episodeNumber?: number;
   description?: string;
-  publishAt: string;
+  publishAt?: string | null;
   skipTranscription?: boolean;
 }
 
@@ -85,8 +91,10 @@ export interface CreateEpisodeRequest {
  */
 export interface UpdateEpisodeRequest {
   title?: string;
+  slug?: string;
+  episodeNumber?: number;
   description?: string;
-  publishAt?: string;
+  publishAt?: string | null;
   skipTranscription?: boolean;
 }
 
@@ -147,6 +155,69 @@ export interface EpisodesListResponse {
  */
 export interface CreateEpisodeResponse {
   id: string;
+  slug: string;
   episodeNumber: number;
   status: EpisodeStatus;
+}
+
+/**
+ * 概要欄テンプレート
+ */
+export interface DescriptionTemplate {
+  id: string;
+  name: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * テンプレート一覧 (templates/descriptions.json)
+ */
+export interface TemplatesIndex {
+  templates: DescriptionTemplate[];
+}
+
+/**
+ * テンプレート作成/更新リクエスト
+ */
+export interface TemplateRequest {
+  name: string;
+  content: string;
+}
+
+/**
+ * Podcast 設定更新リクエスト
+ */
+export interface UpdatePodcastSettingsRequest {
+  title?: string;
+  description?: string;
+  author?: string;
+  email?: string;
+  language?: string;
+  category?: string;
+  websiteUrl?: string;
+  explicit?: boolean;
+}
+
+/**
+ * RSSインポートリクエスト
+ */
+export interface ImportRssRequest {
+  rssUrl: string;
+  importAudio?: boolean; // trueの場合は音声もダウンロード
+}
+
+/**
+ * RSSインポートレスポンス
+ */
+export interface ImportRssResponse {
+  imported: number;
+  skipped: number;
+  episodes: Array<{
+    title: string;
+    slug: string;
+    status: "imported" | "skipped";
+    reason?: string;
+  }>;
 }

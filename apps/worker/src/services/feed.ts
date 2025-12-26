@@ -60,22 +60,55 @@ function escapeXml(text: string): string {
 }
 
 /**
+ * プレースホルダータグを置換
+ * {{TRANSCRIPT_URL}} - 文字起こしページへのリンク
+ * {{EPISODE_URL}} - エピソードページへのリンク
+ * {{AUDIO_URL}} - 音声ファイルへのリンク
+ */
+function replacePlaceholders(
+  text: string,
+  episode: EpisodeMeta,
+  websiteUrl: string
+): string {
+  const transcriptPageUrl = episode.transcriptUrl
+    ? `${websiteUrl}/episodes/${episode.slug || episode.id}/transcript`
+    : "";
+  const episodePageUrl = `${websiteUrl}/episodes/${episode.slug || episode.id}`;
+  const audioUrl = episode.audioUrl || episode.sourceAudioUrl || "";
+
+  return text
+    .replace(/\{\{TRANSCRIPT_URL\}\}/g, transcriptPageUrl)
+    .replace(/\{\{EPISODE_URL\}\}/g, episodePageUrl)
+    .replace(/\{\{AUDIO_URL\}\}/g, audioUrl);
+}
+
+/**
  * エピソードの RSS item を生成
  */
-function generateEpisodeItem(episode: EpisodeMeta): string {
+function generateEpisodeItem(episode: EpisodeMeta, websiteUrl: string): string {
   const transcriptTag = episode.transcriptUrl
     ? `\n      <podcast:transcript url="${escapeXml(episode.transcriptUrl)}" type="text/vtt" language="ja"/>`
     : "";
 
+  // 音声URLはaudioUrlがあればそれを使い、なければsourceAudioUrl（外部参照）を使用
+  const audioUrl = episode.audioUrl || episode.sourceAudioUrl || "";
+
+  // プレースホルダーを置換した説明文
+  const processedDescription = replacePlaceholders(
+    episode.description,
+    episode,
+    websiteUrl
+  );
+
   return `
     <item>
       <title>${escapeXml(episode.title)}</title>
-      <description><![CDATA[${episode.description}]]></description>
+      <description><![CDATA[${processedDescription}]]></description>
       <enclosure
-        url="${escapeXml(episode.audioUrl)}"
+        url="${escapeXml(audioUrl)}"
         length="${episode.fileSize}"
         type="audio/mpeg"/>
-      <guid isPermaLink="false">${episode.id}</guid>
+      <guid isPermaLink="false">${episode.slug || episode.id}</guid>
       <pubDate>${toRFC2822(episode.publishedAt!)}</pubDate>
       <itunes:duration>${formatDuration(episode.duration)}</itunes:duration>
       <itunes:explicit>false</itunes:explicit>${transcriptTag}
@@ -91,7 +124,9 @@ export function generateFeed(
 ): string {
   const { podcast } = podcastIndex;
 
-  const items = episodes.map(generateEpisodeItem).join("\n");
+  const items = episodes
+    .map((ep) => generateEpisodeItem(ep, podcast.websiteUrl))
+    .join("\n");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"

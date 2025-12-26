@@ -14,6 +14,9 @@ import {
   saveEpisodeMeta,
   saveIndex,
   deleteEpisode,
+  findEpisodeBySlug,
+  getNextEpisodeNumber,
+  moveEpisode,
 } from "../services/r2";
 import { regenerateFeed } from "../services/feed";
 
@@ -30,19 +33,17 @@ episodes.get("/", async (c) => {
       const meta = await getEpisodeMeta(c.env, ref.id);
       return {
         id: meta.id,
+        slug: meta.slug || meta.id, // 後方互換性のためidをフォールバック
         episodeNumber: meta.episodeNumber,
         title: meta.title,
         status: meta.status,
+        publishAt: meta.publishAt,
         publishedAt: meta.publishedAt,
       };
     })
   );
 
-  const response: EpisodesListResponse = {
-    episodes: episodeList,
-  };
-
-  return c.json(response);
+  return c.json({ episodes: episodeList });
 });
 
 /**
@@ -60,60 +61,92 @@ episodes.get("/:id", async (c) => {
 });
 
 /**
+ * slugのバリデーション（英数字とハイフンのみ）
+ */
+function isValidSlug(slug: string): boolean {
+  return /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/.test(slug);
+}
+
+/**
  * POST /api/episodes - 新規エピソード作成（メタデータのみ）
  */
 episodes.post("/", async (c) => {
   const body = await c.req.json<CreateEpisodeRequest>();
 
-  // バリデーション
-  if (!body.title || !body.publishAt) {
-    return c.json({ error: "Missing required fields" }, 400);
+  // バリデーション（titleのみ必須、publishAtはnull許可で下書き）
+  if (!body.title) {
+    return c.json({ error: "Title is required" }, 400);
   }
 
   const index = await getIndex(c.env);
 
-  // 新しいエピソード番号を採番
-  const maxEpisodeNumber = index.episodes.reduce(
-    (max, ep) => Math.max(max, ep.episodeNumber),
-    0
-  );
-  const newEpisodeNumber = maxEpisodeNumber + 1;
-  const newId = `ep-${String(newEpisodeNumber).padStart(3, "0")}`;
+  // エピソード番号の決定（指定がなければ自動採番）
+  let newEpisodeNumber: number;
+  if (body.episodeNumber !== undefined) {
+    // 重複チェック
+    const existing = index.episodes.find((ep) => ep.episodeNumber === body.episodeNumber);
+    if (existing) {
+      return c.json({ error: `Episode number ${body.episodeNumber} already exists` }, 400);
+    }
+    newEpisodeNumber = body.episodeNumber;
+  } else {
+    newEpisodeNumber = await getNextEpisodeNumber(c.env);
+  }
+
+  // slugの決定（指定がなければエピソード番号から自動生成）
+  let slug: string;
+  if (body.slug) {
+    // バリデーション
+    if (!isValidSlug(body.slug)) {
+      return c.json({ error: "Invalid slug. Use lowercase letters, numbers, and hyphens only" }, 400);
+    }
+    // 重複チェック
+    const existing = await findEpisodeBySlug(c.env, body.slug);
+    if (existing) {
+      return c.json({ error: `Slug "${body.slug}" already exists` }, 400);
+    }
+    slug = body.slug;
+  } else {
+    slug = `ep-${String(newEpisodeNumber).padStart(3, "0")}`;
+  }
 
   const now = new Date().toISOString();
 
   // 新しいエピソードメタデータを作成
   const newMeta: EpisodeMeta = {
-    id: newId,
+    id: slug, // slugをIDとして使用（フォルダ名になる）
+    slug,
     episodeNumber: newEpisodeNumber,
     title: body.title,
     description: body.description || "",
     duration: 0,
     fileSize: 0,
     audioUrl: "",
+    sourceAudioUrl: null,
     transcriptUrl: null,
     skipTranscription: body.skipTranscription ?? false,
     status: "draft",
     createdAt: now,
-    publishAt: body.publishAt,
+    publishAt: body.publishAt ?? null, // nullなら下書き
     publishedAt: null,
   };
 
   // メタデータを保存
-  console.log(`[create] Saving episode meta: ${newId}`);
+  console.log(`[create] Saving episode meta: ${slug}`);
   await saveEpisodeMeta(c.env, newMeta);
-  console.log(`[create] Saved episode meta: ${newId}`);
+  console.log(`[create] Saved episode meta: ${slug}`);
 
   // インデックスを更新
   index.episodes.push({
-    id: newId,
+    id: slug,
     episodeNumber: newEpisodeNumber,
   });
   await saveIndex(c.env, index);
-  console.log(`[create] Updated index with: ${newId}`);
+  console.log(`[create] Updated index with: ${slug}`);
 
   const response: CreateEpisodeResponse = {
-    id: newId,
+    id: slug,
+    slug,
     episodeNumber: newEpisodeNumber,
     status: "draft",
   };
@@ -130,6 +163,41 @@ episodes.put("/:id", async (c) => {
 
   try {
     const meta = await getEpisodeMeta(c.env, id);
+    const index = await getIndex(c.env);
+    let needsMove = false;
+    let newSlug = meta.slug || meta.id;
+
+    // slugの更新（ドラフト状態のみ）
+    if (body.slug !== undefined && body.slug !== meta.slug) {
+      if (meta.status !== "draft") {
+        return c.json({ error: "Cannot change slug after upload started" }, 400);
+      }
+      if (!isValidSlug(body.slug)) {
+        return c.json({ error: "Invalid slug. Use lowercase letters, numbers, and hyphens only" }, 400);
+      }
+      const existing = await findEpisodeBySlug(c.env, body.slug);
+      if (existing && existing.id !== meta.id) {
+        return c.json({ error: `Slug "${body.slug}" already exists` }, 400);
+      }
+      newSlug = body.slug;
+      needsMove = true;
+    }
+
+    // episodeNumberの更新
+    if (body.episodeNumber !== undefined && body.episodeNumber !== meta.episodeNumber) {
+      const existing = index.episodes.find(
+        (ep) => ep.episodeNumber === body.episodeNumber && ep.id !== meta.id
+      );
+      if (existing) {
+        return c.json({ error: `Episode number ${body.episodeNumber} already exists` }, 400);
+      }
+      meta.episodeNumber = body.episodeNumber;
+      // インデックスも更新
+      const indexEntry = index.episodes.find((ep) => ep.id === meta.id);
+      if (indexEntry) {
+        indexEntry.episodeNumber = body.episodeNumber;
+      }
+    }
 
     // 更新可能なフィールドを更新
     if (body.title !== undefined) {
@@ -148,7 +216,20 @@ episodes.put("/:id", async (c) => {
       }
     }
 
+    // slugが変わる場合はファイルを移動
+    if (needsMove) {
+      await moveEpisode(c.env, meta.id, newSlug);
+      // インデックスのIDを更新
+      const indexEntry = index.episodes.find((ep) => ep.id === meta.id);
+      if (indexEntry) {
+        indexEntry.id = newSlug;
+      }
+      meta.id = newSlug;
+      meta.slug = newSlug;
+    }
+
     await saveEpisodeMeta(c.env, meta);
+    await saveIndex(c.env, index);
 
     // 公開済みの場合はフィードを再生成
     if (meta.status === "published") {
@@ -205,13 +286,18 @@ episodes.post("/:id/transcription-complete", async (c) => {
         meta.duration = body.duration;
       }
 
-      // publishAt が過去なら即座に published に
-      const now = new Date();
-      if (new Date(meta.publishAt) <= now) {
-        meta.status = "published";
-        meta.publishedAt = now.toISOString();
+      // publishAt がnullなら下書きのまま
+      if (meta.publishAt === null) {
+        meta.status = "draft";
       } else {
-        meta.status = "scheduled";
+        // publishAt が過去なら即座に published に
+        const now = new Date();
+        if (new Date(meta.publishAt) <= now) {
+          meta.status = "published";
+          meta.publishedAt = now.toISOString();
+        } else {
+          meta.status = "scheduled";
+        }
       }
     } else {
       meta.status = "failed";
