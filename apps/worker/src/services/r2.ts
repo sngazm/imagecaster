@@ -118,6 +118,17 @@ export async function saveAudioFile(
 }
 
 /**
+ * 音声ファイルを R2 から取得
+ */
+export async function getAudioFile(
+  env: Env,
+  episodeId: string
+): Promise<R2ObjectBody | null> {
+  const key = `episodes/${episodeId}/audio.mp3`;
+  return env.R2_BUCKET.get(key);
+}
+
+/**
  * 文字起こしファイル（VTT）を取得
  */
 export async function getTranscript(
