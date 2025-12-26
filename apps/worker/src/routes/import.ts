@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Env, ImportRssRequest, ImportRssResponse, EpisodeMeta } from "../types";
-import { getIndex, saveIndex, saveEpisodeMeta, findEpisodeBySlug } from "../services/r2";
+import { getIndex, saveIndex, saveEpisodeMeta } from "../services/r2";
 
 export const importRoutes = new Hono<{ Bindings: Env }>();
 
@@ -160,12 +160,14 @@ importRoutes.post("/rss", async (c) => {
 
   // RSSをパース
   const rssEpisodes = parseRssXml(rssXml);
-  const podcastMeta = parsePodcastMeta(rssXml);
 
   const index = await getIndex(c.env);
   const results: ImportRssResponse["episodes"] = [];
   let imported = 0;
   let skipped = 0;
+
+  // 既存のslug一覧を作成（高速チェック用）
+  const existingSlugs = new Set(index.episodes.map((ep) => ep.id));
 
   // 現在の最大エピソード番号を取得
   let nextEpisodeNumber = index.episodes.length > 0
@@ -177,21 +179,30 @@ importRoutes.post("/rss", async (c) => {
     new Date(a.pubDate).getTime() - new Date(b.pubDate).getTime()
   );
 
+  // バッチ処理用の配列
+  const episodesToSave: EpisodeMeta[] = [];
+
   for (const rssEp of sortedEpisodes) {
     // slugを生成
     let slug = generateSlug(rssEp.title, nextEpisodeNumber);
 
-    // slugの重複チェック
-    const existing = await findEpisodeBySlug(c.env, slug);
-    if (existing) {
-      results.push({
-        title: rssEp.title,
-        slug,
-        status: "skipped",
-        reason: "Slug already exists",
-      });
-      skipped++;
-      continue;
+    // 重複を避けるためにサフィックスを追加
+    let originalSlug = slug;
+    let suffix = 1;
+    while (existingSlugs.has(slug)) {
+      slug = `${originalSlug}-${suffix}`;
+      suffix++;
+      if (suffix > 100) {
+        // 無限ループ防止
+        results.push({
+          title: rssEp.title,
+          slug: originalSlug,
+          status: "skipped",
+          reason: "Could not generate unique slug",
+        });
+        skipped++;
+        continue;
+      }
     }
 
     // 新規エピソードを作成
@@ -199,24 +210,26 @@ importRoutes.post("/rss", async (c) => {
     const pubDate = rssEp.pubDate ? new Date(rssEp.pubDate).toISOString() : now;
 
     const meta: EpisodeMeta = {
-      id: slug, // slugをIDとして使用
+      id: slug,
       slug,
       episodeNumber: nextEpisodeNumber,
       title: rssEp.title,
       description: rssEp.description,
       duration: rssEp.duration,
-      fileSize: 0, // 不明
-      audioUrl: "", // 空（sourceAudioUrlを使用）
-      sourceAudioUrl: rssEp.audioUrl, // 外部URLを保持
+      fileSize: 0,
+      audioUrl: "",
+      sourceAudioUrl: rssEp.audioUrl,
       transcriptUrl: null,
+      ogImageUrl: null,
       skipTranscription: true,
-      status: "published", // インポートしたエピソードは公開済みとして扱う
+      status: "published",
       createdAt: now,
       publishAt: pubDate,
       publishedAt: pubDate,
     };
 
-    await saveEpisodeMeta(c.env, meta);
+    episodesToSave.push(meta);
+    existingSlugs.add(slug); // 今回のインポート内での重複を防ぐ
 
     // インデックスに追加
     index.episodes.push({
@@ -232,6 +245,13 @@ importRoutes.post("/rss", async (c) => {
 
     imported++;
     nextEpisodeNumber++;
+  }
+
+  // バッチでR2に保存（並列実行）
+  const BATCH_SIZE = 10;
+  for (let i = 0; i < episodesToSave.length; i += BATCH_SIZE) {
+    const batch = episodesToSave.slice(i, i + BATCH_SIZE);
+    await Promise.all(batch.map((meta) => saveEpisodeMeta(c.env, meta)));
   }
 
   // インデックスを保存
