@@ -118,6 +118,17 @@ export async function saveAudioFile(
 }
 
 /**
+ * 音声ファイルを R2 から取得
+ */
+export async function getAudioFile(
+  env: Env,
+  episodeId: string
+): Promise<R2ObjectBody | null> {
+  const key = `episodes/${episodeId}/audio.mp3`;
+  return env.R2_BUCKET.get(key);
+}
+
+/**
  * 文字起こしファイル（VTT）を取得
  */
 export async function getTranscript(
@@ -215,20 +226,6 @@ export async function findEpisodeBySlug(env: Env, slug: string): Promise<Episode
   }
 
   return null;
-}
-
-/**
- * 次のエピソード番号を取得
- */
-export async function getNextEpisodeNumber(env: Env): Promise<number> {
-  const index = await getIndex(env);
-
-  if (index.episodes.length === 0) {
-    return 1;
-  }
-
-  const maxNumber = Math.max(...index.episodes.map((ep) => ep.episodeNumber));
-  return maxNumber + 1;
 }
 
 /**

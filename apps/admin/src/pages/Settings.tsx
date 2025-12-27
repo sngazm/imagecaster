@@ -760,7 +760,6 @@ export default function Settings() {
                       className="flex items-center justify-between text-sm py-2 border-b border-zinc-800 last:border-0"
                     >
                       <div>
-                        <span className="text-zinc-500 mr-2">#{ep.episodeNumber}</span>
                         <span>{ep.title}</span>
                       </div>
                       <span className="text-zinc-500">{new Date(ep.pubDate).toLocaleDateString()}</span>

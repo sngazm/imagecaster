@@ -48,7 +48,7 @@ export async function getPublishedEpisodes(): Promise<Episode[]> {
 
   return episodes
     .filter((ep): ep is Episode => ep !== null && ep.status === "published")
-    .sort((a, b) => b.episodeNumber - a.episodeNumber);
+    .sort((a, b) => new Date(b.publishAt).getTime() - new Date(a.publishAt).getTime());
 }
 
 /**

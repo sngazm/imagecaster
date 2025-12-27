@@ -1,6 +1,6 @@
 export interface Episode {
   id: string;
-  episodeNumber: number;
+  slug: string;
   title: string;
   description: string;
   duration: number;
@@ -29,6 +29,5 @@ export interface PodcastIndex {
   podcast: PodcastInfo;
   episodes: Array<{
     id: string;
-    episodeNumber: number;
   }>;
 }

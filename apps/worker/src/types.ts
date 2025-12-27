@@ -9,6 +9,7 @@ export interface Env {
   R2_BUCKET_NAME: string;
   R2_ACCESS_KEY_ID: string;
   R2_SECRET_ACCESS_KEY: string;
+  R2_PUBLIC_URL: string; // e.g., https://bucket.account.r2.dev or custom domain
   // Cloudflare Access
   CF_ACCESS_TEAM_DOMAIN: string;
   CF_ACCESS_AUD: string;
@@ -36,7 +37,6 @@ export interface PodcastIndex {
   };
   episodes: Array<{
     id: string;
-    episodeNumber: number;
   }>;
 }
 
@@ -58,7 +58,6 @@ export type EpisodeStatus =
 export interface EpisodeMeta {
   id: string;
   slug: string;
-  episodeNumber: number;
   title: string;
   description: string;
   duration: number;
@@ -80,7 +79,6 @@ export interface EpisodeMeta {
 export interface CreateEpisodeRequest {
   title: string;
   slug?: string;
-  episodeNumber?: number;
   description?: string;
   publishAt?: string | null;
   skipTranscription?: boolean;
@@ -92,7 +90,6 @@ export interface CreateEpisodeRequest {
 export interface UpdateEpisodeRequest {
   title?: string;
   slug?: string;
-  episodeNumber?: number;
   description?: string;
   publishAt?: string | null;
   skipTranscription?: boolean;
@@ -143,9 +140,9 @@ export interface UploadFromUrlRequest {
 export interface EpisodesListResponse {
   episodes: Array<{
     id: string;
-    episodeNumber: number;
     title: string;
     status: EpisodeStatus;
+    publishAt: string | null;
     publishedAt: string | null;
   }>;
 }
@@ -156,7 +153,6 @@ export interface EpisodesListResponse {
 export interface CreateEpisodeResponse {
   id: string;
   slug: string;
-  episodeNumber: number;
   status: EpisodeStatus;
 }
 

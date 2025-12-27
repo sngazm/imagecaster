@@ -5,14 +5,16 @@ import type { DescriptionTemplate } from "../lib/api";
 import { HtmlEditor } from "../components/HtmlEditor";
 
 type Status = "idle" | "creating" | "uploading" | "completing" | "done" | "error";
+type AudioSource = "file" | "url";
 
 export default function EpisodeNew() {
   const navigate = useNavigate();
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
-  const [episodeNumber, setEpisodeNumber] = useState<number | "">("");
   const [description, setDescription] = useState("");
+  const [audioSource, setAudioSource] = useState<AudioSource>("file");
   const [file, setFile] = useState<File | null>(null);
+  const [audioUrl, setAudioUrl] = useState("");
   const [skipTranscription, setSkipTranscription] = useState(true);
   const [publishAt, setPublishAt] = useState<string>("");
   const [status, setStatus] = useState<Status>("idle");
@@ -47,14 +49,13 @@ export default function EpisodeNew() {
       const episode = await api.createEpisode({
         title: title.trim(),
         slug: slug.trim() || undefined,
-        episodeNumber: episodeNumber === "" ? undefined : episodeNumber,
         description: description.trim(),
         publishAt: isDraft ? null : (publishAt || new Date().toISOString()),
         skipTranscription,
       });
 
-      // 音声ファイルがある場合のみアップロード
-      if (file) {
+      // 音声ソースに応じてアップロード
+      if (audioSource === "file" && file) {
         setStatus("uploading");
         setMessage("音声をアップロード中...");
 
@@ -71,6 +72,11 @@ export default function EpisodeNew() {
 
         const duration = await getAudioDuration(file);
         await api.completeUpload(episode.id, duration, file.size);
+      } else if (audioSource === "url" && audioUrl.trim()) {
+        setStatus("uploading");
+        setMessage("URLから音声を取得中...");
+
+        await api.uploadFromUrl(episode.id, audioUrl.trim());
       }
 
       setStatus("done");
@@ -143,22 +149,6 @@ export default function EpisodeNew() {
               />
               <p className="text-xs text-zinc-600 mt-1">URLに使用されます。空欄で自動生成</p>
             </div>
-            <div>
-              <label htmlFor="episodeNumber" className="block text-sm font-medium text-zinc-400 mb-2">
-                エピソード番号（任意）
-              </label>
-              <input
-                type="number"
-                id="episodeNumber"
-                value={episodeNumber}
-                onChange={(e) => setEpisodeNumber(e.target.value === "" ? "" : parseInt(e.target.value, 10))}
-                placeholder="自動採番"
-                min={1}
-                disabled={isSubmitting || status === "done"}
-                className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all disabled:opacity-50"
-              />
-              <p className="text-xs text-zinc-600 mt-1">空欄で連番を自動設定</p>
-            </div>
           </div>
 
           {/* Description with template selector */}
@@ -200,26 +190,75 @@ export default function EpisodeNew() {
             />
           </div>
 
-          {/* Audio file */}
+          {/* Audio source */}
           <div>
-            <label htmlFor="audio" className="block text-sm font-medium text-zinc-400 mb-2">
-              音声ファイル（任意）
+            <label className="block text-sm font-medium text-zinc-400 mb-2">
+              音声ソース（任意）
             </label>
-            <div className="relative">
-              <input
-                type="file"
-                id="audio"
-                accept="audio/*"
-                onChange={handleFileChange}
-                disabled={isSubmitting || status === "done"}
-                className="w-full px-4 py-4 bg-zinc-900 border-2 border-dashed border-zinc-700 rounded-lg text-zinc-400 file:hidden cursor-pointer hover:border-violet-500 focus:outline-none focus:border-violet-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              />
-              {file && (
-                <div className="mt-2 text-sm text-zinc-500">
-                  {file.name} ({(file.size / 1024 / 1024).toFixed(1)} MB)
-                </div>
-              )}
+
+            {/* Source type selector */}
+            <div className="flex gap-4 mb-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="audioSource"
+                  value="file"
+                  checked={audioSource === "file"}
+                  onChange={() => setAudioSource("file")}
+                  disabled={isSubmitting || status === "done"}
+                  className="w-4 h-4 text-violet-600 bg-zinc-900 border-zinc-700 focus:ring-violet-500"
+                />
+                <span className="text-sm text-zinc-300">ファイルをアップロード</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="audioSource"
+                  value="url"
+                  checked={audioSource === "url"}
+                  onChange={() => setAudioSource("url")}
+                  disabled={isSubmitting || status === "done"}
+                  className="w-4 h-4 text-violet-600 bg-zinc-900 border-zinc-700 focus:ring-violet-500"
+                />
+                <span className="text-sm text-zinc-300">URLから取得</span>
+              </label>
             </div>
+
+            {/* File input */}
+            {audioSource === "file" && (
+              <div className="relative">
+                <input
+                  type="file"
+                  id="audio"
+                  accept="audio/*"
+                  onChange={handleFileChange}
+                  disabled={isSubmitting || status === "done"}
+                  className="w-full px-4 py-4 bg-zinc-900 border-2 border-dashed border-zinc-700 rounded-lg text-zinc-400 file:hidden cursor-pointer hover:border-violet-500 focus:outline-none focus:border-violet-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+                {file && (
+                  <div className="mt-2 text-sm text-zinc-500">
+                    {file.name} ({(file.size / 1024 / 1024).toFixed(1)} MB)
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* URL input */}
+            {audioSource === "url" && (
+              <div>
+                <input
+                  type="url"
+                  id="audioUrl"
+                  value={audioUrl}
+                  onChange={(e) => setAudioUrl(e.target.value)}
+                  placeholder="https://example.com/audio.mp3"
+                  disabled={isSubmitting || status === "done"}
+                  className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all disabled:opacity-50"
+                />
+                <p className="text-xs text-zinc-600 mt-1">NextCloud共有リンクも使用可能です</p>
+              </div>
+            )}
+
             <p className="text-xs text-zinc-600 mt-1">後からアップロードすることもできます</p>
           </div>
 
