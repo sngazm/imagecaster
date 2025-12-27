@@ -8,7 +8,7 @@
 podcast-platform/
 ├── apps/
 │   ├── admin/          # 管理画面（React + Vite）
-│   ├── web/            # 公開サイト（Astro SSG）※未実装
+│   ├── web/            # 公開サイト（Astro SSG）
 │   └── worker/         # API + Cron（Cloudflare Workers + Hono）
 ├── packages/
 │   ├── shared/         # 共通型定義 ※未実装
@@ -95,14 +95,30 @@ pnpm dev
 # 個別起動
 pnpm dev:worker   # Worker（localhost:8787）
 pnpm dev:admin    # 管理画面（localhost:5173）
+pnpm dev:web      # 公開サイト（localhost:4321）
 
 # ビルド
 pnpm build
+
+# テスト
+pnpm test         # Worker API テスト
 
 # デプロイ
 pnpm deploy:worker
 pnpm deploy:admin
 ```
+
+## テスト
+
+Worker API のテストには vitest + @cloudflare/vitest-pool-workers を使用。
+
+```bash
+cd apps/worker
+pnpm test        # 一回実行
+pnpm test:watch  # 監視モード
+```
+
+テストファイル: `apps/worker/src/__tests__/`
 
 ## 環境変数
 
