@@ -19,6 +19,7 @@ import {
   getAudioFile,
 } from "../services/r2";
 import { regenerateFeed } from "../services/feed";
+import { triggerWebRebuild } from "../services/deploy";
 
 const episodes = new Hono<{ Bindings: Env }>();
 
@@ -211,9 +212,10 @@ episodes.put("/:id", async (c) => {
     await saveEpisodeMeta(c.env, meta);
     await saveIndex(c.env, index);
 
-    // 公開済みの場合はフィードを再生成
+    // 公開済みの場合はフィードを再生成してWebをリビルド
     if (meta.status === "published") {
       await regenerateFeed(c.env);
+      await triggerWebRebuild(c.env);
     }
 
     return c.json(meta);
@@ -239,9 +241,10 @@ episodes.delete("/:id", async (c) => {
     index.episodes = index.episodes.filter((ep) => ep.id !== id);
     await saveIndex(c.env, index);
 
-    // 公開済みだった場合はフィードを再生成
+    // 公開済みだった場合はフィードを再生成してWebをリビルド
     if (wasPublished) {
       await regenerateFeed(c.env);
+      await triggerWebRebuild(c.env);
     }
 
     return c.json({ success: true });
@@ -285,9 +288,10 @@ episodes.post("/:id/transcription-complete", async (c) => {
 
     await saveEpisodeMeta(c.env, meta);
 
-    // 公開された場合はフィードを再生成
+    // 公開された場合はフィードを再生成してWebをリビルド
     if (meta.status === "published") {
       await regenerateFeed(c.env);
+      await triggerWebRebuild(c.env);
     }
 
     return c.json({ success: true, status: meta.status });

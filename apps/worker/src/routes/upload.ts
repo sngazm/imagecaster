@@ -13,6 +13,7 @@ import {
   saveAudioFile,
 } from "../services/r2";
 import { regenerateFeed } from "../services/feed";
+import { triggerWebRebuild } from "../services/deploy";
 
 const upload = new Hono<{ Bindings: Env }>();
 
@@ -153,9 +154,10 @@ upload.post("/:id/upload-complete", async (c) => {
 
     await saveEpisodeMeta(c.env, meta);
 
-    // 公開された場合はフィードを再生成
+    // 公開された場合はフィードを再生成してWebをリビルド
     if (meta.status === "published") {
       await regenerateFeed(c.env);
+      await triggerWebRebuild(c.env);
     }
 
     return c.json({ id: meta.id, status: meta.status });
@@ -228,9 +230,10 @@ upload.post("/:id/upload-from-url", async (c) => {
 
     await saveEpisodeMeta(c.env, meta);
 
-    // 公開された場合はフィードを再生成
+    // 公開された場合はフィードを再生成してWebをリビルド
     if (meta.status === "published") {
       await regenerateFeed(c.env);
+      await triggerWebRebuild(c.env);
     }
 
     return c.json({ id: meta.id, status: meta.status });

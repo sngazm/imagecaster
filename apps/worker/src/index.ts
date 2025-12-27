@@ -9,6 +9,7 @@ import { templates } from "./routes/templates";
 import { importRoutes } from "./routes/import";
 import { getIndex, getEpisodeMeta, saveEpisodeMeta } from "./services/r2";
 import { getFeed, regenerateFeed } from "./services/feed";
+import { triggerWebRebuild } from "./services/deploy";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -160,30 +161,6 @@ async function handleScheduledPublish(env: Env): Promise<void> {
 
     // Web サイトのリビルドをトリガー
     await triggerWebRebuild(env);
-  }
-}
-
-/**
- * Deploy Hook を呼び出して Web サイトをリビルド
- */
-async function triggerWebRebuild(env: Env): Promise<void> {
-  if (!env.WEB_DEPLOY_HOOK_URL) {
-    console.log("WEB_DEPLOY_HOOK_URL not configured, skipping rebuild trigger");
-    return;
-  }
-
-  try {
-    const response = await fetch(env.WEB_DEPLOY_HOOK_URL, {
-      method: "POST",
-    });
-
-    if (response.ok) {
-      console.log("Web rebuild triggered successfully");
-    } else {
-      console.error(`Failed to trigger web rebuild: ${response.status}`);
-    }
-  } catch (err) {
-    console.error("Error triggering web rebuild:", err);
   }
 }
 
