@@ -22,6 +22,23 @@
 - Node.js 18+
 - pnpm (`npm install -g pnpm`)
 - Cloudflare アカウント（無料プランで可）
+- cloudflared（ローカル開発用）
+
+### cloudflared のインストール
+
+ローカル開発でリモート R2 バケットにアクセスするために `cloudflared` が必要です。
+
+```bash
+# macOS (Homebrew)
+brew install cloudflared
+
+# その他の OS は公式ドキュメントを参照
+# https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/
+```
+
+> **Note**: `wrangler dev` で `remote = true` の R2 バインディングを使用する場合に cloudflared が必要になります。
+> Presigned URL（S3 API）経由のアクセスとは異なり、R2 バインディング経由でリモート R2 に接続するにはこれが必須です。
+> なぜ必要かの詳細な理由は不明ですが、Wrangler がこれを要求します。詳しい方は Issue で教えてください。
 
 ---
 
@@ -95,6 +112,26 @@ Presigned URL の生成に必要です。
 1. Cloudflare ダッシュボードの任意のページ
 2. 右側サイドバーに **Account ID** が表示されている
 3. この値をメモ（32文字の英数字）
+
+### 6. パブリックアクセスを有効化
+
+音声ファイルをブラウザから直接再生できるようにするため、R2 のパブリックアクセスを有効にします。
+
+**本番用バケット:**
+
+1. R2 ダッシュボードで `podcast-bucket` を選択
+2. **Settings** タブを開く
+3. **Public access** セクションで **Allow Access** をクリック
+4. 確認ダイアログで有効化
+5. 表示される **Public Bucket URL**（`https://pub-xxxxxxxx.r2.dev` 形式）をメモ
+
+**開発用バケット:**
+
+1. 同様に `podcast-bucket-dev` でもパブリックアクセスを有効化
+2. 開発用の Public Bucket URL をメモ（`.dev.vars` に設定）
+
+> **Note**: パブリックアクセスを有効にすると、バケット内のファイルは URL を知っていれば誰でもアクセス可能になります。
+> 音声ファイルを公開配信するポッドキャストでは問題ありませんが、機密ファイルは別バケットで管理してください。
 
 ---
 
@@ -184,6 +221,7 @@ PODCAST_TITLE = "あなたの番組名"
 WEBSITE_URL = "https://your-website.com"
 R2_ACCOUNT_ID = "あなたのAccount ID"
 R2_BUCKET_NAME = "podcast-bucket"
+R2_PUBLIC_URL = "https://pub-xxxxxxxx.r2.dev"  # R2 パブリックアクセスURL
 CF_ACCESS_TEAM_DOMAIN = "your-team.cloudflareaccess.com"
 CF_ACCESS_AUD = "あなたのAUD Tag"
 
@@ -191,6 +229,7 @@ CF_ACCESS_AUD = "あなたのAUD Tag"
 binding = "R2_BUCKET"
 bucket_name = "podcast-bucket"
 preview_bucket_name = "podcast-bucket-dev"
+remote = true  # wrangler dev でもリモート R2 に接続
 ```
 
 ### 2. シークレットを設定（本番用）
@@ -215,13 +254,16 @@ npx wrangler secret put R2_SECRET_ACCESS_KEY
 `apps/worker/.dev.vars` を作成（このファイルは .gitignore に含まれています）:
 
 ```bash
-# ローカル開発用
+# ローカル開発用（認証をスキップ）
 SKIP_AUTH=true
 
 # 開発用バケット名
 R2_BUCKET_NAME=podcast-bucket-dev
 
-# R2 API Token
+# 開発用バケットのパブリックURL（R2 ダッシュボードで確認）
+R2_PUBLIC_URL=https://pub-xxxxxxxx.r2.dev
+
+# R2 API Token（Presigned URL 生成に必要）
 R2_ACCESS_KEY_ID=あなたのAccess Key ID
 R2_SECRET_ACCESS_KEY=あなたのSecret Access Key
 ```
@@ -321,9 +363,14 @@ pnpm deploy:admin
 **症状**: `Audio file not found in R2`
 
 **解決策**:
-- これは既知の問題です
-- ローカル開発時は Presigned URL が実際の R2 にアップロードしますが、R2 Binding はローカルストレージを参照するため発生します
-- `SKIP_AUTH=true` が設定されていれば、この確認はスキップされます
+1. `wrangler.toml` の R2 バインディングに `remote = true` が設定されているか確認
+2. `cloudflared` がインストールされているか確認（`cloudflared --version`）
+3. それでも発生する場合は `SKIP_AUTH=true` が設定されていれば、この確認はスキップされます
+
+**背景**:
+- `remote = true` なしの場合、R2 Binding はローカルエミュレーターを参照します
+- Presigned URL は S3 API 経由で実際の R2 にアップロードするため、不整合が発生していました
+- `remote = true` を設定すると、R2 Binding も実際の R2（dev bucket）に接続します
 
 ---
 
@@ -333,6 +380,7 @@ pnpm deploy:admin
 |---------|---------|---------|
 | Account ID | Cloudflare ダッシュボード右側 | wrangler.toml |
 | R2 Bucket Name | R2 ダッシュボード | wrangler.toml |
+| R2 Public URL | R2 バケット Settings → Public access | wrangler.toml / .dev.vars |
 | CF Access Team Domain | Zero Trust 設定 | wrangler.toml |
 | CF Access AUD | Access Application 詳細 | wrangler.toml |
 | R2 Access Key ID | R2 API Token 作成時 | .dev.vars / wrangler secret |
