@@ -50,7 +50,7 @@
 podcast-platform/
 ├── apps/
 │   ├── admin/          # 管理画面（React + Vite + Tailwind）
-│   ├── web/            # 公開サイト（Astro SSG）※未実装
+│   ├── web/            # 公開サイト（Astro SSG + Tailwind）
 │   └── worker/         # API + Cron（Cloudflare Workers + Hono）
 ├── packages/
 │   ├── shared/         # 共通型定義 ※未実装
@@ -80,7 +80,9 @@ pnpm dev
 pnpm dev           # 全体開発サーバー
 pnpm dev:worker    # Worker（localhost:8787）
 pnpm dev:admin     # 管理画面（localhost:5173）
+pnpm dev:web       # 公開サイト（localhost:4321）
 pnpm build         # ビルド
+pnpm test          # Worker API テスト
 pnpm deploy:worker # Worker デプロイ
 ```
 

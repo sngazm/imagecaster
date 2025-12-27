@@ -5,9 +5,11 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
+    "test": "turbo test",
     "dev:web": "turbo dev --filter=web",
     "dev:admin": "turbo dev --filter=admin",
     "dev:worker": "turbo dev --filter=worker",
+    "test:worker": "turbo test --filter=worker",
     "deploy:worker": "turbo deploy --filter=worker",
     "deploy:web": "turbo deploy --filter=web",
     "deploy:admin": "turbo deploy --filter=admin"
