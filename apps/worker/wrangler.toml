@@ -15,6 +15,7 @@ CF_ACCESS_AUD = "5269d12ad25457e6c5f25a6c8565eafab46cc4817164401abe12982c405263a
 binding = "R2_BUCKET"
 bucket_name = "podcast-bucket"
 preview_bucket_name = "podcast-bucket-dev"  # wrangler dev 時に使用
+remote = true  # wrangler dev でもリモートR2に接続
 
 [triggers]
 crons = ["*/5 * * * *"]
