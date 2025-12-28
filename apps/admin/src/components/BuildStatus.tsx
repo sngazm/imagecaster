@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { api, type Deployment, type DeploymentStage } from "../lib/api";
 
 const STAGE_CONFIG: Record<
-  DeploymentStage,
+  string,
   { label: string; color: string; icon: string }
 > = {
   queued: {
@@ -41,6 +41,16 @@ const STAGE_CONFIG: Record<
     icon: "✗",
   },
 };
+
+const DEFAULT_STAGE = {
+  label: "不明",
+  color: "text-zinc-400 bg-zinc-800",
+  icon: "?",
+};
+
+function getStageConfig(stageName: string) {
+  return STAGE_CONFIG[stageName] || DEFAULT_STAGE;
+}
 
 function formatRelativeTime(dateString: string): string {
   const date = new Date(dateString);
@@ -116,7 +126,7 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
   }
 
   const latest = deployments[0];
-  const stage = STAGE_CONFIG[latest.latestStage.name];
+  const stage = getStageConfig(latest.latestStage.name);
   const isBuilding = ["queued", "initializing", "cloning", "building", "deploying"].includes(
     latest.latestStage.name
   );
@@ -147,7 +157,7 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
             </div>
             <div className="max-h-80 overflow-y-auto">
               {deployments.map((deployment) => {
-                const depStage = STAGE_CONFIG[deployment.latestStage.name];
+                const depStage = getStageConfig(deployment.latestStage.name);
                 const depIsBuilding = ["queued", "initializing", "cloning", "building", "deploying"].includes(
                   deployment.latestStage.name
                 );
