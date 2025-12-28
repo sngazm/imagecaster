@@ -245,6 +245,36 @@ npx wrangler secret put R2_SECRET_ACCESS_KEY
 # プロンプトで Secret Access Key を入力
 ```
 
+### 3. Web サイト自動デプロイの設定（オプション）
+
+エピソードの公開・更新・削除時に自動で Web サイト（Astro SSG）をリビルドするには、Cloudflare Pages のデプロイフックを設定します。
+
+**デプロイフックの作成:**
+
+1. Cloudflare ダッシュボードで **Workers & Pages** を選択
+2. Web サイトのプロジェクトを選択
+3. **Settings** → **Builds & deployments** を開く
+4. **Deploy hooks** セクションで **Add deploy hook** をクリック
+5. 名前を入力（例: `podcast-worker`）
+6. ブランチを選択（通常は `main`）
+7. **Add** をクリック
+8. 表示された URL をコピー
+
+**Worker にフックを設定:**
+
+```bash
+npx wrangler secret put WEB_DEPLOY_HOOK_URL
+# プロンプトでデプロイフック URL を入力
+```
+
+**動作:**
+- エピソードが公開（published）されたとき
+- 公開済みエピソードが更新されたとき
+- 公開済みエピソードが削除されたとき
+- スケジュール配信で公開されたとき（5分ごとの cron）
+
+上記のタイミングで自動的に Web サイトがリビルドされます。
+
 ---
 
 ## ローカル開発環境の設定
@@ -385,6 +415,7 @@ pnpm deploy:admin
 | CF Access AUD | Access Application 詳細 | wrangler.toml |
 | R2 Access Key ID | R2 API Token 作成時 | .dev.vars / wrangler secret |
 | R2 Secret Access Key | R2 API Token 作成時 | .dev.vars / wrangler secret |
+| WEB_DEPLOY_HOOK_URL | Pages Settings → Deploy hooks | wrangler secret（オプション）|
 
 ---
 
