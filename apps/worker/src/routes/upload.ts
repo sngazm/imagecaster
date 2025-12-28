@@ -118,7 +118,7 @@ upload.post("/:id/upload-complete", async (c) => {
     let fileSize = body.fileSize || 0;
 
     // ローカル開発時は R2 Binding が実際のバケットを参照しないためスキップ
-    if (c.env.SKIP_AUTH !== "true") {
+    if (c.env.IS_DEV !== "true") {
       console.log(`[upload-complete] Checking R2 for key: ${audioKey}`);
       const audioObj = await c.env.R2_BUCKET.head(audioKey);
       console.log(`[upload-complete] R2 head result:`, audioObj ? `found (${audioObj.size} bytes)` : "not found");

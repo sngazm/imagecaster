@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { api, Episode } from "../lib/api";
+import { BuildStatus } from "../components/BuildStatus";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   draft: { label: "下書き", color: "bg-zinc-800 text-zinc-400" },
@@ -50,6 +51,7 @@ export default function EpisodeList() {
       <header className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-bold tracking-tight">エピソード</h1>
         <div className="flex items-center gap-3">
+          <BuildStatus />
           <Link
             to="/settings"
             className="p-2.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"

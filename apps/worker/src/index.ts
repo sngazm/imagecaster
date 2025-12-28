@@ -7,6 +7,7 @@ import { upload } from "./routes/upload";
 import { settings } from "./routes/settings";
 import { templates } from "./routes/templates";
 import { importRoutes } from "./routes/import";
+import { deployments } from "./routes/deployments";
 import { getIndex, getEpisodeMeta, saveEpisodeMeta } from "./services/r2";
 import { getFeed, regenerateFeed } from "./services/feed";
 import { triggerWebRebuild } from "./services/deploy";
@@ -55,7 +56,7 @@ const api = new Hono<{ Bindings: Env }>();
 // Cloudflare Access JWT 認証
 api.use("*", async (c, next) => {
   // ローカル開発時は認証スキップ
-  if (c.env.SKIP_AUTH === "true") {
+  if (c.env.IS_DEV === "true") {
     await next();
     return;
   }
@@ -97,6 +98,9 @@ api.route("/templates", templates);
 
 // インポート関連のルートをマウント
 api.route("/import", importRoutes);
+
+// デプロイ状況確認のルートをマウント
+api.route("/deployments", deployments);
 
 // API ルートをマウント
 app.route("/api", api);

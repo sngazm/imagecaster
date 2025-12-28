@@ -15,8 +15,11 @@ export interface Env {
   CF_ACCESS_AUD: string;
   // Deploy Hook（Cloudflare Pages）
   WEB_DEPLOY_HOOK_URL?: string;
+  // Cloudflare Pages API（ビルド状況確認用）
+  CLOUDFLARE_API_TOKEN?: string;
+  PAGES_PROJECT_NAME?: string;
   // ローカル開発用
-  SKIP_AUTH?: string;
+  IS_DEV?: string;
 }
 
 /**
@@ -216,4 +219,52 @@ export interface ImportRssResponse {
     status: "imported" | "skipped";
     reason?: string;
   }>;
+}
+
+/**
+ * Cloudflare Pages デプロイステータス
+ */
+export type DeploymentStage =
+  | "queued"
+  | "initializing"
+  | "cloning"
+  | "building"
+  | "deploying"
+  | "success"
+  | "failure";
+
+/**
+ * デプロイ情報
+ */
+export interface Deployment {
+  id: string;
+  shortId: string;
+  url: string;
+  createdOn: string;
+  modifiedOn: string;
+  latestStage: {
+    name: DeploymentStage;
+    status: "idle" | "active" | "success" | "failure";
+    startedOn: string | null;
+    endedOn: string | null;
+  };
+  deploymentTrigger: {
+    type: string;
+    metadata: {
+      branch?: string;
+      commitHash?: string;
+      commitMessage?: string;
+    };
+  };
+}
+
+/**
+ * デプロイ一覧レスポンス
+ */
+export interface DeploymentsResponse {
+  deployments: Deployment[];
+  configured: boolean;
+  websiteUrl?: string;
+  accountId?: string;
+  projectName?: string;
 }
