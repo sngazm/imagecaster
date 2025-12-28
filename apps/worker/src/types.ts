@@ -264,4 +264,7 @@ export interface Deployment {
 export interface DeploymentsResponse {
   deployments: Deployment[];
   configured: boolean;
+  websiteUrl?: string;
+  accountId?: string;
+  projectName?: string;
 }

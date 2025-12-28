@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { api, type Deployment } from "../lib/api";
 
 const STAGE_CONFIG: Record<
@@ -41,12 +41,12 @@ const STAGE_CONFIG: Record<
     icon: "🚀",
   },
   deploy: {
-    label: "完了",
+    label: "反映済み",
     color: "text-emerald-400 bg-emerald-500/10",
     icon: "✓",
   },
   success: {
-    label: "完了",
+    label: "反映済み",
     color: "text-emerald-400 bg-emerald-500/10",
     icon: "✓",
   },
@@ -91,12 +91,19 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
   const [configured, setConfigured] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [websiteUrl, setWebsiteUrl] = useState<string | undefined>();
+  const [accountId, setAccountId] = useState<string | undefined>();
+  const [projectName, setProjectName] = useState<string | undefined>();
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchDeployments = async () => {
     try {
       const data = await api.getDeployments();
       setDeployments(data.deployments);
       setConfigured(data.configured);
+      setWebsiteUrl(data.websiteUrl);
+      setAccountId(data.accountId);
+      setProjectName(data.projectName);
     } catch (err) {
       console.error("Failed to fetch deployments:", err);
     } finally {
@@ -104,14 +111,28 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
     }
   };
 
+  // ビルド中かどうかを判定
+  const isBuilding = deployments.length > 0 && deployments[0].latestStage.status === "active";
+
   useEffect(() => {
     fetchDeployments();
-
-    // 10秒ごとにポーリング（ビルド中かどうかに関わらず）
-    const interval = setInterval(fetchDeployments, 10000);
-
-    return () => clearInterval(interval);
   }, []);
+
+  // ポーリング間隔を動的に変更
+  useEffect(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+
+    const interval = isBuilding ? 1000 : 10000;
+    intervalRef.current = setInterval(fetchDeployments, interval);
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [isBuilding]);
 
   // 設定されていない場合は何も表示しない
   if (!configured && !isLoading) {
@@ -132,7 +153,10 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
 
   const latest = deployments[0];
   const stage = getStageConfig(latest.latestStage.name);
-  const isBuilding = latest.latestStage.status === "active";
+
+  const dashboardUrl = accountId && projectName
+    ? `https://dash.cloudflare.com/${accountId}/pages/view/${projectName}`
+    : undefined;
 
   return (
     <div className={`relative ${className}`}>
@@ -157,6 +181,28 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
           <div className="absolute right-0 top-full mt-2 w-80 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl z-50">
             <div className="p-3 border-b border-zinc-700">
               <h3 className="font-medium text-zinc-100">Web サイトのビルド状況</h3>
+              <div className="flex gap-3 mt-2">
+                {websiteUrl && (
+                  <a
+                    href={websiteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-violet-400 hover:underline"
+                  >
+                    サイトを開く →
+                  </a>
+                )}
+                {dashboardUrl && (
+                  <a
+                    href={dashboardUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-zinc-400 hover:text-zinc-200"
+                  >
+                    管理画面 →
+                  </a>
+                )}
+              </div>
             </div>
             <div className="max-h-80 overflow-y-auto">
               {deployments.map((deployment) => {

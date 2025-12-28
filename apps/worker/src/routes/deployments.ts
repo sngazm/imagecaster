@@ -97,6 +97,9 @@ deployments.get("/", async (c) => {
     const response: DeploymentsResponse = {
       deployments: deploymentList,
       configured: true,
+      websiteUrl: c.env.WEBSITE_URL,
+      accountId: R2_ACCOUNT_ID,
+      projectName: PAGES_PROJECT_NAME,
     };
 
     return c.json(response);
