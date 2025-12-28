@@ -17,7 +17,7 @@ export default function EpisodeNew() {
   const [audioUrl, setAudioUrl] = useState("");
   const [skipTranscription, setSkipTranscription] = useState(true);
   const [publishAt, setPublishAt] = useState<string>("");
-  const [blueskyPostText, setBlueskyPostText] = useState("");
+  const [blueskyPostText, setBlueskyPostText] = useState("{{TITLE}}\n{{EPISODE_URL}}");
   const [blueskyPostEnabled, setBlueskyPostEnabled] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState("");
