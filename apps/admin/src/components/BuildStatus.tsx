@@ -148,7 +148,7 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
                     rel="noopener noreferrer"
                     className="text-xs text-zinc-400 hover:text-zinc-200"
                   >
-                    管理画面 →
+                    デプロイ管理画面 →
                   </a>
                 )}
               </div>
