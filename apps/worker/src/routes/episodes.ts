@@ -19,6 +19,7 @@ import {
   getAudioFile,
 } from "../services/r2";
 import { regenerateFeed } from "../services/feed";
+import { postEpisodeToBluesky } from "../services/bluesky";
 import { triggerWebRebuild } from "../services/deploy";
 
 const episodes = new Hono<{ Bindings: Env }>();
@@ -133,6 +134,9 @@ episodes.post("/", async (c) => {
     createdAt: now,
     publishAt: body.publishAt ?? null,
     publishedAt: null,
+    blueskyPostText: body.blueskyPostText ?? null,
+    blueskyPostEnabled: body.blueskyPostEnabled ?? false,
+    blueskyPostedAt: null,
   };
 
   // メタデータを保存
@@ -195,6 +199,13 @@ episodes.put("/:id", async (c) => {
       if (meta.status === "draft" || meta.status === "failed") {
         meta.skipTranscription = body.skipTranscription;
       }
+    }
+    // Bluesky 投稿設定
+    if (body.blueskyPostText !== undefined) {
+      meta.blueskyPostText = body.blueskyPostText;
+    }
+    if (body.blueskyPostEnabled !== undefined) {
+      meta.blueskyPostEnabled = body.blueskyPostEnabled;
     }
 
     // slugが変わる場合はファイルを移動
@@ -278,6 +289,12 @@ episodes.post("/:id/transcription-complete", async (c) => {
         if (new Date(meta.publishAt) <= now) {
           meta.status = "published";
           meta.publishedAt = now.toISOString();
+
+          // Bluesky に投稿
+          const posted = await postEpisodeToBluesky(c.env, meta, c.env.WEBSITE_URL);
+          if (posted) {
+            meta.blueskyPostedAt = now.toISOString();
+          }
         } else {
           meta.status = "scheduled";
         }

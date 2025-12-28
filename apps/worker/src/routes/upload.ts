@@ -13,6 +13,7 @@ import {
   saveAudioFile,
 } from "../services/r2";
 import { regenerateFeed } from "../services/feed";
+import { postEpisodeToBluesky } from "../services/bluesky";
 import { triggerWebRebuild } from "../services/deploy";
 
 const upload = new Hono<{ Bindings: Env }>();
@@ -145,6 +146,12 @@ upload.post("/:id/upload-complete", async (c) => {
       if (new Date(meta.publishAt) <= now) {
         meta.status = "published";
         meta.publishedAt = now.toISOString();
+
+        // Bluesky に投稿
+        const posted = await postEpisodeToBluesky(c.env, meta, c.env.WEBSITE_URL);
+        if (posted) {
+          meta.blueskyPostedAt = now.toISOString();
+        }
       } else {
         meta.status = "scheduled";
       }
@@ -221,6 +228,12 @@ upload.post("/:id/upload-from-url", async (c) => {
       if (new Date(meta.publishAt) <= now) {
         meta.status = "published";
         meta.publishedAt = now.toISOString();
+
+        // Bluesky に投稿
+        const posted = await postEpisodeToBluesky(c.env, meta, c.env.WEBSITE_URL);
+        if (posted) {
+          meta.blueskyPostedAt = now.toISOString();
+        }
       } else {
         meta.status = "scheduled";
       }

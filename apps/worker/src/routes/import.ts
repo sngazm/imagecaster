@@ -220,6 +220,9 @@ importRoutes.post("/rss", async (c) => {
       createdAt: now,
       publishAt: pubDate,
       publishedAt: pubDate,
+      blueskyPostText: null,
+      blueskyPostEnabled: false,
+      blueskyPostedAt: null,
     };
 
     episodesToSave.push(meta);

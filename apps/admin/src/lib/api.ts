@@ -46,6 +46,10 @@ export interface EpisodeDetail {
   createdAt: string;
   publishAt: string | null;
   publishedAt: string | null;
+  // Bluesky
+  blueskyPostText: string | null;
+  blueskyPostEnabled: boolean;
+  blueskyPostedAt: string | null;
 }
 
 export interface PodcastSettings {
@@ -178,6 +182,8 @@ export const api = {
     description?: string;
     publishAt?: string | null;
     skipTranscription?: boolean;
+    blueskyPostText?: string | null;
+    blueskyPostEnabled?: boolean;
   }) =>
     request<CreateEpisodeResponse>("/api/episodes", {
       method: "POST",
@@ -190,6 +196,8 @@ export const api = {
     description?: string;
     publishAt?: string | null;
     skipTranscription?: boolean;
+    blueskyPostText?: string | null;
+    blueskyPostEnabled?: boolean;
   }) =>
     request<EpisodeDetail>(`/api/episodes/${id}`, {
       method: "PUT",
