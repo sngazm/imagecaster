@@ -7,9 +7,11 @@ import { upload } from "./routes/upload";
 import { settings } from "./routes/settings";
 import { templates } from "./routes/templates";
 import { importRoutes } from "./routes/import";
+import { deployments } from "./routes/deployments";
 import { getIndex, getEpisodeMeta, saveEpisodeMeta } from "./services/r2";
 import { getFeed, regenerateFeed } from "./services/feed";
 import { postEpisodeToBluesky } from "./services/bluesky";
+import { triggerWebRebuild } from "./services/deploy";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -55,7 +57,7 @@ const api = new Hono<{ Bindings: Env }>();
 // Cloudflare Access JWT 認証
 api.use("*", async (c, next) => {
   // ローカル開発時は認証スキップ
-  if (c.env.SKIP_AUTH === "true") {
+  if (c.env.IS_DEV === "true") {
     await next();
     return;
   }
@@ -97,6 +99,9 @@ api.route("/templates", templates);
 
 // インポート関連のルートをマウント
 api.route("/import", importRoutes);
+
+// デプロイ状況確認のルートをマウント
+api.route("/deployments", deployments);
 
 // API ルートをマウント
 app.route("/api", api);
@@ -167,30 +172,6 @@ async function handleScheduledPublish(env: Env): Promise<void> {
 
     // Web サイトのリビルドをトリガー
     await triggerWebRebuild(env);
-  }
-}
-
-/**
- * Deploy Hook を呼び出して Web サイトをリビルド
- */
-async function triggerWebRebuild(env: Env): Promise<void> {
-  if (!env.WEB_DEPLOY_HOOK_URL) {
-    console.log("WEB_DEPLOY_HOOK_URL not configured, skipping rebuild trigger");
-    return;
-  }
-
-  try {
-    const response = await fetch(env.WEB_DEPLOY_HOOK_URL, {
-      method: "POST",
-    });
-
-    if (response.ok) {
-      console.log("Web rebuild triggered successfully");
-    } else {
-      console.error(`Failed to trigger web rebuild: ${response.status}`);
-    }
-  } catch (err) {
-    console.error("Error triggering web rebuild:", err);
   }
 }
 

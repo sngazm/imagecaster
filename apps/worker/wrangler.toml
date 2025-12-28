@@ -5,7 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 PODCAST_TITLE = "番組名"
-WEBSITE_URL = "https://example.com"
+WEBSITE_URL = "https://imagecaster-web.pages.dev"
 R2_ACCOUNT_ID = "f79879b4bd3520260744db022329425d"
 R2_BUCKET_NAME = "podcast-bucket"
 R2_PUBLIC_URL = "https://pub-3084e431ea244accadaf06c7023bf1f8.r2.dev"  # R2 Public Access を有効化後に設定

@@ -245,6 +245,70 @@ npx wrangler secret put R2_SECRET_ACCESS_KEY
 # プロンプトで Secret Access Key を入力
 ```
 
+### 3. Web サイト自動デプロイの設定（オプション）
+
+エピソードの公開・更新・削除時に自動で Web サイト（Astro SSG）をリビルドするには、Cloudflare Pages のデプロイフックを設定します。
+
+**デプロイフックの作成:**
+
+1. Cloudflare ダッシュボードで **Workers & Pages** を選択
+2. Web サイトのプロジェクトを選択
+3. **Settings** → **Builds & deployments** を開く
+4. **Deploy hooks** セクションで **Add deploy hook** をクリック
+5. 名前を入力（例: `podcast-worker`）
+6. ブランチを選択（通常は `main`）
+7. **Add** をクリック
+8. 表示された URL をコピー
+
+**Worker にフックを設定:**
+
+```bash
+npx wrangler secret put WEB_DEPLOY_HOOK_URL
+# プロンプトでデプロイフック URL を入力
+```
+
+**動作:**
+- エピソードが公開（published）されたとき
+- 公開済みエピソードが更新されたとき
+- 公開済みエピソードが削除されたとき
+- スケジュール配信で公開されたとき（5分ごとの cron）
+
+上記のタイミングで自動的に Web サイトがリビルドされます。
+
+### 4. ビルド状況表示の設定（オプション）
+
+管理画面でビルドの進捗状況を確認するには、Cloudflare API Token を設定します。
+
+**API Token の作成:**
+
+1. [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens) にアクセス
+2. **Create Token** をクリック
+3. **Create Custom Token** を選択
+4. 設定:
+   - **Token name**: `podcast-admin-pages-read`（任意）
+   - **Permissions**:
+     - Account > Cloudflare Pages > Read
+   - **Account Resources**: 対象のアカウントを選択
+5. **Continue to summary** → **Create Token**
+6. 表示されたトークンをコピー
+
+**Worker にトークンを設定:**
+
+```bash
+npx wrangler secret put CLOUDFLARE_API_TOKEN
+# プロンプトで API Token を入力
+
+npx wrangler secret put PAGES_PROJECT_NAME
+# プロンプトで Web サイトのプロジェクト名を入力（例: podcast-web）
+```
+
+設定後、管理画面のヘッダーにビルド状況が表示されます:
+- ビルド中: 青いスピナーと「ビルド中」表示
+- 成功: 緑のチェックマークと「完了」表示
+- 失敗: 赤の×マークと「失敗」表示
+
+クリックすると最近5件のデプロイ履歴が確認できます。
+
 ---
 
 ## ローカル開発環境の設定
@@ -254,8 +318,8 @@ npx wrangler secret put R2_SECRET_ACCESS_KEY
 `apps/worker/.dev.vars` を作成（このファイルは .gitignore に含まれています）:
 
 ```bash
-# ローカル開発用（認証をスキップ）
-SKIP_AUTH=true
+# ローカル開発用（認証・リモート処理をスキップ）
+IS_DEV=true
 
 # 開発用バケット名
 R2_BUCKET_NAME=podcast-bucket-dev
@@ -328,7 +392,7 @@ pnpm deploy:admin
 **症状**: `Unauthorized: Missing Access token`
 
 **解決策**:
-- ローカル開発時: `.dev.vars` に `SKIP_AUTH=true` があるか確認
+- ローカル開発時: `.dev.vars` に `IS_DEV=true` があるか確認
 - 本番: Cloudflare Access でログインしているか確認
 
 ### 401 Unauthorized: Invalid token
@@ -365,7 +429,7 @@ pnpm deploy:admin
 **解決策**:
 1. `wrangler.toml` の R2 バインディングに `remote = true` が設定されているか確認
 2. `cloudflared` がインストールされているか確認（`cloudflared --version`）
-3. それでも発生する場合は `SKIP_AUTH=true` が設定されていれば、この確認はスキップされます
+3. それでも発生する場合は `IS_DEV=true` が設定されていれば、この確認はスキップされます
 
 **背景**:
 - `remote = true` なしの場合、R2 Binding はローカルエミュレーターを参照します
@@ -385,6 +449,9 @@ pnpm deploy:admin
 | CF Access AUD | Access Application 詳細 | wrangler.toml |
 | R2 Access Key ID | R2 API Token 作成時 | .dev.vars / wrangler secret |
 | R2 Secret Access Key | R2 API Token 作成時 | .dev.vars / wrangler secret |
+| WEB_DEPLOY_HOOK_URL | Pages Settings → Deploy hooks | wrangler secret（オプション）|
+| CLOUDFLARE_API_TOKEN | API Tokens ページで作成 | wrangler secret（オプション）|
+| PAGES_PROJECT_NAME | Workers & Pages プロジェクト名 | wrangler secret（オプション）|
 
 ---
 
