@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { api, type Deployment, type DeploymentStage } from "../lib/api";
+import { api, type Deployment } from "../lib/api";
 
 const STAGE_CONFIG: Record<
   string,
