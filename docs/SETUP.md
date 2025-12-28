@@ -318,8 +318,8 @@ npx wrangler secret put PAGES_PROJECT_NAME
 `apps/worker/.dev.vars` を作成（このファイルは .gitignore に含まれています）:
 
 ```bash
-# ローカル開発用（認証をスキップ）
-SKIP_AUTH=true
+# ローカル開発用（認証・リモート処理をスキップ）
+IS_DEV=true
 
 # 開発用バケット名
 R2_BUCKET_NAME=podcast-bucket-dev
@@ -392,7 +392,7 @@ pnpm deploy:admin
 **症状**: `Unauthorized: Missing Access token`
 
 **解決策**:
-- ローカル開発時: `.dev.vars` に `SKIP_AUTH=true` があるか確認
+- ローカル開発時: `.dev.vars` に `IS_DEV=true` があるか確認
 - 本番: Cloudflare Access でログインしているか確認
 
 ### 401 Unauthorized: Invalid token
@@ -429,7 +429,7 @@ pnpm deploy:admin
 **解決策**:
 1. `wrangler.toml` の R2 バインディングに `remote = true` が設定されているか確認
 2. `cloudflared` がインストールされているか確認（`cloudflared --version`）
-3. それでも発生する場合は `SKIP_AUTH=true` が設定されていれば、この確認はスキップされます
+3. それでも発生する場合は `IS_DEV=true` が設定されていれば、この確認はスキップされます
 
 **背景**:
 - `remote = true` なしの場合、R2 Binding はローカルエミュレーターを参照します

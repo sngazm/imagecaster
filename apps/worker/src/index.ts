@@ -56,7 +56,7 @@ const api = new Hono<{ Bindings: Env }>();
 // Cloudflare Access JWT 認証
 api.use("*", async (c, next) => {
   // ローカル開発時は認証スキップ
-  if (c.env.SKIP_AUTH === "true") {
+  if (c.env.IS_DEV === "true") {
     await next();
     return;
   }

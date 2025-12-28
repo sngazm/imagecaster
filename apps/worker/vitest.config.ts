@@ -8,7 +8,7 @@ export default defineWorkersConfig({
         miniflare: {
           bindings: {
             // テスト用の環境変数
-            SKIP_AUTH: "true",
+            IS_DEV: "true",
           },
         },
       },

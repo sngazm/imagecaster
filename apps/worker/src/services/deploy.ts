@@ -5,7 +5,7 @@ import type { Env } from "../types";
  */
 export async function triggerWebRebuild(env: Env): Promise<void> {
   // ローカル開発時はスキップ
-  if (env.SKIP_AUTH === "true") {
+  if (env.IS_DEV === "true") {
     console.log("Skipping web rebuild trigger (dev mode)");
     return;
   }

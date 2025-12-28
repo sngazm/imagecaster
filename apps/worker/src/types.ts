@@ -19,7 +19,7 @@ export interface Env {
   CLOUDFLARE_API_TOKEN?: string;
   PAGES_PROJECT_NAME?: string;
   // ローカル開発用
-  SKIP_AUTH?: string;
+  IS_DEV?: string;
 }
 
 /**
