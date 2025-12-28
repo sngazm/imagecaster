@@ -7,6 +7,7 @@ import { upload } from "./routes/upload";
 import { settings } from "./routes/settings";
 import { templates } from "./routes/templates";
 import { importRoutes } from "./routes/import";
+import { deployments } from "./routes/deployments";
 import { getIndex, getEpisodeMeta, saveEpisodeMeta } from "./services/r2";
 import { getFeed, regenerateFeed } from "./services/feed";
 import { triggerWebRebuild } from "./services/deploy";
@@ -97,6 +98,9 @@ api.route("/templates", templates);
 
 // インポート関連のルートをマウント
 api.route("/import", importRoutes);
+
+// デプロイ状況確認のルートをマウント
+api.route("/deployments", deployments);
 
 // API ルートをマウント
 app.route("/api", api);

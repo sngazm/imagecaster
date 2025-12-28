@@ -98,6 +98,42 @@ export interface RssImportResponse {
   }>;
 }
 
+export type DeploymentStage =
+  | "queued"
+  | "initializing"
+  | "cloning"
+  | "building"
+  | "deploying"
+  | "success"
+  | "failure";
+
+export interface Deployment {
+  id: string;
+  shortId: string;
+  url: string;
+  createdOn: string;
+  modifiedOn: string;
+  latestStage: {
+    name: DeploymentStage;
+    status: "idle" | "active" | "success" | "failure";
+    startedOn: string | null;
+    endedOn: string | null;
+  };
+  deploymentTrigger: {
+    type: string;
+    metadata: {
+      branch?: string;
+      commitHash?: string;
+      commitMessage?: string;
+    };
+  };
+}
+
+export interface DeploymentsResponse {
+  deployments: Deployment[];
+  configured: boolean;
+}
+
 export interface EpisodesListResponse {
   episodes: Episode[];
 }
@@ -260,6 +296,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ rssUrl }),
     }),
+
+  // Deployments
+  getDeployments: () =>
+    request<DeploymentsResponse>("/api/deployments"),
 };
 
 export async function uploadToR2(uploadUrl: string, file: File): Promise<void> {
