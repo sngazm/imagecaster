@@ -36,6 +36,8 @@ export default function EpisodeDetail() {
   const [editSlug, setEditSlug] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editPublishAt, setEditPublishAt] = useState("");
+  const [editBlueskyPostText, setEditBlueskyPostText] = useState("");
+  const [editBlueskyPostEnabled, setEditBlueskyPostEnabled] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [templates, setTemplates] = useState<DescriptionTemplate[]>([]);
@@ -65,6 +67,8 @@ export default function EpisodeDetail() {
         setEditSlug(data.slug || data.id);
         setEditDescription(data.description);
         setEditPublishAt(data.publishAt ? data.publishAt.slice(0, 16) : "");
+        setEditBlueskyPostText(data.blueskyPostText || "");
+        setEditBlueskyPostEnabled(data.blueskyPostEnabled);
         setTemplates(templatesData);
       } catch (err) {
         setError(err instanceof Error ? err.message : "エピソードの取得に失敗しました");
@@ -85,6 +89,8 @@ export default function EpisodeDetail() {
         title: editTitle,
         description: editDescription,
         publishAt: editPublishAt ? new Date(editPublishAt).toISOString() : null,
+        blueskyPostText: editBlueskyPostText.trim() || null,
+        blueskyPostEnabled: editBlueskyPostEnabled,
       };
 
       // slugの変更はdraft状態のみ
@@ -407,6 +413,8 @@ export default function EpisodeDetail() {
                   setEditSlug(episode.slug || episode.id);
                   setEditDescription(episode.description);
                   setEditPublishAt(episode.publishAt ? episode.publishAt.slice(0, 16) : "");
+                  setEditBlueskyPostText(episode.blueskyPostText || "");
+                  setEditBlueskyPostEnabled(episode.blueskyPostEnabled);
                   setError(null);
                 }}
                 className="px-5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium rounded-lg transition-all"
@@ -444,6 +452,82 @@ export default function EpisodeDetail() {
           </a>
         ) : (
           <p className="text-zinc-500 text-sm">文字起こしはまだありません</p>
+        )}
+      </div>
+
+      {/* Bluesky 自動投稿 */}
+      <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 mb-6">
+        <div className="flex items-center gap-2 mb-4">
+          <svg className="w-5 h-5 text-sky-500" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+          </svg>
+          <h2 className="text-sm font-medium text-zinc-400">Bluesky 自動投稿</h2>
+        </div>
+
+        {episode.blueskyPostedAt ? (
+          <div className="flex items-center gap-2 text-sm text-emerald-400">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            投稿済み: {formatDate(episode.blueskyPostedAt)}
+          </div>
+        ) : isEditing ? (
+          <div className="space-y-4">
+            <label className="flex items-start gap-3 p-4 bg-zinc-900 border border-zinc-800 rounded-lg cursor-pointer hover:border-zinc-700 transition-colors">
+              <input
+                type="checkbox"
+                checked={editBlueskyPostEnabled}
+                onChange={(e) => setEditBlueskyPostEnabled(e.target.checked)}
+                className="mt-0.5 w-5 h-5 rounded border-zinc-700 bg-zinc-900 text-sky-600 focus:ring-sky-500 focus:ring-offset-0"
+              />
+              <div>
+                <span className="block text-sm font-medium text-zinc-200">
+                  公開時にBlueskyに投稿する
+                </span>
+                <span className="block text-xs text-zinc-500 mt-1">
+                  エピソード公開時に下記のテキストを自動投稿します
+                </span>
+              </div>
+            </label>
+
+            {editBlueskyPostEnabled && (
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">
+                  投稿テキスト
+                </label>
+                <textarea
+                  value={editBlueskyPostText}
+                  onChange={(e) => setEditBlueskyPostText(e.target.value)}
+                  placeholder={"🎙️ 新エピソード公開！\n{{TITLE}}\n\n詳しくはこちら👇\n{{EPISODE_URL}}"}
+                  rows={5}
+                  className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all font-mono text-sm"
+                />
+                <p className="text-xs text-zinc-500 mt-2">
+                  使用可能なプレースホルダ: <code className="text-sky-400">{"{{TITLE}}"}</code> <code className="text-sky-400">{"{{EPISODE_URL}}"}</code> <code className="text-sky-400">{"{{AUDIO_URL}}"}</code>
+                </p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div>
+            {episode.blueskyPostEnabled ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm text-sky-400">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  公開時に投稿予定
+                </div>
+                {episode.blueskyPostText && (
+                  <div className="bg-zinc-900 rounded-lg p-4 text-zinc-400 text-sm font-mono whitespace-pre-wrap">
+                    {episode.blueskyPostText}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-zinc-500 text-sm">Bluesky投稿は無効です</p>
+            )}
+          </div>
         )}
       </div>
 
