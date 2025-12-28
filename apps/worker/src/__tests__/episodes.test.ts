@@ -1,0 +1,371 @@
+import { describe, it, expect, beforeEach } from "vitest";
+import { SELF } from "cloudflare:test";
+
+/**
+ * テスト用ヘルパー: エピソードを作成してIDを返す
+ */
+async function createTestEpisode(data: {
+  title: string;
+  description?: string;
+  publishAt?: string | null;
+  skipTranscription?: boolean;
+  slug?: string;
+}): Promise<{ id: string; slug: string }> {
+  const response = await SELF.fetch("http://localhost/api/episodes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  const json = await response.json();
+  return { id: json.id, slug: json.slug };
+}
+
+describe("Episodes API - CRUD Operations", () => {
+  describe("PUT /api/episodes/:id", () => {
+    it("updates episode title and description", async () => {
+      const { id } = await createTestEpisode({
+        title: "Original Title",
+        description: "Original description",
+      });
+
+      const response = await SELF.fetch(`http://localhost/api/episodes/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "Updated Title",
+          description: "Updated description",
+        }),
+      });
+
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      expect(json.title).toBe("Updated Title");
+      expect(json.description).toBe("Updated description");
+    });
+
+    it("updates publishAt to schedule episode", async () => {
+      const { id } = await createTestEpisode({
+        title: "Scheduled Episode",
+        publishAt: null,
+      });
+
+      const futureDate = new Date(Date.now() + 86400000 * 7).toISOString();
+
+      const response = await SELF.fetch(`http://localhost/api/episodes/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publishAt: futureDate }),
+      });
+
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      expect(json.publishAt).toBe(futureDate);
+    });
+
+    it("updates Bluesky post settings", async () => {
+      const { id } = await createTestEpisode({
+        title: "Bluesky Test",
+      });
+
+      const response = await SELF.fetch(`http://localhost/api/episodes/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          blueskyPostEnabled: true,
+          blueskyPostText: "Check out my new episode!",
+        }),
+      });
+
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      expect(json.blueskyPostEnabled).toBe(true);
+      expect(json.blueskyPostText).toBe("Check out my new episode!");
+    });
+
+    it("allows slug change in draft status", async () => {
+      const { id } = await createTestEpisode({
+        title: "Slug Change Test",
+      });
+
+      const newSlug = `new-slug-${Date.now()}`;
+      const response = await SELF.fetch(`http://localhost/api/episodes/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug: newSlug }),
+      });
+
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      expect(json.slug).toBe(newSlug);
+      expect(json.id).toBe(newSlug);
+    });
+
+    it("rejects invalid slug format", async () => {
+      const { id } = await createTestEpisode({
+        title: "Invalid Slug Test",
+      });
+
+      const response = await SELF.fetch(`http://localhost/api/episodes/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug: "Invalid Slug With Spaces!" }),
+      });
+
+      expect(response.status).toBe(400);
+
+      const json = await response.json();
+      expect(json.error).toContain("Invalid slug");
+    });
+
+    it("returns 404 for non-existent episode", async () => {
+      const response = await SELF.fetch(
+        "http://localhost/api/episodes/non-existent-episode-id",
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: "Test" }),
+        }
+      );
+
+      expect(response.status).toBe(404);
+
+      const json = await response.json();
+      expect(json.error).toBe("Episode not found");
+    });
+  });
+
+  describe("DELETE /api/episodes/:id", () => {
+    it("deletes an existing episode", async () => {
+      const { id } = await createTestEpisode({
+        title: "Episode to Delete",
+      });
+
+      const response = await SELF.fetch(`http://localhost/api/episodes/${id}`, {
+        method: "DELETE",
+      });
+
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      expect(json.success).toBe(true);
+
+      // 削除後は取得できないことを確認
+      const getResponse = await SELF.fetch(
+        `http://localhost/api/episodes/${id}`
+      );
+      expect(getResponse.status).toBe(404);
+    });
+
+    it("returns 404 for non-existent episode", async () => {
+      const response = await SELF.fetch(
+        "http://localhost/api/episodes/non-existent-episode-id",
+        {
+          method: "DELETE",
+        }
+      );
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("GET /api/episodes/:id", () => {
+    it("returns episode details", async () => {
+      const { id } = await createTestEpisode({
+        title: "Get Test Episode",
+        description: "Test description",
+      });
+
+      const response = await SELF.fetch(`http://localhost/api/episodes/${id}`);
+
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      expect(json.id).toBe(id);
+      expect(json.title).toBe("Get Test Episode");
+      expect(json.description).toBe("Test description");
+      expect(json.status).toBe("draft");
+    });
+  });
+});
+
+describe("Episodes API - Transcription", () => {
+  describe("POST /api/episodes/:id/transcription-complete", () => {
+    it("marks transcription as completed and sets status to scheduled", async () => {
+      const futureDate = new Date(Date.now() + 86400000).toISOString();
+      const { id } = await createTestEpisode({
+        title: "Transcription Test",
+        publishAt: futureDate,
+        skipTranscription: false,
+      });
+
+      // 先にステータスを transcribing に設定するため、メタデータを直接操作できないので
+      // transcription-complete は transcribing 状態でなくても動作することをテスト
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/transcription-complete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: "completed",
+            duration: 3600,
+          }),
+        }
+      );
+
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      expect(json.success).toBe(true);
+      // publishAtが未来なのでscheduledになる
+      expect(json.status).toBe("scheduled");
+    });
+
+    it("marks transcription as failed", async () => {
+      const { id } = await createTestEpisode({
+        title: "Failed Transcription Test",
+        publishAt: new Date(Date.now() + 86400000).toISOString(),
+      });
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/transcription-complete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: "failed",
+          }),
+        }
+      );
+
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      expect(json.success).toBe(true);
+      expect(json.status).toBe("failed");
+    });
+
+    it("sets status to draft when publishAt is null", async () => {
+      const { id } = await createTestEpisode({
+        title: "Draft After Transcription",
+        publishAt: null,
+      });
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/transcription-complete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: "completed",
+          }),
+        }
+      );
+
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      expect(json.status).toBe("draft");
+    });
+
+    it("returns 404 for non-existent episode", async () => {
+      const response = await SELF.fetch(
+        "http://localhost/api/episodes/non-existent-id/transcription-complete",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "completed" }),
+        }
+      );
+
+      expect(response.status).toBe(404);
+    });
+  });
+});
+
+describe("Episodes API - Validation", () => {
+  describe("POST /api/episodes", () => {
+    it("creates episode with custom slug", async () => {
+      const customSlug = `custom-slug-${Date.now()}`;
+      const response = await SELF.fetch("http://localhost/api/episodes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "Custom Slug Episode",
+          slug: customSlug,
+        }),
+      });
+
+      expect(response.status).toBe(201);
+
+      const json = await response.json();
+      expect(json.slug).toBe(customSlug);
+    });
+
+    it("rejects invalid slug format", async () => {
+      const response = await SELF.fetch("http://localhost/api/episodes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "Invalid Slug Episode",
+          slug: "Invalid Slug!",
+        }),
+      });
+
+      expect(response.status).toBe(400);
+
+      const json = await response.json();
+      expect(json.error).toContain("Invalid slug");
+    });
+
+    it("rejects duplicate slug", async () => {
+      const slug = `unique-slug-${Date.now()}`;
+
+      // 1つ目を作成
+      await SELF.fetch("http://localhost/api/episodes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "First Episode", slug }),
+      });
+
+      // 同じslugで2つ目を作成
+      const response = await SELF.fetch("http://localhost/api/episodes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "Second Episode", slug }),
+      });
+
+      expect(response.status).toBe(400);
+
+      const json = await response.json();
+      expect(json.error).toContain("already exists");
+    });
+
+    it("creates episode with skipTranscription flag", async () => {
+      const response = await SELF.fetch("http://localhost/api/episodes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "Skip Transcription Episode",
+          skipTranscription: true,
+        }),
+      });
+
+      expect(response.status).toBe(201);
+
+      const json = await response.json();
+      expect(json.id).toBeDefined();
+
+      // 詳細を取得して確認
+      const detailResponse = await SELF.fetch(
+        `http://localhost/api/episodes/${json.id}`
+      );
+      const detail = await detailResponse.json();
+      expect(detail.skipTranscription).toBe(true);
+    });
+  });
+});
