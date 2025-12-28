@@ -15,6 +15,11 @@ const STAGE_CONFIG: Record<
     color: "text-amber-400 bg-amber-500/10",
     icon: "🔄",
   },
+  initialize: {
+    label: "初期化中",
+    color: "text-amber-400 bg-amber-500/10",
+    icon: "🔄",
+  },
   cloning: {
     label: "クローン中",
     color: "text-amber-400 bg-amber-500/10",
@@ -25,10 +30,20 @@ const STAGE_CONFIG: Record<
     color: "text-blue-400 bg-blue-500/10",
     icon: "🔨",
   },
+  build: {
+    label: "ビルド中",
+    color: "text-blue-400 bg-blue-500/10",
+    icon: "🔨",
+  },
   deploying: {
     label: "デプロイ中",
     color: "text-violet-400 bg-violet-500/10",
     icon: "🚀",
+  },
+  deploy: {
+    label: "完了",
+    color: "text-emerald-400 bg-emerald-500/10",
+    icon: "✓",
   },
   success: {
     label: "完了",
@@ -92,21 +107,11 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
   useEffect(() => {
     fetchDeployments();
 
-    // ビルド中の場合は10秒ごとにポーリング
-    const interval = setInterval(() => {
-      if (deployments.length > 0) {
-        const latest = deployments[0];
-        const isBuilding = ["queued", "initializing", "cloning", "building", "deploying"].includes(
-          latest.latestStage.name
-        );
-        if (isBuilding) {
-          fetchDeployments();
-        }
-      }
-    }, 10000);
+    // 10秒ごとにポーリング（ビルド中かどうかに関わらず）
+    const interval = setInterval(fetchDeployments, 10000);
 
     return () => clearInterval(interval);
-  }, [deployments]);
+  }, []);
 
   // 設定されていない場合は何も表示しない
   if (!configured && !isLoading) {
@@ -127,9 +132,7 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
 
   const latest = deployments[0];
   const stage = getStageConfig(latest.latestStage.name);
-  const isBuilding = ["queued", "initializing", "cloning", "building", "deploying"].includes(
-    latest.latestStage.name
-  );
+  const isBuilding = latest.latestStage.status === "active";
 
   return (
     <div className={`relative ${className}`}>
@@ -158,16 +161,14 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
             <div className="max-h-80 overflow-y-auto">
               {deployments.map((deployment) => {
                 const depStage = getStageConfig(deployment.latestStage.name);
-                const depIsBuilding = ["queued", "initializing", "cloning", "building", "deploying"].includes(
-                  deployment.latestStage.name
-                );
+                const depIsBuilding = deployment.latestStage.status === "active";
 
                 return (
                   <div
                     key={deployment.id}
                     className="p-3 border-b border-zinc-800 last:border-b-0 hover:bg-zinc-800/50"
                   >
-                    <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         {depIsBuilding ? (
                           <div className={`w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin ${depStage.color.split(" ")[0]}`} />
@@ -182,20 +183,6 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
                         {formatRelativeTime(deployment.createdOn)}
                       </span>
                     </div>
-                    <div className="text-xs text-zinc-400 truncate">
-                      {deployment.deploymentTrigger.metadata.commitMessage ||
-                        deployment.deploymentTrigger.type}
-                    </div>
-                    {deployment.latestStage.name === "success" && (
-                      <a
-                        href={deployment.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-violet-400 hover:underline mt-1 inline-block"
-                      >
-                        プレビュー →
-                      </a>
-                    )}
                   </div>
                 );
               })}
