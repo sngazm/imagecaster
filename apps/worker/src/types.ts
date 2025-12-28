@@ -15,6 +15,9 @@ export interface Env {
   CF_ACCESS_AUD: string;
   // Deploy Hook（Cloudflare Pages）
   WEB_DEPLOY_HOOK_URL?: string;
+  // Bluesky
+  BLUESKY_IDENTIFIER?: string; // ハンドル or DID
+  BLUESKY_PASSWORD?: string; // アプリパスワード
   // ローカル開発用
   SKIP_AUTH?: string;
 }
@@ -71,6 +74,10 @@ export interface EpisodeMeta {
   createdAt: string;
   publishAt: string | null; // nullの場合はドラフト
   publishedAt: string | null;
+  // Bluesky 自動投稿
+  blueskyPostText: string | null; // 投稿テキスト（事前登録）
+  blueskyPostEnabled: boolean; // 公開時にBlueskyに投稿するか
+  blueskyPostedAt: string | null; // 投稿済みの場合の日時
 }
 
 /**
@@ -82,6 +89,8 @@ export interface CreateEpisodeRequest {
   description?: string;
   publishAt?: string | null;
   skipTranscription?: boolean;
+  blueskyPostText?: string | null;
+  blueskyPostEnabled?: boolean;
 }
 
 /**
@@ -93,6 +102,8 @@ export interface UpdateEpisodeRequest {
   description?: string;
   publishAt?: string | null;
   skipTranscription?: boolean;
+  blueskyPostText?: string | null;
+  blueskyPostEnabled?: boolean;
 }
 
 /**

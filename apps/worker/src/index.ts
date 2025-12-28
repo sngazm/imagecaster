@@ -9,6 +9,7 @@ import { templates } from "./routes/templates";
 import { importRoutes } from "./routes/import";
 import { getIndex, getEpisodeMeta, saveEpisodeMeta } from "./services/r2";
 import { getFeed, regenerateFeed } from "./services/feed";
+import { postEpisodeToBluesky } from "./services/bluesky";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -141,11 +142,17 @@ async function handleScheduledPublish(env: Env): Promise<void> {
       continue;
     }
 
-    if (meta.status === "scheduled" && new Date(meta.publishAt) <= now) {
+    if (meta.status === "scheduled" && meta.publishAt && new Date(meta.publishAt) <= now) {
       // 公開処理
       meta.status = "published";
       meta.publishedAt = now.toISOString();
       meta.description = addTranscriptLink(meta.description, meta.transcriptUrl);
+
+      // Bluesky に投稿
+      const posted = await postEpisodeToBluesky(env, meta, env.WEBSITE_URL);
+      if (posted) {
+        meta.blueskyPostedAt = now.toISOString();
+      }
 
       await saveEpisodeMeta(env, meta);
       updated = true;
