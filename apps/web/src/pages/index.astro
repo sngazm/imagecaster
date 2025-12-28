@@ -17,10 +17,10 @@ const podcast = index.podcast;
         <img
           src={podcast.artworkUrl}
           alt={podcast.title}
-          class="neon-box mx-auto mb-6 h-48 w-48 rounded-2xl shadow-xl transition-all duration-300 dark:animate-float"
+          class="mx-auto mb-6 h-48 w-48 rounded-2xl shadow-xl"
         />
       )}
-      <h1 class="mb-4 text-4xl font-bold tracking-tight text-zinc-900 dark:neon-text dark:text-zinc-100">
+      <h1 class="mb-4 text-4xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
         {podcast.title}
       </h1>
       <p class="mx-auto max-w-2xl text-lg text-zinc-600 dark:text-zinc-400">
@@ -31,13 +31,13 @@ const podcast = index.podcast;
     <div class="grid gap-8 lg:grid-cols-3">
       <!-- エピソード一覧 -->
       <div class="lg:col-span-2">
-        <h2 class="mb-6 text-2xl font-bold text-zinc-900 dark:neon-text-pink dark:text-zinc-100">
+        <h2 class="mb-6 text-2xl font-bold text-zinc-900 dark:text-zinc-100">
           エピソード
           <span class="ml-2 text-base font-normal text-zinc-500 dark:text-zinc-400">({episodes.length})</span>
         </h2>
 
         {episodes.length === 0 ? (
-          <div class="rounded-xl border border-zinc-200 bg-white p-8 text-center dark:border-zinc-800 dark:bg-zinc-900">
+          <div class="rounded-xl border border-zinc-200 bg-white p-8 text-center dark:border-zinc-800 dark:bg-zinc-800">
             <p class="text-zinc-500 dark:text-zinc-400">
               まだエピソードがありません
             </p>
@@ -56,8 +56,8 @@ const podcast = index.podcast;
         <SubscribeSection />
 
         {podcast.author && (
-          <section class="gaming-card rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-            <h2 class="mb-3 text-lg font-bold text-zinc-900 dark:neon-text dark:text-zinc-100">
+          <section class="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-800">
+            <h2 class="mb-3 text-lg font-bold text-zinc-900 dark:text-zinc-100">
               ホスト
             </h2>
             <p class="text-sm text-zinc-600 dark:text-zinc-400">

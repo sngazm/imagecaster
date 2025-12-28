@@ -41,13 +41,13 @@ const { episode } = Astro.props;
         </time>
       </div>
 
-      <h1 class="mt-4 text-3xl font-bold leading-tight text-zinc-900 dark:neon-text dark:text-zinc-100 md:text-4xl">
+      <h1 class="mt-4 text-3xl font-bold leading-tight text-zinc-900 dark:text-zinc-100 md:text-4xl">
         {episode.title}
       </h1>
     </header>
 
     <!-- オーディオプレイヤー -->
-    <div class="gaming-card gaming-player mb-8 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+    <div class="mb-8 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-800">
       <audio controls class="mb-4 w-full" preload="metadata">
         <source src={episode.audioUrl} type="audio/mpeg" />
         お使いのブラウザはオーディオ再生に対応していません。
@@ -80,8 +80,8 @@ const { episode } = Astro.props;
     </div>
 
     <!-- 説明 -->
-    <div class="gaming-card rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-      <h2 class="mb-4 text-lg font-bold text-zinc-900 dark:neon-text-pink dark:text-zinc-100">
+    <div class="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-800">
+      <h2 class="mb-4 text-lg font-bold text-zinc-900 dark:text-zinc-100">
         エピソード概要
       </h2>
       <div class="prose prose-zinc dark:prose-invert max-w-none">
@@ -89,7 +89,7 @@ const { episode } = Astro.props;
       </div>
 
       {episode.transcriptUrl && (
-        <div class="mt-6 border-t border-zinc-100 pt-6 dark:border-zinc-800">
+        <div class="mt-6 border-t border-zinc-100 pt-6 dark:border-zinc-700">
           <a
             href={episode.transcriptUrl}
             target="_blank"
@@ -112,7 +112,7 @@ const { episode } = Astro.props;
         href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(Astro.url.href)}&text=${encodeURIComponent(episode.title)}`}
         target="_blank"
         rel="noopener noreferrer"
-        class="glitch-hover rounded-lg bg-zinc-100 p-2 text-zinc-600 transition-all hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:neon-box"
+        class="rounded-lg bg-zinc-100 p-2 text-zinc-600 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
         aria-label="X (Twitter) でシェア"
       >
         <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
@@ -122,7 +122,7 @@ const { episode } = Astro.props;
       <button
         type="button"
         onclick={`navigator.clipboard.writeText('${Astro.url.href}'); alert('URLをコピーしました')`}
-        class="glitch-hover rounded-lg bg-zinc-100 p-2 text-zinc-600 transition-all hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:neon-box-pink"
+        class="rounded-lg bg-zinc-100 p-2 text-zinc-600 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
         aria-label="URLをコピー"
       >
         <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
