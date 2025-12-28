@@ -1,67 +1,16 @@
 import { useState, useEffect, useRef } from "react";
 import { api, type Deployment } from "../lib/api";
 
-const STAGE_CONFIG: Record<
-  string,
-  { label: string; color: string; icon: string }
-> = {
-  queued: {
-    label: "待機中",
-    color: "text-zinc-400 bg-zinc-800",
-    icon: "⏳",
-  },
-  initializing: {
-    label: "初期化中",
-    color: "text-amber-400 bg-amber-500/10",
-    icon: "🔄",
-  },
-  initialize: {
-    label: "初期化中",
-    color: "text-amber-400 bg-amber-500/10",
-    icon: "🔄",
-  },
-  cloning: {
-    label: "クローン中",
-    color: "text-amber-400 bg-amber-500/10",
-    icon: "📥",
-  },
-  building: {
-    label: "ビルド中",
-    color: "text-blue-400 bg-blue-500/10",
-    icon: "🔨",
-  },
-  build: {
-    label: "ビルド中",
-    color: "text-blue-400 bg-blue-500/10",
-    icon: "🔨",
-  },
-  deploying: {
-    label: "デプロイ中",
-    color: "text-violet-400 bg-violet-500/10",
-    icon: "🚀",
-  },
-  deploy: {
-    label: "反映済み",
-    color: "text-emerald-400 bg-emerald-500/10",
-    icon: "✓",
-  },
-  success: {
-    label: "反映済み",
-    color: "text-emerald-400 bg-emerald-500/10",
-    icon: "✓",
-  },
-  failure: {
-    label: "失敗",
-    color: "text-red-400 bg-red-500/10",
-    icon: "✗",
-  },
+const STAGE_CONFIG: Record<string, { label: string; color: string }> = {
+  queued: { label: "待機中", color: "text-zinc-400 bg-zinc-800" },
+  initialize: { label: "初期化中", color: "text-amber-400 bg-amber-500/10" },
+  clone_repo: { label: "クローン中", color: "text-amber-400 bg-amber-500/10" },
+  build: { label: "ビルド中", color: "text-blue-400 bg-blue-500/10" },
+  deploy: { label: "反映済み", color: "text-emerald-400 bg-emerald-500/10" },
+  failure: { label: "失敗", color: "text-red-400 bg-red-500/10" },
 };
 
-const DEFAULT_STAGE = {
-  label: "不明",
-  color: "text-zinc-400 bg-zinc-800",
-  icon: "?",
-};
+const DEFAULT_STAGE = { label: "不明", color: "text-zinc-400 bg-zinc-800" };
 
 function getStageConfig(stageName: string) {
   return STAGE_CONFIG[stageName] || DEFAULT_STAGE;
@@ -167,7 +116,7 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
         {isBuilding ? (
           <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
         ) : (
-          <span>{stage.icon}</span>
+          <span>{latest.latestStage.status === "failure" ? "✗" : "✓"}</span>
         )}
         <span>Web {stage.label}</span>
       </button>
@@ -219,7 +168,7 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
                         {depIsBuilding ? (
                           <div className={`w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin ${depStage.color.split(" ")[0]}`} />
                         ) : (
-                          <span className="text-sm">{depStage.icon}</span>
+                          <span className="text-sm">{deployment.latestStage.status === "failure" ? "✗" : "✓"}</span>
                         )}
                         <span className={`text-sm font-medium ${depStage.color.split(" ")[0]}`}>
                           {depStage.label}
