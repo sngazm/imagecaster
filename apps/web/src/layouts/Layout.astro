@@ -11,7 +11,7 @@ const fullTitle = title === siteTitle ? title : `${title} | ${siteTitle}`;
 ---
 
 <!doctype html>
-<html lang="ja" class="dark:bg-zinc-900">
+<html lang="ja">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -23,6 +23,15 @@ const fullTitle = title === siteTitle ? title : `${title} | ${siteTitle}`;
     <link rel="alternate" type="application/rss+xml" title={siteTitle} href="/feed.xml" />
     <meta name="color-scheme" content="light dark" />
     <title>{fullTitle}</title>
+    <!-- テーマ初期化（FOUC防止） -->
+    <script is:inline>
+      (function() {
+        const stored = localStorage.getItem('theme');
+        if (stored === 'dark' || (stored !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
   </head>
   <body class="min-h-screen bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
     <div class="flex min-h-screen flex-col">
@@ -49,6 +58,23 @@ const fullTitle = title === siteTitle ? title : `${title} | ${siteTitle}`;
               </svg>
               <span class="hidden sm:inline">RSS</span>
             </a>
+
+            <!-- テーマ切り替えボタン -->
+            <button
+              id="theme-toggle"
+              type="button"
+              class="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-100 text-zinc-600 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
+              aria-label="テーマ切り替え"
+            >
+              <!-- ライトモード時: 月アイコン（ダークに切り替え） -->
+              <svg class="h-5 w-5 dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+              </svg>
+              <!-- ダークモード時: 太陽アイコン（ライトに切り替え） -->
+              <svg class="hidden h-5 w-5 dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+            </button>
           </nav>
         </div>
       </header>
@@ -63,6 +89,22 @@ const fullTitle = title === siteTitle ? title : `${title} | ${siteTitle}`;
         </div>
       </footer>
     </div>
+
+    <script>
+      const toggle = document.getElementById('theme-toggle');
+
+      toggle?.addEventListener('click', () => {
+        const isDark = document.documentElement.classList.toggle('dark');
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+      });
+
+      // システム設定の変更を監視（手動設定がない場合のみ反映）
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        if (!localStorage.getItem('theme')) {
+          document.documentElement.classList.toggle('dark', e.matches);
+        }
+      });
+    </script>
   </body>
 </html>
 
