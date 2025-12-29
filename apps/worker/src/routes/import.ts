@@ -223,6 +223,7 @@ importRoutes.post("/rss", async (c) => {
       blueskyPostText: null,
       blueskyPostEnabled: false,
       blueskyPostedAt: null,
+      referenceLinks: [],
     };
 
     episodesToSave.push(meta);
