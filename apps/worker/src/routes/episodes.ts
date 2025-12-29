@@ -226,6 +226,11 @@ episodes.put("/:id", async (c) => {
       meta.slug = newSlug;
     }
 
+    // 公開済みの場合はプレースホルダーを処理してからフィードを再生成
+    if (meta.status === "published") {
+      meta.description = processDescriptionForPublish(meta);
+    }
+
     await saveEpisodeMeta(c.env, meta);
     await saveIndex(c.env, index);
 

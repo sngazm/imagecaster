@@ -47,13 +47,17 @@ export function processDescriptionPlaceholders(
 }
 
 /**
- * 説明に文字起こしリンクを追加
+ * 説明に文字起こしリンクを追加（既に存在する場合は追加しない）
  */
 export function addTranscriptLink(
   description: string,
   transcriptUrl: string | null
 ): string {
   if (!transcriptUrl) {
+    return description;
+  }
+  // 既に文字起こしリンクが含まれている場合は追加しない
+  if (description.includes("📝 文字起こし:")) {
     return description;
   }
   return `${description}\n\n📝 文字起こし: ${transcriptUrl}`;
