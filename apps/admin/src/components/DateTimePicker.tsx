@@ -27,21 +27,32 @@ function toDateTimeLocal(date: Date): string {
   return `${date.getFullYear()}-${padZero(date.getMonth() + 1)}-${padZero(date.getDate())}T${padZero(date.getHours())}:${padZero(date.getMinutes())}`;
 }
 
+// 次の朝6時を計算（現在時刻が6時以降なら翌日の6時）
+function getNextSixAm(): Date {
+  const now = new Date();
+  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 6, 0, 0, 0);
+  if (now.getHours() >= 6) {
+    next.setDate(next.getDate() + 1);
+  }
+  return next;
+}
+
 export function DateTimePicker({
   value,
   onChange,
   disabled = false,
   placeholder = "日時を選択...",
 }: DateTimePickerProps) {
+  const defaultTime = getNextSixAm();
   const [isOpen, setIsOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(
     value ? new Date(value) : null
   );
   const [viewDate, setViewDate] = useState<Date>(
-    value ? new Date(value) : new Date()
+    value ? new Date(value) : defaultTime
   );
   const [selectedHour, setSelectedHour] = useState<number>(
-    value ? new Date(value).getHours() : 12
+    value ? new Date(value).getHours() : 6
   );
   const [selectedMinute, setSelectedMinute] = useState<number>(
     value ? new Date(value).getMinutes() : 0

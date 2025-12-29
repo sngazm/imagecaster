@@ -188,7 +188,7 @@ export default function EpisodeNew() {
               {/* Slug */}
               <div>
                 <label htmlFor="slug" className="block text-sm font-medium text-zinc-400 mb-2">
-                  Slug（任意）
+                  Slug
                 </label>
                 <input
                   type="text"
@@ -206,7 +206,7 @@ export default function EpisodeNew() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-medium text-zinc-400">
-                    説明（任意）
+                    説明
                   </label>
                   {templates.length > 0 && (
                     <div className="relative">
@@ -248,7 +248,7 @@ export default function EpisodeNew() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
                 </svg>
-                音声ソース（任意）
+                音声ソース
               </h2>
 
               {/* Source type selector */}
@@ -323,7 +323,7 @@ export default function EpisodeNew() {
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
                 </svg>
-                OGP画像（任意）
+                OGP画像
               </h2>
               <p className="text-xs text-zinc-500 mb-4">
                 SNSでこのエピソードがシェアされた時に表示される画像です。
