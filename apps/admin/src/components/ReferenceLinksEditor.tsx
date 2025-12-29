@@ -71,6 +71,10 @@ export function ReferenceLinksEditor({
   const [fetchingUrls, setFetchingUrls] = useState<Set<string>>(new Set());
   // 最新のlinksを参照するためのref
   const linksRef = useRef(links);
+  // URL編集中のインデックス
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  // 編集中のURL
+  const [editingUrl, setEditingUrl] = useState("");
 
   // linksが変わったらrefを更新
   useEffect(() => {
@@ -96,6 +100,11 @@ export function ReferenceLinksEditor({
     onChange([...links, { url, title: "" }]);
     setNewUrl("");
 
+    // タイトル取得
+    await fetchTitleForUrl(url);
+  };
+
+  const fetchTitleForUrl = async (url: string) => {
     // タイトル取得中としてマーク
     setFetchingUrls((prev) => new Set(prev).add(url));
 
@@ -169,6 +178,60 @@ export function ReferenceLinksEditor({
     onChange(updated);
   };
 
+  const handleStartEditUrl = (index: number) => {
+    setEditingIndex(index);
+    setEditingUrl(links[index].url);
+  };
+
+  const handleCancelEditUrl = () => {
+    setEditingIndex(null);
+    setEditingUrl("");
+  };
+
+  const handleUpdateUrl = async (index: number) => {
+    if (!editingUrl.trim()) return;
+
+    // URLの正規化
+    let url = editingUrl.trim();
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      url = "https://" + url;
+    }
+
+    const oldUrl = links[index].url;
+
+    // 同じURLの場合は何もしない
+    if (url === oldUrl) {
+      setEditingIndex(null);
+      setEditingUrl("");
+      return;
+    }
+
+    // 重複チェック（自分以外）
+    if (links.some((link, i) => i !== index && link.url === url)) {
+      return;
+    }
+
+    // URLを更新（タイトルは空にして再取得）
+    const updated = [...links];
+    updated[index] = { url, title: "" };
+    onChange(updated);
+
+    setEditingIndex(null);
+    setEditingUrl("");
+
+    // タイトルを再取得
+    await fetchTitleForUrl(url);
+  };
+
+  const handleEditUrlKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleUpdateUrl(index);
+    } else if (e.key === "Escape") {
+      handleCancelEditUrl();
+    }
+  };
+
   return (
     <div className="space-y-3">
       {/* リンク一覧 */}
@@ -176,9 +239,10 @@ export function ReferenceLinksEditor({
         <div className="space-y-2">
           {links.map((link, index) => {
             const isFetching = fetchingUrls.has(link.url);
+            const isEditingThisUrl = editingIndex === index;
             return (
               <div
-                key={link.url}
+                key={`${index}-${link.url}`}
                 className="flex items-start gap-2 p-3 bg-zinc-900 border border-zinc-800 rounded-lg"
               >
                 {/* 並び替えボタン */}
@@ -224,23 +288,67 @@ export function ReferenceLinksEditor({
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <a
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 text-xs text-violet-400 hover:text-violet-300 truncate"
-                    >
-                      {link.url}
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => handleCleanUrl(index)}
-                      disabled={disabled}
-                      className="shrink-0 px-2 py-1 text-xs text-zinc-400 hover:text-emerald-400 bg-zinc-800 hover:bg-zinc-700 rounded transition-colors disabled:opacity-50"
-                      title="URLをクリーン"
-                    >
-                      Clean
-                    </button>
+                    {isEditingThisUrl ? (
+                      <>
+                        <input
+                          type="url"
+                          value={editingUrl}
+                          onChange={(e) => setEditingUrl(e.target.value)}
+                          onKeyDown={(e) => handleEditUrlKeyDown(e, index)}
+                          disabled={disabled}
+                          autoFocus
+                          className="flex-1 px-2 py-1 bg-zinc-800 border border-violet-500 rounded text-zinc-100 text-xs focus:outline-none"
+                          placeholder="URLを入力..."
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateUrl(index)}
+                          disabled={disabled || !editingUrl.trim()}
+                          className="shrink-0 px-2 py-1 text-xs text-zinc-100 bg-violet-600 hover:bg-violet-500 rounded transition-colors disabled:opacity-50"
+                          title="URLを更新"
+                        >
+                          更新
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCancelEditUrl}
+                          disabled={disabled}
+                          className="shrink-0 px-2 py-1 text-xs text-zinc-400 bg-zinc-800 hover:bg-zinc-700 rounded transition-colors disabled:opacity-50"
+                          title="キャンセル"
+                        >
+                          取消
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <a
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 text-xs text-violet-400 hover:text-violet-300 truncate"
+                        >
+                          {link.url}
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => handleStartEditUrl(index)}
+                          disabled={disabled || isFetching}
+                          className="shrink-0 px-2 py-1 text-xs text-zinc-400 hover:text-zinc-300 bg-zinc-800 hover:bg-zinc-700 rounded transition-colors disabled:opacity-50"
+                          title="URLを編集"
+                        >
+                          編集
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleCleanUrl(index)}
+                          disabled={disabled}
+                          className="shrink-0 px-2 py-1 text-xs text-zinc-400 hover:text-emerald-400 bg-zinc-800 hover:bg-zinc-700 rounded transition-colors disabled:opacity-50"
+                          title="URLをクリーン"
+                        >
+                          Clean
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
                 <button
