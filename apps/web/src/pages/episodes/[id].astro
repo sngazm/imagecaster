@@ -84,9 +84,7 @@ const { episode } = Astro.props;
       <h2 class="mb-4 text-lg font-bold text-zinc-900 dark:text-zinc-100">
         エピソード概要
       </h2>
-      <div class="prose prose-zinc dark:prose-invert max-w-none">
-        <p class="whitespace-pre-wrap">{episode.description}</p>
-      </div>
+      <div class="prose prose-zinc dark:prose-invert max-w-none" set:html={episode.description} />
 
       {episode.transcriptUrl && (
         <div class="mt-6 border-t border-zinc-100 pt-6 dark:border-zinc-700">
