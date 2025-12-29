@@ -87,6 +87,22 @@ export function formatFileSize(bytes: number): string {
 }
 
 /**
+ * HTMLタグを除去してプレーンテキストに変換
+ */
+export function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
  * R2 から RSS フィードを取得
  */
 export async function getFeed(): Promise<string> {
