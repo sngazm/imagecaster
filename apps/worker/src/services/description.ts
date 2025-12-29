@@ -40,6 +40,10 @@ export function processDescriptionPlaceholders(
   if (meta.referenceLinks && meta.referenceLinks.length > 0) {
     result = result.replace(/\{\{REFERENCE_LINKS\}\}/g, formatReferenceLinks(meta.referenceLinks));
   } else {
+    // リンクがない場合は、タグごと削除（<p>{{REFERENCE_LINKS}}</p> など）
+    result = result.replace(/<p>\s*\{\{REFERENCE_LINKS\}\}\s*<\/p>\s*/gi, "");
+    result = result.replace(/<div>\s*\{\{REFERENCE_LINKS\}\}\s*<\/div>\s*/gi, "");
+    // 残りのプレースホルダーも削除
     result = result.replace(/\{\{REFERENCE_LINKS\}\}/g, "");
   }
 
