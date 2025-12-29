@@ -62,6 +62,7 @@ const PLACEHOLDERS = [
   { label: "文字起こしURL", value: "{{TRANSCRIPT_URL}}" },
   { label: "エピソードURL", value: "{{EPISODE_URL}}" },
   { label: "音声URL", value: "{{AUDIO_URL}}" },
+  { label: "参考リンク", value: "{{REFERENCE_LINKS}}" },
 ];
 
 export function HtmlEditor({

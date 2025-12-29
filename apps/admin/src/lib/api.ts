@@ -30,6 +30,11 @@ export interface Episode {
   publishedAt: string | null;
 }
 
+export interface ReferenceLink {
+  url: string;
+  title: string;
+}
+
 export interface EpisodeDetail {
   id: string;
   slug: string;
@@ -50,6 +55,8 @@ export interface EpisodeDetail {
   blueskyPostText: string | null;
   blueskyPostEnabled: boolean;
   blueskyPostedAt: string | null;
+  // 参考リンク
+  referenceLinks: ReferenceLink[];
 }
 
 export interface PodcastSettings {
@@ -184,6 +191,7 @@ export const api = {
     skipTranscription?: boolean;
     blueskyPostText?: string | null;
     blueskyPostEnabled?: boolean;
+    referenceLinks?: ReferenceLink[];
   }) =>
     request<CreateEpisodeResponse>("/api/episodes", {
       method: "POST",
@@ -198,6 +206,7 @@ export const api = {
     skipTranscription?: boolean;
     blueskyPostText?: string | null;
     blueskyPostEnabled?: boolean;
+    referenceLinks?: ReferenceLink[];
   }) =>
     request<EpisodeDetail>(`/api/episodes/${id}`, {
       method: "PUT",
@@ -311,6 +320,13 @@ export const api = {
   // Deployments
   getDeployments: () =>
     request<DeploymentsResponse>("/api/deployments"),
+
+  // Link title fetch
+  fetchLinkTitle: (url: string) =>
+    request<{ title: string }>("/api/fetch-link-title", {
+      method: "POST",
+      body: JSON.stringify({ url }),
+    }),
 };
 
 export async function uploadToR2(uploadUrl: string, file: File): Promise<void> {
