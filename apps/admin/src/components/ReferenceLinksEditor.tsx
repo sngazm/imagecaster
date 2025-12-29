@@ -1,0 +1,412 @@
+import { useState, useRef, useEffect } from "react";
+import { api } from "../lib/api";
+
+export interface ReferenceLink {
+  url: string;
+  title: string;
+}
+
+interface ReferenceLinksEditorProps {
+  links: ReferenceLink[];
+  onChange: (links: ReferenceLink[]) => void;
+  disabled?: boolean;
+}
+
+/**
+ * URLをクリーンにする（トラッキングパラメータを削除）
+ */
+function cleanUrl(url: string): string {
+  try {
+    const urlObj = new URL(url);
+
+    // Amazon用のクリーニング
+    if (urlObj.hostname.includes("amazon.")) {
+      // ASINを抽出
+      const dpMatch = urlObj.pathname.match(/\/dp\/([A-Z0-9]{10})/i);
+      const gpMatch = urlObj.pathname.match(/\/gp\/product\/([A-Z0-9]{10})/i);
+      const asin = dpMatch?.[1] || gpMatch?.[1];
+
+      if (asin) {
+        // シンプルなURLを返す
+        return `https://${urlObj.hostname}/dp/${asin}`;
+      }
+    }
+
+    // 一般的なトラッキングパラメータを削除
+    const trackingParams = [
+      // UTMパラメータ
+      "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "utm_id",
+      // 広告系
+      "fbclid", "gclid", "gclsrc", "msclkid", "dclid", "twclid",
+      // メール系
+      "mc_cid", "mc_eid",
+      // アフィリエイト系
+      "ref", "ref_", "tag",
+      // その他
+      "si", "feature", "pp", "_ga", "_gl", "igshid", "s", "t", "trk", "linkCode"
+    ];
+
+    for (const param of trackingParams) {
+      urlObj.searchParams.delete(param);
+    }
+
+    // 不要なハッシュを削除（一部サイトで使われるトラッキング用ハッシュ）
+    if (urlObj.hash && urlObj.hash.includes("=")) {
+      urlObj.hash = "";
+    }
+
+    return urlObj.toString();
+  } catch {
+    return url;
+  }
+}
+
+export function ReferenceLinksEditor({
+  links,
+  onChange,
+  disabled = false,
+}: ReferenceLinksEditorProps) {
+  const [newUrl, setNewUrl] = useState("");
+  // タイトル取得中のURLを追跡
+  const [fetchingUrls, setFetchingUrls] = useState<Set<string>>(new Set());
+  // 最新のlinksを参照するためのref
+  const linksRef = useRef(links);
+  // URL編集中のインデックス
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  // 編集中のURL
+  const [editingUrl, setEditingUrl] = useState("");
+
+  // linksが変わったらrefを更新
+  useEffect(() => {
+    linksRef.current = links;
+  }, [links]);
+
+  const handleAddLink = async () => {
+    if (!newUrl.trim()) return;
+
+    // URLの正規化
+    let url = newUrl.trim();
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      url = "https://" + url;
+    }
+
+    // 重複チェック
+    if (links.some((link) => link.url === url)) {
+      setNewUrl("");
+      return;
+    }
+
+    // 即座にリンクを追加（タイトルは空）
+    onChange([...links, { url, title: "" }]);
+    setNewUrl("");
+
+    // タイトル取得
+    await fetchTitleForUrl(url);
+  };
+
+  const fetchTitleForUrl = async (url: string) => {
+    // タイトル取得中としてマーク
+    setFetchingUrls((prev) => new Set(prev).add(url));
+
+    try {
+      // APIからタイトルを取得
+      const { title } = await api.fetchLinkTitle(url);
+      // 最新のlinksを使ってタイトルを更新
+      onChange(
+        linksRef.current.map((link) =>
+          link.url === url ? { ...link, title: title || url } : link
+        )
+      );
+    } catch {
+      // エラー時はURLをタイトルとして使用
+      onChange(
+        linksRef.current.map((link) =>
+          link.url === url && !link.title ? { ...link, title: url } : link
+        )
+      );
+    } finally {
+      setFetchingUrls((prev) => {
+        const next = new Set(prev);
+        next.delete(url);
+        return next;
+      });
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleAddLink();
+    }
+  };
+
+  const handleUpdateTitle = (index: number, title: string) => {
+    const updated = [...links];
+    updated[index] = { ...updated[index], title };
+    onChange(updated);
+  };
+
+  const handleCleanUrl = (index: number) => {
+    const updated = [...links];
+    updated[index] = { ...updated[index], url: cleanUrl(updated[index].url) };
+    onChange(updated);
+  };
+
+  const handleCleanAllUrls = () => {
+    const updated = links.map((link) => ({
+      ...link,
+      url: cleanUrl(link.url),
+    }));
+    onChange(updated);
+  };
+
+  const handleRemoveLink = (index: number) => {
+    onChange(links.filter((_, i) => i !== index));
+  };
+
+  const handleMoveUp = (index: number) => {
+    if (index === 0) return;
+    const updated = [...links];
+    [updated[index - 1], updated[index]] = [updated[index], updated[index - 1]];
+    onChange(updated);
+  };
+
+  const handleMoveDown = (index: number) => {
+    if (index === links.length - 1) return;
+    const updated = [...links];
+    [updated[index], updated[index + 1]] = [updated[index + 1], updated[index]];
+    onChange(updated);
+  };
+
+  const handleStartEditUrl = (index: number) => {
+    setEditingIndex(index);
+    setEditingUrl(links[index].url);
+  };
+
+  const handleCancelEditUrl = () => {
+    setEditingIndex(null);
+    setEditingUrl("");
+  };
+
+  const handleUpdateUrl = async (index: number) => {
+    if (!editingUrl.trim()) return;
+
+    // URLの正規化
+    let url = editingUrl.trim();
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      url = "https://" + url;
+    }
+
+    const oldUrl = links[index].url;
+
+    // 同じURLの場合は何もしない
+    if (url === oldUrl) {
+      setEditingIndex(null);
+      setEditingUrl("");
+      return;
+    }
+
+    // 重複チェック（自分以外）
+    if (links.some((link, i) => i !== index && link.url === url)) {
+      return;
+    }
+
+    // URLを更新（タイトルは空にして再取得）
+    const updated = [...links];
+    updated[index] = { url, title: "" };
+    onChange(updated);
+
+    setEditingIndex(null);
+    setEditingUrl("");
+
+    // タイトルを再取得
+    await fetchTitleForUrl(url);
+  };
+
+  const handleEditUrlKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleUpdateUrl(index);
+    } else if (e.key === "Escape") {
+      handleCancelEditUrl();
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* リンク一覧 */}
+      {links.length > 0 && (
+        <div className="space-y-2">
+          {links.map((link, index) => {
+            const isFetching = fetchingUrls.has(link.url);
+            const isEditingThisUrl = editingIndex === index;
+            return (
+              <div
+                key={`${index}-${link.url}`}
+                className="flex items-start gap-2 p-3 bg-zinc-900 border border-zinc-800 rounded-lg"
+              >
+                {/* 並び替えボタン */}
+                <div className="flex flex-col gap-0.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleMoveUp(index)}
+                    disabled={disabled || index === 0}
+                    className="p-1 text-zinc-500 hover:text-zinc-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    title="上に移動"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleMoveDown(index)}
+                    disabled={disabled || index === links.length - 1}
+                    className="p-1 text-zinc-500 hover:text-zinc-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    title="下に移動"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="flex-1 min-w-0 space-y-2">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={link.title}
+                      onChange={(e) => handleUpdateTitle(index, e.target.value)}
+                      disabled={disabled || isFetching}
+                      placeholder={isFetching ? "タイトル取得中..." : "タイトル"}
+                      className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-zinc-100 text-sm focus:outline-none focus:border-violet-500 disabled:opacity-50"
+                    />
+                    {isFetching && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <div className="w-4 h-4 border-2 border-zinc-600 border-t-violet-400 rounded-full animate-spin" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isEditingThisUrl ? (
+                      <>
+                        <input
+                          type="url"
+                          value={editingUrl}
+                          onChange={(e) => setEditingUrl(e.target.value)}
+                          onKeyDown={(e) => handleEditUrlKeyDown(e, index)}
+                          disabled={disabled}
+                          autoFocus
+                          className="flex-1 px-2 py-1 bg-zinc-800 border border-violet-500 rounded text-zinc-100 text-xs focus:outline-none"
+                          placeholder="URLを入力..."
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateUrl(index)}
+                          disabled={disabled || !editingUrl.trim()}
+                          className="shrink-0 px-2 py-1 text-xs text-zinc-100 bg-violet-600 hover:bg-violet-500 rounded transition-colors disabled:opacity-50"
+                          title="URLを更新"
+                        >
+                          更新
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCancelEditUrl}
+                          disabled={disabled}
+                          className="shrink-0 px-2 py-1 text-xs text-zinc-400 bg-zinc-800 hover:bg-zinc-700 rounded transition-colors disabled:opacity-50"
+                          title="キャンセル"
+                        >
+                          取消
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <a
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 text-xs text-violet-400 hover:text-violet-300 truncate"
+                        >
+                          {link.url}
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => handleStartEditUrl(index)}
+                          disabled={disabled || isFetching}
+                          className="shrink-0 px-2 py-1 text-xs text-zinc-400 hover:text-zinc-300 bg-zinc-800 hover:bg-zinc-700 rounded transition-colors disabled:opacity-50"
+                          title="URLを編集"
+                        >
+                          編集
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleCleanUrl(index)}
+                          disabled={disabled}
+                          className="shrink-0 px-2 py-1 text-xs text-zinc-400 hover:text-emerald-400 bg-zinc-800 hover:bg-zinc-700 rounded transition-colors disabled:opacity-50"
+                          title="URLをクリーン"
+                        >
+                          Clean
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveLink(index)}
+                  disabled={disabled}
+                  className="p-2 text-zinc-500 hover:text-red-400 transition-colors disabled:opacity-50"
+                  title="削除"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* 新規追加 */}
+      <div className="flex gap-2">
+        <input
+          type="url"
+          value={newUrl}
+          onChange={(e) => setNewUrl(e.target.value)}
+          onKeyDown={handleKeyDown}
+          disabled={disabled}
+          placeholder="URLを入力して追加..."
+          className="flex-1 px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500 disabled:opacity-50 text-sm"
+        />
+        <button
+          type="button"
+          onClick={handleAddLink}
+          disabled={disabled || !newUrl.trim()}
+          className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          追加
+        </button>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-zinc-600">
+          URLを入力するとページタイトルを自動取得します。タイトルは後から編集可能です。
+        </p>
+        {links.length > 0 && (
+          <button
+            type="button"
+            onClick={handleCleanAllUrls}
+            disabled={disabled}
+            className="text-xs text-zinc-500 hover:text-emerald-400 transition-colors disabled:opacity-50"
+          >
+            全URLをクリーン
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { api, EpisodeDetail as EpisodeDetailType, formatDuration, formatFileSize, uploadToR2, getAudioDuration, utcToLocalDateTimeString, localDateTimeToISOString } from "../lib/api";
-import type { DescriptionTemplate } from "../lib/api";
+import type { DescriptionTemplate, ReferenceLink } from "../lib/api";
 import { HtmlEditor } from "../components/HtmlEditor";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { BlueskyPostEditor } from "../components/BlueskyPostEditor";
+import { ReferenceLinksEditor } from "../components/ReferenceLinksEditor";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   draft: { label: "下書き", color: "bg-zinc-800 text-zinc-400" },
@@ -40,6 +41,7 @@ export default function EpisodeDetail() {
   const [editPublishAt, setEditPublishAt] = useState("");
   const [editBlueskyPostText, setEditBlueskyPostText] = useState("");
   const [editBlueskyPostEnabled, setEditBlueskyPostEnabled] = useState(false);
+  const [editReferenceLinks, setEditReferenceLinks] = useState<ReferenceLink[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [templates, setTemplates] = useState<DescriptionTemplate[]>([]);
@@ -71,6 +73,7 @@ export default function EpisodeDetail() {
         setEditPublishAt(data.publishAt ? utcToLocalDateTimeString(data.publishAt) : "");
         setEditBlueskyPostText(data.blueskyPostText || "");
         setEditBlueskyPostEnabled(data.blueskyPostEnabled);
+        setEditReferenceLinks(data.referenceLinks || []);
         setTemplates(templatesData);
       } catch (err) {
         setError(err instanceof Error ? err.message : "エピソードの取得に失敗しました");
@@ -93,6 +96,7 @@ export default function EpisodeDetail() {
         publishAt: editPublishAt ? localDateTimeToISOString(editPublishAt) : null,
         blueskyPostText: editBlueskyPostText.trim() || null,
         blueskyPostEnabled: editBlueskyPostEnabled,
+        referenceLinks: editReferenceLinks,
       };
 
       // slugの変更はdraft状態のみ
@@ -207,6 +211,7 @@ export default function EpisodeDetail() {
     setEditPublishAt(episode.publishAt ? utcToLocalDateTimeString(episode.publishAt) : "");
     setEditBlueskyPostText(episode.blueskyPostText || "");
     setEditBlueskyPostEnabled(episode.blueskyPostEnabled);
+    setEditReferenceLinks(episode.referenceLinks || []);
     setError(null);
   };
 
@@ -417,6 +422,45 @@ export default function EpisodeDetail() {
                 className="bg-zinc-900 rounded-lg p-4 text-zinc-400 text-sm prose prose-invert prose-sm max-w-none"
                 dangerouslySetInnerHTML={{ __html: episode.description || "<p>説明がありません</p>" }}
               />
+            )}
+          </div>
+
+          {/* 参考リンク */}
+          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
+            <h2 className="text-sm font-medium text-zinc-400 mb-4 flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+              参考リンク
+            </h2>
+            {isEditing ? (
+              <ReferenceLinksEditor
+                links={editReferenceLinks}
+                onChange={setEditReferenceLinks}
+              />
+            ) : (
+              <div className="bg-zinc-900 rounded-lg p-4">
+                {(episode.referenceLinks?.length || 0) > 0 ? (
+                  <ul className="space-y-2">
+                    {episode.referenceLinks?.map((link, index) => (
+                      <li key={index} className="text-sm">
+                        <span className="text-zinc-300">{link.title}</span>
+                        <br />
+                        <a
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-violet-400 hover:text-violet-300"
+                        >
+                          {link.url}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-zinc-500 text-sm">参考リンクがありません</p>
+                )}
+              </div>
             )}
           </div>
 

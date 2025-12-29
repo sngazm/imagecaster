@@ -60,7 +60,13 @@ export async function getEpisodeMeta(
   }
 
   const text = await obj.text();
-  return JSON.parse(text) as EpisodeMeta;
+  const data = JSON.parse(text);
+
+  // 後方互換性のため、存在しないフィールドにデフォルト値を設定
+  return {
+    ...data,
+    referenceLinks: data.referenceLinks ?? [],
+  } as EpisodeMeta;
 }
 
 /**

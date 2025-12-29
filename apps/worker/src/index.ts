@@ -12,6 +12,7 @@ import { getIndex, getEpisodeMeta, saveEpisodeMeta } from "./services/r2";
 import { getFeed, regenerateFeed } from "./services/feed";
 import { postEpisodeToBluesky } from "./services/bluesky";
 import { triggerWebRebuild } from "./services/deploy";
+import { processDescriptionForPublish } from "./services/description";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -103,6 +104,47 @@ api.route("/import", importRoutes);
 // デプロイ状況確認のルートをマウント
 api.route("/deployments", deployments);
 
+// URLからタイトルを取得（microlink.io API経由）
+api.post("/fetch-link-title", async (c) => {
+  const body = await c.req.json<{ url: string }>();
+
+  if (!body.url) {
+    return c.json({ error: "URL is required" }, 400);
+  }
+
+  try {
+    // microlink.io API を呼び出し
+    const microlinkUrl = `https://api.microlink.io?url=${encodeURIComponent(body.url)}`;
+    const response = await fetch(microlinkUrl);
+    const data = await response.json() as { status: string; data?: { title?: string } };
+
+    if (data.status === "success" && data.data?.title) {
+      return c.json({ title: data.data.title });
+    }
+
+    // フォールバック: 直接HTMLをフェッチしてtitleタグを抽出
+    try {
+      const pageResponse = await fetch(body.url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; PodcastBot/1.0)",
+        },
+      });
+      const html = await pageResponse.text();
+      const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+      if (titleMatch?.[1]) {
+        return c.json({ title: titleMatch[1].trim() });
+      }
+    } catch {
+      // 無視
+    }
+
+    return c.json({ title: "" });
+  } catch (err) {
+    console.error("Failed to fetch link title:", err);
+    return c.json({ error: "Failed to fetch title" }, 500);
+  }
+});
+
 // API ルートをマウント
 app.route("/api", api);
 
@@ -116,19 +158,6 @@ app.onError((err, c) => {
   console.error("Error:", err);
   return c.json({ error: "Internal Server Error" }, 500);
 });
-
-/**
- * 説明に文字起こしリンクを追加
- */
-function addTranscriptLink(
-  description: string,
-  transcriptUrl: string | null
-): string {
-  if (!transcriptUrl) {
-    return description;
-  }
-  return `${description}\n\n📝 文字起こし: ${transcriptUrl}`;
-}
 
 /**
  * Cron 処理: 予約投稿をチェックして公開
@@ -151,7 +180,8 @@ async function handleScheduledPublish(env: Env): Promise<void> {
       // 公開処理
       meta.status = "published";
       meta.publishedAt = now.toISOString();
-      meta.description = addTranscriptLink(meta.description, meta.transcriptUrl);
+      // プレースホルダーを置換して文字起こしリンクを追加
+      meta.description = processDescriptionForPublish(meta);
 
       // Bluesky に投稿
       const posted = await postEpisodeToBluesky(env, meta, env.WEBSITE_URL);

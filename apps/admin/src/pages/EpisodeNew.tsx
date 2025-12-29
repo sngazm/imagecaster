@@ -1,10 +1,11 @@
 import { useState, useEffect, FormEvent, ChangeEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, uploadToR2, getAudioDuration, localDateTimeToISOString } from "../lib/api";
-import type { DescriptionTemplate } from "../lib/api";
+import type { DescriptionTemplate, ReferenceLink } from "../lib/api";
 import { HtmlEditor } from "../components/HtmlEditor";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { BlueskyPostEditor } from "../components/BlueskyPostEditor";
+import { ReferenceLinksEditor } from "../components/ReferenceLinksEditor";
 
 type Status = "idle" | "creating" | "uploading" | "completing" | "done" | "error";
 type AudioSource = "file" | "url";
@@ -21,6 +22,7 @@ export default function EpisodeNew() {
   const [publishAt, setPublishAt] = useState<string>("");
   const [blueskyPostText, setBlueskyPostText] = useState("{{TITLE}}\n{{EPISODE_URL}}");
   const [blueskyPostEnabled, setBlueskyPostEnabled] = useState(false);
+  const [referenceLinks, setReferenceLinks] = useState<ReferenceLink[]>([]);
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState("");
   const [templates, setTemplates] = useState<DescriptionTemplate[]>([]);
@@ -81,6 +83,7 @@ export default function EpisodeNew() {
         skipTranscription,
         blueskyPostText: blueskyPostText.trim() || null,
         blueskyPostEnabled,
+        referenceLinks,
       });
 
       // OGP画像をアップロード
@@ -238,6 +241,18 @@ export default function EpisodeNew() {
                   value={description}
                   onChange={setDescription}
                   placeholder="エピソードの説明を入力..."
+                />
+              </div>
+
+              {/* Reference Links */}
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">
+                  参考リンク
+                </label>
+                <ReferenceLinksEditor
+                  links={referenceLinks}
+                  onChange={setReferenceLinks}
+                  disabled={isSubmitting || status === "done"}
                 />
               </div>
             </div>

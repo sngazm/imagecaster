@@ -59,6 +59,14 @@ export type EpisodeStatus =
   | "failed";
 
 /**
+ * 参考リンク
+ */
+export interface ReferenceLink {
+  url: string;
+  title: string;
+}
+
+/**
  * エピソードメタデータ (meta.json)
  */
 export interface EpisodeMeta {
@@ -81,6 +89,8 @@ export interface EpisodeMeta {
   blueskyPostText: string | null; // 投稿テキスト（事前登録）
   blueskyPostEnabled: boolean; // 公開時にBlueskyに投稿するか
   blueskyPostedAt: string | null; // 投稿済みの場合の日時
+  // 参考リンク
+  referenceLinks: ReferenceLink[];
 }
 
 /**
@@ -94,6 +104,7 @@ export interface CreateEpisodeRequest {
   skipTranscription?: boolean;
   blueskyPostText?: string | null;
   blueskyPostEnabled?: boolean;
+  referenceLinks?: ReferenceLink[];
 }
 
 /**
@@ -107,6 +118,7 @@ export interface UpdateEpisodeRequest {
   skipTranscription?: boolean;
   blueskyPostText?: string | null;
   blueskyPostEnabled?: boolean;
+  referenceLinks?: ReferenceLink[];
 }
 
 /**
