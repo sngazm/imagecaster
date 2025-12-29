@@ -15,7 +15,7 @@ function escapeHtml(str: string): string {
 /**
  * 参考リンクをHTMLに変換
  */
-function formatReferenceLinks(links: ReferenceLink[]): string {
+export function formatReferenceLinks(links: ReferenceLink[]): string {
   if (!links || links.length === 0) {
     return "";
   }

@@ -21,7 +21,6 @@ import {
 import { regenerateFeed } from "../services/feed";
 import { postEpisodeToBluesky } from "../services/bluesky";
 import { triggerWebRebuild } from "../services/deploy";
-import { processDescriptionForPublish } from "../services/description";
 
 const episodes = new Hono<{ Bindings: Env }>();
 
@@ -226,11 +225,6 @@ episodes.put("/:id", async (c) => {
       meta.slug = newSlug;
     }
 
-    // 公開済みの場合はプレースホルダーを処理してからフィードを再生成
-    if (meta.status === "published") {
-      meta.description = processDescriptionForPublish(meta);
-    }
-
     await saveEpisodeMeta(c.env, meta);
     await saveIndex(c.env, index);
 
@@ -300,8 +294,6 @@ episodes.post("/:id/transcription-complete", async (c) => {
         if (new Date(meta.publishAt) <= now) {
           meta.status = "published";
           meta.publishedAt = now.toISOString();
-          // プレースホルダーを置換して文字起こしリンクを追加
-          meta.description = processDescriptionForPublish(meta);
 
           // Bluesky に投稿
           const posted = await postEpisodeToBluesky(c.env, meta, c.env.WEBSITE_URL);

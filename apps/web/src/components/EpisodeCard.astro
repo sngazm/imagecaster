@@ -1,13 +1,15 @@
 ---
 import type { Episode } from "../lib/types";
-import { formatDuration, formatDate, stripHtml } from "../lib/api";
+import { formatDuration, formatDate, stripHtml, processDescription } from "../lib/api";
 
 interface Props {
   episode: Episode;
+  websiteUrl: string;
 }
 
-const { episode } = Astro.props;
-const plainDescription = stripHtml(episode.description);
+const { episode, websiteUrl } = Astro.props;
+const processedDescription = processDescription(episode.description, episode, websiteUrl);
+const plainDescription = stripHtml(processedDescription);
 ---
 
 <article class="group rounded-xl border border-zinc-200 bg-white p-5 transition-shadow hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-800">

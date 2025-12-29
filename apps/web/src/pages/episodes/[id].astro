@@ -1,25 +1,45 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import { getPublishedEpisodes, getEpisode, formatDuration, formatDate, formatFileSize } from "../../lib/api";
+import { getPublishedEpisodes, getEpisode, formatDuration, formatDate, formatFileSize, processDescription, getPodcastIndex } from "../../lib/api";
 import type { Episode } from "../../lib/types";
 
+// SSGモード用: ビルド時にパスを生成
 export async function getStaticPaths() {
-  const episodes = await getPublishedEpisodes();
+  const [episodes, index] = await Promise.all([
+    getPublishedEpisodes(),
+    getPodcastIndex(),
+  ]);
+  const websiteUrl = index.podcast.websiteUrl;
 
   return episodes.map((episode) => ({
     params: { id: episode.id },
-    props: { episode },
+    props: { episode, websiteUrl },
   }));
 }
 
-interface Props {
-  episode: Episode;
+// SSRモード（開発時）はpropsが空なので、paramsから取得
+const { id } = Astro.params;
+let episode: Episode;
+let websiteUrl: string;
+
+if (Astro.props.episode) {
+  // SSGモード: getStaticPathsからpropsが渡される
+  episode = Astro.props.episode;
+  websiteUrl = Astro.props.websiteUrl;
+} else {
+  // SSRモード: paramsから取得してfetch
+  const [fetchedEpisode, index] = await Promise.all([
+    getEpisode(id!),
+    getPodcastIndex(),
+  ]);
+  episode = fetchedEpisode;
+  websiteUrl = index.podcast.websiteUrl;
 }
 
-const { episode } = Astro.props;
+const description = processDescription(episode.description, episode, websiteUrl);
 ---
 
-<Layout title={episode.title} description={episode.description}>
+<Layout title={episode.title} description={description}>
   <article class="mx-auto max-w-4xl px-4 py-12">
     <!-- ヘッダー -->
     <header class="mb-8">
@@ -84,7 +104,7 @@ const { episode } = Astro.props;
       <h2 class="mb-4 text-lg font-bold text-zinc-900 dark:text-zinc-100">
         エピソード概要
       </h2>
-      <div class="prose prose-zinc dark:prose-invert max-w-none" set:html={episode.description} />
+      <div class="prose prose-zinc dark:prose-invert max-w-none" set:html={description} />
 
       {episode.transcriptUrl && (
         <div class="mt-6 border-t border-zinc-100 pt-6 dark:border-zinc-700">

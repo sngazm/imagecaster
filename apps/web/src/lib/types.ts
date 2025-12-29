@@ -1,3 +1,8 @@
+export interface ReferenceLink {
+  url: string;
+  title: string;
+}
+
 export interface Episode {
   id: string;
   slug: string;
@@ -11,6 +16,7 @@ export interface Episode {
   createdAt: string;
   publishAt: string;
   publishedAt: string | null;
+  referenceLinks?: ReferenceLink[];
 }
 
 export interface PodcastInfo {
