@@ -184,6 +184,7 @@ export interface UpdateEpisodeData {
   skipTranscription?: boolean;
   blueskyPostText?: string | null;
   blueskyPostEnabled?: boolean;
+  referenceLinks?: ReferenceLink[];
 }
 
 export interface UploadUrlResponse {

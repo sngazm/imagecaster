@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { api } from "../lib/api";
+import { globalApi } from "../lib/api";
 
 export interface ReferenceLink {
   url: string;
@@ -110,7 +110,7 @@ export function ReferenceLinksEditor({
 
     try {
       // APIからタイトルを取得
-      const { title } = await api.fetchLinkTitle(url);
+      const { title } = await globalApi.fetchLinkTitle(url);
       // 最新のlinksを使ってタイトルを更新
       onChange(
         linksRef.current.map((link) =>
