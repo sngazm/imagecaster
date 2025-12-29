@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { api } from "../lib/api";
 
 export interface ReferenceLink {
@@ -67,7 +67,15 @@ export function ReferenceLinksEditor({
   disabled = false,
 }: ReferenceLinksEditorProps) {
   const [newUrl, setNewUrl] = useState("");
-  const [isFetching, setIsFetching] = useState(false);
+  // タイトル取得中のURLを追跡
+  const [fetchingUrls, setFetchingUrls] = useState<Set<string>>(new Set());
+  // 最新のlinksを参照するためのref
+  const linksRef = useRef(links);
+
+  // linksが変わったらrefを更新
+  useEffect(() => {
+    linksRef.current = links;
+  }, [links]);
 
   const handleAddLink = async () => {
     if (!newUrl.trim()) return;
@@ -84,18 +92,35 @@ export function ReferenceLinksEditor({
       return;
     }
 
-    setIsFetching(true);
+    // 即座にリンクを追加（タイトルは空）
+    onChange([...links, { url, title: "" }]);
+    setNewUrl("");
+
+    // タイトル取得中としてマーク
+    setFetchingUrls((prev) => new Set(prev).add(url));
+
     try {
       // APIからタイトルを取得
       const { title } = await api.fetchLinkTitle(url);
-      onChange([...links, { url, title: title || url }]);
-      setNewUrl("");
-    } catch (err) {
+      // 最新のlinksを使ってタイトルを更新
+      onChange(
+        linksRef.current.map((link) =>
+          link.url === url ? { ...link, title: title || url } : link
+        )
+      );
+    } catch {
       // エラー時はURLをタイトルとして使用
-      onChange([...links, { url, title: url }]);
-      setNewUrl("");
+      onChange(
+        linksRef.current.map((link) =>
+          link.url === url && !link.title ? { ...link, title: url } : link
+        )
+      );
     } finally {
-      setIsFetching(false);
+      setFetchingUrls((prev) => {
+        const next = new Set(prev);
+        next.delete(url);
+        return next;
+      });
     }
   };
 
@@ -130,58 +155,108 @@ export function ReferenceLinksEditor({
     onChange(links.filter((_, i) => i !== index));
   };
 
+  const handleMoveUp = (index: number) => {
+    if (index === 0) return;
+    const updated = [...links];
+    [updated[index - 1], updated[index]] = [updated[index], updated[index - 1]];
+    onChange(updated);
+  };
+
+  const handleMoveDown = (index: number) => {
+    if (index === links.length - 1) return;
+    const updated = [...links];
+    [updated[index], updated[index + 1]] = [updated[index + 1], updated[index]];
+    onChange(updated);
+  };
+
   return (
     <div className="space-y-3">
       {/* リンク一覧 */}
       {links.length > 0 && (
         <div className="space-y-2">
-          {links.map((link, index) => (
-            <div
-              key={index}
-              className="flex items-start gap-2 p-3 bg-zinc-900 border border-zinc-800 rounded-lg"
-            >
-              <div className="flex-1 min-w-0 space-y-2">
-                <input
-                  type="text"
-                  value={link.title}
-                  onChange={(e) => handleUpdateTitle(index, e.target.value)}
-                  disabled={disabled}
-                  placeholder="タイトル"
-                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-zinc-100 text-sm focus:outline-none focus:border-violet-500 disabled:opacity-50"
-                />
-                <div className="flex items-center gap-2">
-                  <a
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 text-xs text-violet-400 hover:text-violet-300 truncate"
-                  >
-                    {link.url}
-                  </a>
+          {links.map((link, index) => {
+            const isFetching = fetchingUrls.has(link.url);
+            return (
+              <div
+                key={link.url}
+                className="flex items-start gap-2 p-3 bg-zinc-900 border border-zinc-800 rounded-lg"
+              >
+                {/* 並び替えボタン */}
+                <div className="flex flex-col gap-0.5 shrink-0">
                   <button
                     type="button"
-                    onClick={() => handleCleanUrl(index)}
-                    disabled={disabled}
-                    className="shrink-0 px-2 py-1 text-xs text-zinc-400 hover:text-emerald-400 bg-zinc-800 hover:bg-zinc-700 rounded transition-colors disabled:opacity-50"
-                    title="URLをクリーン"
+                    onClick={() => handleMoveUp(index)}
+                    disabled={disabled || index === 0}
+                    className="p-1 text-zinc-500 hover:text-zinc-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    title="上に移動"
                   >
-                    Clean
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleMoveDown(index)}
+                    disabled={disabled || index === links.length - 1}
+                    className="p-1 text-zinc-500 hover:text-zinc-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    title="下に移動"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
                   </button>
                 </div>
+
+                <div className="flex-1 min-w-0 space-y-2">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={link.title}
+                      onChange={(e) => handleUpdateTitle(index, e.target.value)}
+                      disabled={disabled || isFetching}
+                      placeholder={isFetching ? "タイトル取得中..." : "タイトル"}
+                      className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-zinc-100 text-sm focus:outline-none focus:border-violet-500 disabled:opacity-50"
+                    />
+                    {isFetching && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <div className="w-4 h-4 border-2 border-zinc-600 border-t-violet-400 rounded-full animate-spin" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 text-xs text-violet-400 hover:text-violet-300 truncate"
+                    >
+                      {link.url}
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => handleCleanUrl(index)}
+                      disabled={disabled}
+                      className="shrink-0 px-2 py-1 text-xs text-zinc-400 hover:text-emerald-400 bg-zinc-800 hover:bg-zinc-700 rounded transition-colors disabled:opacity-50"
+                      title="URLをクリーン"
+                    >
+                      Clean
+                    </button>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveLink(index)}
+                  disabled={disabled}
+                  className="p-2 text-zinc-500 hover:text-red-400 transition-colors disabled:opacity-50"
+                  title="削除"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => handleRemoveLink(index)}
-                disabled={disabled}
-                className="p-2 text-zinc-500 hover:text-red-400 transition-colors disabled:opacity-50"
-                title="削除"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -192,29 +267,20 @@ export function ReferenceLinksEditor({
           value={newUrl}
           onChange={(e) => setNewUrl(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={disabled || isFetching}
+          disabled={disabled}
           placeholder="URLを入力して追加..."
           className="flex-1 px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500 disabled:opacity-50 text-sm"
         />
         <button
           type="button"
           onClick={handleAddLink}
-          disabled={disabled || isFetching || !newUrl.trim()}
+          disabled={disabled || !newUrl.trim()}
           className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         >
-          {isFetching ? (
-            <>
-              <div className="w-4 h-4 border-2 border-zinc-600 border-t-zinc-300 rounded-full animate-spin" />
-              取得中
-            </>
-          ) : (
-            <>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              追加
-            </>
-          )}
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          追加
         </button>
       </div>
 
