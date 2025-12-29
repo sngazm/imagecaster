@@ -4,6 +4,53 @@ import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import { useState, useEffect, useCallback } from "react";
 
+// HTML整形ユーティリティ: インデントと改行を追加
+function formatHtml(html: string): string {
+  if (!html) return "";
+
+  // 既に整形済みの場合はそのまま返す
+  if (html.includes("\n  ")) return html;
+
+  let formatted = html;
+
+  // 閉じタグの前に改行を追加
+  formatted = formatted.replace(/(<\/(?:p|div|ul|ol|li|h[1-6]|blockquote|pre|table|tr|td|th|thead|tbody|section|article|header|footer|nav|aside)>)/gi, "$1\n");
+
+  // 開始タグの後に改行を追加（ブロック要素のみ）
+  formatted = formatted.replace(/(<(?:p|div|ul|ol|li|h[1-6]|blockquote|pre|table|tr|thead|tbody|section|article|header|footer|nav|aside)[^>]*>)/gi, "\n$1");
+
+  // 連続した改行を1つにまとめる
+  formatted = formatted.replace(/\n{3,}/g, "\n\n");
+
+  // 先頭と末尾の空白を削除
+  formatted = formatted.trim();
+
+  // インデントを追加
+  const lines = formatted.split("\n");
+  let indentLevel = 0;
+  const indentedLines = lines.map((line) => {
+    const trimmedLine = line.trim();
+    if (!trimmedLine) return "";
+
+    // 閉じタグの場合はインデントを減らす（先に）
+    if (/^<\//.test(trimmedLine)) {
+      indentLevel = Math.max(0, indentLevel - 1);
+    }
+
+    const indentedLine = "  ".repeat(indentLevel) + trimmedLine;
+
+    // 開始タグで閉じタグがない場合はインデントを増やす
+    if (/<(?:ul|ol|li|div|section|article|header|footer|nav|aside|blockquote|table|thead|tbody|tr)(?:\s[^>]*)?>/.test(trimmedLine) &&
+        !/<\//.test(trimmedLine)) {
+      indentLevel++;
+    }
+
+    return indentedLine;
+  });
+
+  return indentedLines.filter(line => line !== "").join("\n");
+}
+
 interface HtmlEditorProps {
   value: string;
   onChange: (html: string) => void;
@@ -87,6 +134,28 @@ export function HtmlEditor({
     editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
   }, [editor]);
 
+  // Cmd+K / Ctrl+K でリンク設定
+  useEffect(() => {
+    if (!editor) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setLink();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [editor, setLink]);
+
+  // HTMLモードに切り替えた時に整形
+  const switchToHtmlMode = () => {
+    const formattedHtml = formatHtml(htmlSource);
+    setHtmlSource(formattedHtml);
+    setMode("html");
+  };
+
   if (!editor) {
     return (
       <div className="h-48 bg-zinc-900 border border-zinc-800 rounded-lg animate-pulse" />
@@ -112,7 +181,7 @@ export function HtmlEditor({
           </button>
           <button
             type="button"
-            onClick={() => setMode("html")}
+            onClick={switchToHtmlMode}
             className={`px-3 py-1 text-xs font-medium transition-colors ${
               mode === "html"
                 ? "bg-violet-600 text-white"
@@ -166,7 +235,7 @@ export function HtmlEditor({
               className={`p-2 rounded hover:bg-zinc-700 ${
                 editor.isActive("link") ? "bg-zinc-700 text-white" : "text-zinc-400"
               }`}
-              title="リンク"
+              title="リンク (⌘K)"
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z" />
