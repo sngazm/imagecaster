@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { api, EpisodeDetail as EpisodeDetailType, formatDuration, formatFileSize, uploadToR2, getAudioDuration } from "../lib/api";
+import { api, EpisodeDetail as EpisodeDetailType, formatDuration, formatFileSize, uploadToR2, getAudioDuration, utcToLocalDateTimeString, localDateTimeToISOString } from "../lib/api";
 import type { DescriptionTemplate } from "../lib/api";
 import { HtmlEditor } from "../components/HtmlEditor";
 
@@ -66,7 +66,7 @@ export default function EpisodeDetail() {
         setEditTitle(data.title);
         setEditSlug(data.slug || data.id);
         setEditDescription(data.description);
-        setEditPublishAt(data.publishAt ? data.publishAt.slice(0, 16) : "");
+        setEditPublishAt(data.publishAt ? utcToLocalDateTimeString(data.publishAt) : "");
         setEditBlueskyPostText(data.blueskyPostText || "");
         setEditBlueskyPostEnabled(data.blueskyPostEnabled);
         setTemplates(templatesData);
@@ -88,7 +88,7 @@ export default function EpisodeDetail() {
       const updateData: Parameters<typeof api.updateEpisode>[1] = {
         title: editTitle,
         description: editDescription,
-        publishAt: editPublishAt ? new Date(editPublishAt).toISOString() : null,
+        publishAt: editPublishAt ? localDateTimeToISOString(editPublishAt) : null,
         blueskyPostText: editBlueskyPostText.trim() || null,
         blueskyPostEnabled: editBlueskyPostEnabled,
       };
@@ -412,7 +412,7 @@ export default function EpisodeDetail() {
                   setEditTitle(episode.title);
                   setEditSlug(episode.slug || episode.id);
                   setEditDescription(episode.description);
-                  setEditPublishAt(episode.publishAt ? episode.publishAt.slice(0, 16) : "");
+                  setEditPublishAt(episode.publishAt ? utcToLocalDateTimeString(episode.publishAt) : "");
                   setEditBlueskyPostText(episode.blueskyPostText || "");
                   setEditBlueskyPostEnabled(episode.blueskyPostEnabled);
                   setError(null);

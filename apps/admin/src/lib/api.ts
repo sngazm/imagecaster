@@ -357,3 +357,25 @@ export function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+/**
+ * UTC ISO文字列 → datetime-local形式（ローカルタイム）
+ * 例: "2025-12-29T06:00:00.000Z" → "2025-12-29T15:00" (JST)
+ */
+export function utcToLocalDateTimeString(isoString: string): string {
+  const date = new Date(isoString);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+/**
+ * datetime-local形式（ローカルタイム） → UTC ISO文字列
+ * 例: "2025-12-29T15:00" (JST) → "2025-12-29T06:00:00.000Z"
+ */
+export function localDateTimeToISOString(localDateTime: string): string {
+  return new Date(localDateTime).toISOString();
+}
