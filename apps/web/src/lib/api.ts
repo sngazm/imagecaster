@@ -1,23 +1,51 @@
 import type { Episode, PodcastIndex } from "./types";
 
 const R2_PUBLIC_URL = import.meta.env.R2_PUBLIC_URL || "";
-const PODCAST_ID = import.meta.env.PODCAST_ID || "";
+// PODCAST_ID が未設定の場合はデフォルト値を使用（CI/開発用）
+// 本番環境では各Pagesデプロイ時に環境変数で設定すること
+const PODCAST_ID = import.meta.env.PODCAST_ID || "default";
+
+// 開発/CI用のダミーデータ
+const DUMMY_PODCAST_INDEX: PodcastIndex = {
+  podcast: {
+    title: "Sample Podcast",
+    description: "This is a placeholder for development builds.",
+    author: "",
+    email: "",
+    language: "ja",
+    category: "Technology",
+    artworkUrl: "",
+    ogImageUrl: "",
+    websiteUrl: "",
+    explicit: false,
+  },
+  episodes: [],
+};
 
 /**
  * R2 の Podcast ベース URL を取得
  * マルチポッドキャスト対応: /{podcastId}/ のプレフィックスが付く
  */
 function getPodcastBaseUrl(): string {
-  if (!PODCAST_ID) {
-    throw new Error("PODCAST_ID environment variable is required");
-  }
   return `${R2_PUBLIC_URL}/${PODCAST_ID}`;
+}
+
+/**
+ * 開発/CI用のビルドかどうかを判定
+ */
+function isDummyBuild(): boolean {
+  return !R2_PUBLIC_URL || PODCAST_ID === "default";
 }
 
 /**
  * R2 から Podcast インデックスを取得
  */
 export async function getPodcastIndex(): Promise<PodcastIndex> {
+  // 開発/CIビルドではダミーデータを返す
+  if (isDummyBuild()) {
+    return DUMMY_PODCAST_INDEX;
+  }
+
   const url = `${getPodcastBaseUrl()}/index.json`;
   const res = await fetch(url);
 
@@ -119,6 +147,17 @@ export function stripHtml(html: string): string {
  * R2 から RSS フィードを取得
  */
 export async function getFeed(): Promise<string> {
+  // 開発/CIビルドではダミーのフィードを返す
+  if (isDummyBuild()) {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Sample Podcast</title>
+    <description>Placeholder for development builds</description>
+  </channel>
+</rss>`;
+  }
+
   const url = `${getPodcastBaseUrl()}/feed.xml`;
   const res = await fetch(url);
 

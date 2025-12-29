@@ -176,6 +176,16 @@ export interface CreateEpisodeResponse {
   status: string;
 }
 
+export interface UpdateEpisodeData {
+  title?: string;
+  slug?: string;
+  description?: string;
+  publishAt?: string | null;
+  skipTranscription?: boolean;
+  blueskyPostText?: string | null;
+  blueskyPostEnabled?: boolean;
+}
+
 export interface UploadUrlResponse {
   uploadUrl: string;
   expiresIn: number;

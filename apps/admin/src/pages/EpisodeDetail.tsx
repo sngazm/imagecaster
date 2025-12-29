@@ -101,7 +101,7 @@ export default function EpisodeDetail() {
       setIsSaving(true);
       setError(null);
 
-      const updateData: Parameters<ReturnType<typeof api.updateEpisode>>[1] = {
+      const updateData: UpdateEpisodeData = {
         title: editTitle,
         description: editDescription,
         publishAt: editPublishAt ? localDateTimeToISOString(editPublishAt) : null,
