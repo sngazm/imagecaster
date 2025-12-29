@@ -493,7 +493,7 @@ export default function EpisodeNew() {
                 disabled={isSubmitting || status === "done"}
                 className="w-full py-3 bg-violet-600 hover:bg-violet-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-medium rounded-lg transition-all hover:shadow-lg hover:shadow-violet-500/25 disabled:shadow-none disabled:cursor-not-allowed"
               >
-                {isSubmitting ? "処理中..." : "公開予約"}
+                {isSubmitting ? "処理中..." : (publishAt ? "公開予約" : "今すぐ公開")}
               </button>
               <button
                 type="button"
