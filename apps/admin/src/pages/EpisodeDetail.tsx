@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { api, EpisodeDetail as EpisodeDetailType, formatDuration, formatFileSize, uploadToR2, getAudioDuration, utcToLocalDateTimeString, localDateTimeToISOString } from "../lib/api";
-import type { DescriptionTemplate, ReferenceLink } from "../lib/api";
+import { useApi } from "../hooks/useApi";
+import { EpisodeDetail as EpisodeDetailType, formatDuration, formatFileSize, uploadToR2, getAudioDuration, utcToLocalDateTimeString, localDateTimeToISOString } from "../lib/api";
+import type { DescriptionTemplate, ReferenceLink, UpdateEpisodeData } from "../lib/api";
 import { HtmlEditor } from "../components/HtmlEditor";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { BlueskyPostEditor } from "../components/BlueskyPostEditor";
@@ -33,6 +34,7 @@ function formatDate(dateString: string | null): string {
 export default function EpisodeDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const api = useApi();
   const [episode, setEpisode] = useState<EpisodeDetailType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +66,7 @@ export default function EpisodeDetail() {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!id) return;
+      if (!id || !api) return;
       try {
         setIsLoading(true);
         const [data, templatesData, deploymentsData] = await Promise.all([
@@ -91,15 +93,15 @@ export default function EpisodeDetail() {
       }
     };
     fetchData();
-  }, [id]);
+  }, [id, api]);
 
   const handleSave = async () => {
-    if (!id || !episode) return;
+    if (!id || !episode || !api) return;
     try {
       setIsSaving(true);
       setError(null);
 
-      const updateData: Parameters<typeof api.updateEpisode>[1] = {
+      const updateData: Parameters<ReturnType<typeof api.updateEpisode>>[1] = {
         title: editTitle,
         description: editDescription,
         publishAt: editPublishAt ? localDateTimeToISOString(editPublishAt) : null,
@@ -129,7 +131,7 @@ export default function EpisodeDetail() {
   };
 
   const handleDelete = async () => {
-    if (!id || !confirm("本当に削除しますか？この操作は取り消せません。")) return;
+    if (!id || !api || !confirm("本当に削除しますか？この操作は取り消せません。")) return;
     try {
       setIsDeleting(true);
       await api.deleteEpisode(id);
@@ -141,7 +143,7 @@ export default function EpisodeDetail() {
   };
 
   const handleAudioUpload = async () => {
-    if (!id || !audioFile || !episode) return;
+    if (!id || !audioFile || !episode || !api) return;
 
     try {
       setIsUploading(true);
@@ -178,7 +180,7 @@ export default function EpisodeDetail() {
   };
 
   const handleOgImageUpload = async () => {
-    if (!id || !ogImageFile) return;
+    if (!id || !ogImageFile || !api) return;
 
     setUploadingOgImage(true);
     setError(null);

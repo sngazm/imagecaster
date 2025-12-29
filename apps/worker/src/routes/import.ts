@@ -24,35 +24,28 @@ function parseRssXml(xml: string): Array<{
     guid: string;
   }> = [];
 
-  // <item>タグを抽出
   const itemRegex = /<item[^>]*>([\s\S]*?)<\/item>/gi;
   let match;
 
   while ((match = itemRegex.exec(xml)) !== null) {
     const itemContent = match[1];
 
-    // タイトル
     const titleMatch = itemContent.match(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/i);
     const title = titleMatch ? titleMatch[1].trim() : "";
 
-    // 説明
     const descMatch = itemContent.match(/<description[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/i);
     const description = descMatch ? descMatch[1].trim() : "";
 
-    // 公開日
     const pubDateMatch = itemContent.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/i);
     const pubDate = pubDateMatch ? pubDateMatch[1].trim() : "";
 
-    // 音声URL (enclosure)
     const enclosureMatch = itemContent.match(/<enclosure[^>]*url=["']([^"']+)["'][^>]*>/i);
     const audioUrl = enclosureMatch ? enclosureMatch[1] : "";
 
-    // duration (itunes:duration)
     const durationMatch = itemContent.match(/<itunes:duration[^>]*>([\s\S]*?)<\/itunes:duration>/i);
     let duration = 0;
     if (durationMatch) {
       const durationStr = durationMatch[1].trim();
-      // HH:MM:SS or MM:SS or seconds
       if (durationStr.includes(":")) {
         const parts = durationStr.split(":").map(Number);
         if (parts.length === 3) {
@@ -65,7 +58,6 @@ function parseRssXml(xml: string): Array<{
       }
     }
 
-    // GUID
     const guidMatch = itemContent.match(/<guid[^>]*>([\s\S]*?)<\/guid>/i);
     const guid = guidMatch ? guidMatch[1].trim() : "";
 
@@ -120,7 +112,6 @@ function parsePodcastMeta(xml: string): {
  * タイトルからslugを生成
  */
 function generateSlug(title: string): string {
-  // 簡易的なslug生成（英数字とハイフンのみ）
   let slug = title
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, "")
@@ -128,7 +119,6 @@ function generateSlug(title: string): string {
     .replace(/-+/g, "-")
     .slice(0, 50);
 
-  // 空の場合はタイムスタンプでフォールバック
   if (!slug) {
     slug = `episode-${Date.now().toString(36)}`;
   }
@@ -137,16 +127,16 @@ function generateSlug(title: string): string {
 }
 
 /**
- * RSSフィードをインポート
+ * POST /api/podcasts/:podcastId/import/rss - RSSフィードをインポート
  */
 importRoutes.post("/rss", async (c) => {
+  const podcastId = c.req.param("podcastId");
   const body = await c.req.json<ImportRssRequest>();
 
   if (!body.rssUrl) {
     return c.json({ error: "rssUrl is required" }, 400);
   }
 
-  // RSSフィードを取得
   let rssXml: string;
   try {
     const response = await fetch(body.rssUrl);
@@ -158,37 +148,30 @@ importRoutes.post("/rss", async (c) => {
     return c.json({ error: `Failed to fetch RSS: ${err}` }, 400);
   }
 
-  // RSSをパース
   const rssEpisodes = parseRssXml(rssXml);
 
-  const index = await getIndex(c.env);
+  const index = await getIndex(c.env, podcastId);
   const results: ImportRssResponse["episodes"] = [];
   let imported = 0;
   let skipped = 0;
 
-  // 既存のslug一覧を作成（高速チェック用）
   const existingSlugs = new Set(index.episodes.map((ep) => ep.id));
 
-  // エピソードを古い順に処理（pubDateでソート）
   const sortedEpisodes = [...rssEpisodes].sort((a, b) =>
     new Date(a.pubDate).getTime() - new Date(b.pubDate).getTime()
   );
 
-  // バッチ処理用の配列
   const episodesToSave: EpisodeMeta[] = [];
 
   for (const rssEp of sortedEpisodes) {
-    // slugを生成
     let slug = generateSlug(rssEp.title);
 
-    // 重複を避けるためにサフィックスを追加
     const originalSlug = slug;
     let suffix = 1;
     while (existingSlugs.has(slug)) {
       slug = `${originalSlug}-${suffix}`;
       suffix++;
       if (suffix > 100) {
-        // 無限ループ防止
         results.push({
           title: rssEp.title,
           slug: originalSlug,
@@ -200,7 +183,6 @@ importRoutes.post("/rss", async (c) => {
       }
     }
 
-    // 新規エピソードを作成
     const now = new Date().toISOString();
     const pubDate = rssEp.pubDate ? new Date(rssEp.pubDate).toISOString() : now;
 
@@ -229,7 +211,6 @@ importRoutes.post("/rss", async (c) => {
     episodesToSave.push(meta);
     existingSlugs.add(slug);
 
-    // インデックスに追加
     index.episodes.push({ id: slug });
 
     results.push({
@@ -241,15 +222,13 @@ importRoutes.post("/rss", async (c) => {
     imported++;
   }
 
-  // バッチでR2に保存（並列実行）
   const BATCH_SIZE = 10;
   for (let i = 0; i < episodesToSave.length; i += BATCH_SIZE) {
     const batch = episodesToSave.slice(i, i + BATCH_SIZE);
-    await Promise.all(batch.map((meta) => saveEpisodeMeta(c.env, meta)));
+    await Promise.all(batch.map((meta) => saveEpisodeMeta(c.env, podcastId, meta)));
   }
 
-  // インデックスを保存
-  await saveIndex(c.env, index);
+  await saveIndex(c.env, podcastId, index);
 
   const response: ImportRssResponse = {
     imported,
@@ -261,7 +240,7 @@ importRoutes.post("/rss", async (c) => {
 });
 
 /**
- * RSSフィードをプレビュー（インポートせずに内容を確認）
+ * POST /api/podcasts/:podcastId/import/rss/preview - RSSフィードをプレビュー
  */
 importRoutes.post("/rss/preview", async (c) => {
   const body = await c.req.json<{ rssUrl: string }>();
@@ -270,7 +249,6 @@ importRoutes.post("/rss/preview", async (c) => {
     return c.json({ error: "rssUrl is required" }, 400);
   }
 
-  // RSSフィードを取得
   let rssXml: string;
   try {
     const response = await fetch(body.rssUrl);
@@ -282,7 +260,6 @@ importRoutes.post("/rss/preview", async (c) => {
     return c.json({ error: `Failed to fetch RSS: ${err}` }, 400);
   }
 
-  // RSSをパース
   const episodes = parseRssXml(rssXml);
   const podcastMeta = parsePodcastMeta(rssXml);
 

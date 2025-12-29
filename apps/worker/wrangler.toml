@@ -4,19 +4,22 @@ compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
-PODCAST_TITLE = "番組名"
-WEBSITE_URL = "https://imagecaster-web.pages.dev"
 R2_ACCOUNT_ID = "f79879b4bd3520260744db022329425d"
 R2_BUCKET_NAME = "podcast-bucket"
-R2_PUBLIC_URL = "https://pub-3084e431ea244accadaf06c7023bf1f8.r2.dev"  # R2 Public Access を有効化後に設定
+R2_PUBLIC_URL = "https://pub-3084e431ea244accadaf06c7023bf1f8.r2.dev"
 CF_ACCESS_TEAM_DOMAIN = "sngazm.cloudflareaccess.com"
 CF_ACCESS_AUD = "5269d12ad25457e6c5f25a6c8565eafab46cc4817164401abe12982c405263a9"
 
 [[r2_buckets]]
 binding = "R2_BUCKET"
 bucket_name = "podcast-bucket"
-preview_bucket_name = "podcast-bucket-dev"  # wrangler dev 時に使用
-remote = true  # wrangler dev でもリモートR2に接続
+preview_bucket_name = "podcast-bucket-dev"
+remote = true
+
+[[kv_namespaces]]
+binding = "SECRETS_KV"
+id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"  # TODO: wrangler kv:namespace create SECRETS_KV で作成後に設定
+preview_id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"  # TODO: wrangler kv:namespace create SECRETS_KV --preview で作成後に設定
 
 [triggers]
 crons = ["*/5 * * * *"]
@@ -24,9 +27,7 @@ crons = ["*/5 * * * *"]
 # Secrets (set via `wrangler secret put <NAME>`):
 # - R2_ACCESS_KEY_ID
 # - R2_SECRET_ACCESS_KEY
-# - WEB_DEPLOY_HOOK_URL (optional: Cloudflare Pages Deploy Hook URL)
-# - BLUESKY_IDENTIFIER (optional: Bluesky handle or DID for auto-posting)
-# - BLUESKY_PASSWORD (optional: Bluesky app password for auto-posting)
+# - CLOUDFLARE_API_TOKEN (optional: for deployment status API)
 
 [dev]
-persist = false  # 常に R2 dev バケットを使用（ローカルとの不整合を防ぐ）
+persist = false

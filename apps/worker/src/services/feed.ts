@@ -1,5 +1,5 @@
 import type { Env, EpisodeMeta, PodcastIndex } from "../types";
-import { getIndex, getPublishedEpisodes } from "./r2";
+import { getIndex, getPublishedEpisodes, saveFeed, getFeedFromR2 } from "./r2";
 import { formatReferenceLinks } from "./description";
 
 /**
@@ -171,34 +171,29 @@ ${items}
 /**
  * RSS フィードを再生成して R2 に保存
  */
-export async function regenerateFeed(env: Env): Promise<void> {
+export async function regenerateFeed(env: Env, podcastId: string): Promise<void> {
   const [index, episodes] = await Promise.all([
-    getIndex(env),
-    getPublishedEpisodes(env),
+    getIndex(env, podcastId),
+    getPublishedEpisodes(env, podcastId),
   ]);
 
   const feedXml = generateFeed(index, episodes);
-
-  await env.R2_BUCKET.put("feed.xml", feedXml, {
-    httpMetadata: {
-      contentType: "application/xml; charset=utf-8",
-    },
-  });
+  await saveFeed(env, podcastId, feedXml);
 }
 
 /**
  * キャッシュされたフィードを取得（なければ再生成）
  */
-export async function getFeed(env: Env): Promise<string> {
-  const cached = await env.R2_BUCKET.get("feed.xml");
+export async function getFeed(env: Env, podcastId: string): Promise<string> {
+  const cached = await getFeedFromR2(env, podcastId);
 
   if (cached) {
-    return cached.text();
+    return cached;
   }
 
   // キャッシュがなければ再生成
-  await regenerateFeed(env);
+  await regenerateFeed(env, podcastId);
 
-  const newFeed = await env.R2_BUCKET.get("feed.xml");
-  return newFeed!.text();
+  const newFeed = await getFeedFromR2(env, podcastId);
+  return newFeed!;
 }

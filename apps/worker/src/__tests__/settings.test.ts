@@ -1,10 +1,15 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { SELF } from "cloudflare:test";
+import { getApiBase, ensureTestPodcast } from "./helpers";
 
 describe("Settings API", () => {
-  describe("GET /api/settings", () => {
+  beforeAll(async () => {
+    await ensureTestPodcast();
+  });
+
+  describe("GET /api/podcasts/:podcastId/settings", () => {
     it("returns podcast settings", async () => {
-      const response = await SELF.fetch("http://localhost/api/settings");
+      const response = await SELF.fetch(`${getApiBase()}/settings`);
 
       expect(response.status).toBe(200);
 
@@ -16,11 +21,11 @@ describe("Settings API", () => {
     });
   });
 
-  describe("PUT /api/settings", () => {
+  describe("PUT /api/podcasts/:podcastId/settings", () => {
     it("updates podcast title", async () => {
       const newTitle = `Test Podcast ${Date.now()}`;
 
-      const response = await SELF.fetch("http://localhost/api/settings", {
+      const response = await SELF.fetch(`${getApiBase()}/settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: newTitle }),
@@ -42,7 +47,7 @@ describe("Settings API", () => {
         category: "Technology",
       };
 
-      const response = await SELF.fetch("http://localhost/api/settings", {
+      const response = await SELF.fetch(`${getApiBase()}/settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
@@ -60,7 +65,7 @@ describe("Settings API", () => {
     });
 
     it("updates explicit flag", async () => {
-      const response = await SELF.fetch("http://localhost/api/settings", {
+      const response = await SELF.fetch(`${getApiBase()}/settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ explicit: true }),
@@ -74,19 +79,19 @@ describe("Settings API", () => {
 
     it("preserves existing settings when updating partial fields", async () => {
       // 最初に設定を取得
-      const getResponse = await SELF.fetch("http://localhost/api/settings");
+      const getResponse = await SELF.fetch(`${getApiBase()}/settings`);
       const originalSettings = await getResponse.json();
 
       // titleのみ更新
       const newTitle = `Partial Update ${Date.now()}`;
-      await SELF.fetch("http://localhost/api/settings", {
+      await SELF.fetch(`${getApiBase()}/settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: newTitle }),
       });
 
       // 更新後の設定を取得
-      const updatedResponse = await SELF.fetch("http://localhost/api/settings");
+      const updatedResponse = await SELF.fetch(`${getApiBase()}/settings`);
       const updatedSettings = await updatedResponse.json();
 
       expect(updatedSettings.title).toBe(newTitle);
@@ -95,10 +100,10 @@ describe("Settings API", () => {
     });
   });
 
-  describe("POST /api/settings/artwork/upload-url", () => {
+  describe("POST /api/podcasts/:podcastId/settings/artwork/upload-url", () => {
     it("rejects invalid content type", async () => {
       const response = await SELF.fetch(
-        "http://localhost/api/settings/artwork/upload-url",
+        `${getApiBase()}/settings/artwork/upload-url`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -117,7 +122,7 @@ describe("Settings API", () => {
 
     it("rejects file too large", async () => {
       const response = await SELF.fetch(
-        "http://localhost/api/settings/artwork/upload-url",
+        `${getApiBase()}/settings/artwork/upload-url`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -136,7 +141,7 @@ describe("Settings API", () => {
 
     it("accepts valid JPEG request", async () => {
       const response = await SELF.fetch(
-        "http://localhost/api/settings/artwork/upload-url",
+        `${getApiBase()}/settings/artwork/upload-url`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -160,7 +165,7 @@ describe("Settings API", () => {
 
     it("accepts valid PNG request", async () => {
       const response = await SELF.fetch(
-        "http://localhost/api/settings/artwork/upload-url",
+        `${getApiBase()}/settings/artwork/upload-url`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -180,12 +185,12 @@ describe("Settings API", () => {
     });
   });
 
-  describe("POST /api/settings/artwork/upload-complete", () => {
+  describe("POST /api/podcasts/:podcastId/settings/artwork/upload-complete", () => {
     it("updates artworkUrl in settings", async () => {
       const artworkUrl = "https://example.com/artwork.jpg";
 
       const response = await SELF.fetch(
-        "http://localhost/api/settings/artwork/upload-complete",
+        `${getApiBase()}/settings/artwork/upload-complete`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -200,16 +205,16 @@ describe("Settings API", () => {
       expect(json.artworkUrl).toBe(artworkUrl);
 
       // 設定を取得して確認
-      const getResponse = await SELF.fetch("http://localhost/api/settings");
+      const getResponse = await SELF.fetch(`${getApiBase()}/settings`);
       const settings = await getResponse.json();
       expect(settings.artworkUrl).toBe(artworkUrl);
     });
   });
 
-  describe("POST /api/settings/og-image/upload-url", () => {
+  describe("POST /api/podcasts/:podcastId/settings/og-image/upload-url", () => {
     it("rejects invalid content type", async () => {
       const response = await SELF.fetch(
-        "http://localhost/api/settings/og-image/upload-url",
+        `${getApiBase()}/settings/og-image/upload-url`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -228,7 +233,7 @@ describe("Settings API", () => {
 
     it("rejects file too large", async () => {
       const response = await SELF.fetch(
-        "http://localhost/api/settings/og-image/upload-url",
+        `${getApiBase()}/settings/og-image/upload-url`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -246,12 +251,12 @@ describe("Settings API", () => {
     });
   });
 
-  describe("POST /api/settings/og-image/upload-complete", () => {
+  describe("POST /api/podcasts/:podcastId/settings/og-image/upload-complete", () => {
     it("updates ogImageUrl in settings", async () => {
       const ogImageUrl = "https://example.com/og-image.png";
 
       const response = await SELF.fetch(
-        "http://localhost/api/settings/og-image/upload-complete",
+        `${getApiBase()}/settings/og-image/upload-complete`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -266,9 +271,64 @@ describe("Settings API", () => {
       expect(json.ogImageUrl).toBe(ogImageUrl);
 
       // 設定を取得して確認
-      const getResponse = await SELF.fetch("http://localhost/api/settings");
+      const getResponse = await SELF.fetch(`${getApiBase()}/settings`);
       const settings = await getResponse.json();
       expect(settings.ogImageUrl).toBe(ogImageUrl);
+    });
+  });
+});
+
+describe("Secrets API", () => {
+  beforeAll(async () => {
+    await ensureTestPodcast();
+  });
+
+  describe("GET /api/podcasts/:podcastId/secrets", () => {
+    it("returns secrets (masked)", async () => {
+      const response = await SELF.fetch(`${getApiBase()}/secrets`);
+
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      // シークレットはマスクされて返される（実際の値ではなく、設定済みかどうかのブール値）
+      expect(json).toHaveProperty("blueskyIdentifier");
+      expect(json).toHaveProperty("blueskyPasswordSet");
+      expect(json).toHaveProperty("deployHookUrlSet");
+    });
+  });
+
+  describe("PUT /api/podcasts/:podcastId/secrets", () => {
+    it("updates Bluesky identifier", async () => {
+      const response = await SELF.fetch(`${getApiBase()}/secrets`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          blueskyIdentifier: "test.bsky.social",
+        }),
+      });
+
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      expect(json.blueskyIdentifier).toBe("test.bsky.social");
+    });
+
+    it("updates deploy hook URL", async () => {
+      const hookUrl = "https://api.cloudflare.com/deploy-hook/test";
+
+      const response = await SELF.fetch(`${getApiBase()}/secrets`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deployHookUrl: hookUrl,
+        }),
+      });
+
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      // レスポンスはマスクされた形式（設定済みかどうかのブール値）
+      expect(json.deployHookUrlSet).toBe(true);
     });
   });
 });

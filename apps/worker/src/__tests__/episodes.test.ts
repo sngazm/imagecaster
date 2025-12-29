@@ -1,34 +1,20 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { SELF } from "cloudflare:test";
-
-/**
- * テスト用ヘルパー: エピソードを作成してIDを返す
- */
-async function createTestEpisode(data: {
-  title: string;
-  description?: string;
-  publishAt?: string | null;
-  skipTranscription?: boolean;
-  slug?: string;
-}): Promise<{ id: string; slug: string }> {
-  const response = await SELF.fetch("http://localhost/api/episodes", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  const json = await response.json();
-  return { id: json.id, slug: json.slug };
-}
+import { getApiBase, ensureTestPodcast, createTestEpisode } from "./helpers";
 
 describe("Episodes API - CRUD Operations", () => {
-  describe("PUT /api/episodes/:id", () => {
+  beforeAll(async () => {
+    await ensureTestPodcast();
+  });
+
+  describe("PUT /api/podcasts/:podcastId/episodes/:id", () => {
     it("updates episode title and description", async () => {
       const { id } = await createTestEpisode({
         title: "Original Title",
         description: "Original description",
       });
 
-      const response = await SELF.fetch(`http://localhost/api/episodes/${id}`, {
+      const response = await SELF.fetch(`${getApiBase()}/episodes/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -52,7 +38,7 @@ describe("Episodes API - CRUD Operations", () => {
 
       const futureDate = new Date(Date.now() + 86400000 * 7).toISOString();
 
-      const response = await SELF.fetch(`http://localhost/api/episodes/${id}`, {
+      const response = await SELF.fetch(`${getApiBase()}/episodes/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ publishAt: futureDate }),
@@ -69,7 +55,7 @@ describe("Episodes API - CRUD Operations", () => {
         title: "Bluesky Test",
       });
 
-      const response = await SELF.fetch(`http://localhost/api/episodes/${id}`, {
+      const response = await SELF.fetch(`${getApiBase()}/episodes/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -91,7 +77,7 @@ describe("Episodes API - CRUD Operations", () => {
       });
 
       const newSlug = `new-slug-${Date.now()}`;
-      const response = await SELF.fetch(`http://localhost/api/episodes/${id}`, {
+      const response = await SELF.fetch(`${getApiBase()}/episodes/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ slug: newSlug }),
@@ -109,7 +95,7 @@ describe("Episodes API - CRUD Operations", () => {
         title: "Invalid Slug Test",
       });
 
-      const response = await SELF.fetch(`http://localhost/api/episodes/${id}`, {
+      const response = await SELF.fetch(`${getApiBase()}/episodes/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ slug: "Invalid Slug With Spaces!" }),
@@ -123,7 +109,7 @@ describe("Episodes API - CRUD Operations", () => {
 
     it("returns 404 for non-existent episode", async () => {
       const response = await SELF.fetch(
-        "http://localhost/api/episodes/non-existent-episode-id",
+        `${getApiBase()}/episodes/non-existent-episode-id`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -138,13 +124,13 @@ describe("Episodes API - CRUD Operations", () => {
     });
   });
 
-  describe("DELETE /api/episodes/:id", () => {
+  describe("DELETE /api/podcasts/:podcastId/episodes/:id", () => {
     it("deletes an existing episode", async () => {
       const { id } = await createTestEpisode({
         title: "Episode to Delete",
       });
 
-      const response = await SELF.fetch(`http://localhost/api/episodes/${id}`, {
+      const response = await SELF.fetch(`${getApiBase()}/episodes/${id}`, {
         method: "DELETE",
       });
 
@@ -155,14 +141,14 @@ describe("Episodes API - CRUD Operations", () => {
 
       // 削除後は取得できないことを確認
       const getResponse = await SELF.fetch(
-        `http://localhost/api/episodes/${id}`
+        `${getApiBase()}/episodes/${id}`
       );
       expect(getResponse.status).toBe(404);
     });
 
     it("returns 404 for non-existent episode", async () => {
       const response = await SELF.fetch(
-        "http://localhost/api/episodes/non-existent-episode-id",
+        `${getApiBase()}/episodes/non-existent-episode-id`,
         {
           method: "DELETE",
         }
@@ -172,14 +158,14 @@ describe("Episodes API - CRUD Operations", () => {
     });
   });
 
-  describe("GET /api/episodes/:id", () => {
+  describe("GET /api/podcasts/:podcastId/episodes/:id", () => {
     it("returns episode details", async () => {
       const { id } = await createTestEpisode({
         title: "Get Test Episode",
         description: "Test description",
       });
 
-      const response = await SELF.fetch(`http://localhost/api/episodes/${id}`);
+      const response = await SELF.fetch(`${getApiBase()}/episodes/${id}`);
 
       expect(response.status).toBe(200);
 
@@ -193,7 +179,11 @@ describe("Episodes API - CRUD Operations", () => {
 });
 
 describe("Episodes API - Transcription", () => {
-  describe("POST /api/episodes/:id/transcription-complete", () => {
+  beforeAll(async () => {
+    await ensureTestPodcast();
+  });
+
+  describe("POST /api/podcasts/:podcastId/episodes/:id/transcription-complete", () => {
     it("marks transcription as completed and sets status to scheduled", async () => {
       const futureDate = new Date(Date.now() + 86400000).toISOString();
       const { id } = await createTestEpisode({
@@ -206,7 +196,7 @@ describe("Episodes API - Transcription", () => {
       // transcription-complete は transcribing 状態でなくても動作することをテスト
 
       const response = await SELF.fetch(
-        `http://localhost/api/episodes/${id}/transcription-complete`,
+        `${getApiBase()}/episodes/${id}/transcription-complete`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -232,7 +222,7 @@ describe("Episodes API - Transcription", () => {
       });
 
       const response = await SELF.fetch(
-        `http://localhost/api/episodes/${id}/transcription-complete`,
+        `${getApiBase()}/episodes/${id}/transcription-complete`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -256,7 +246,7 @@ describe("Episodes API - Transcription", () => {
       });
 
       const response = await SELF.fetch(
-        `http://localhost/api/episodes/${id}/transcription-complete`,
+        `${getApiBase()}/episodes/${id}/transcription-complete`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -274,7 +264,7 @@ describe("Episodes API - Transcription", () => {
 
     it("returns 404 for non-existent episode", async () => {
       const response = await SELF.fetch(
-        "http://localhost/api/episodes/non-existent-id/transcription-complete",
+        `${getApiBase()}/episodes/non-existent-id/transcription-complete`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -288,10 +278,14 @@ describe("Episodes API - Transcription", () => {
 });
 
 describe("Episodes API - Validation", () => {
-  describe("POST /api/episodes", () => {
+  beforeAll(async () => {
+    await ensureTestPodcast();
+  });
+
+  describe("POST /api/podcasts/:podcastId/episodes", () => {
     it("creates episode with custom slug", async () => {
       const customSlug = `custom-slug-${Date.now()}`;
-      const response = await SELF.fetch("http://localhost/api/episodes", {
+      const response = await SELF.fetch(`${getApiBase()}/episodes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -307,7 +301,7 @@ describe("Episodes API - Validation", () => {
     });
 
     it("rejects invalid slug format", async () => {
-      const response = await SELF.fetch("http://localhost/api/episodes", {
+      const response = await SELF.fetch(`${getApiBase()}/episodes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -326,14 +320,14 @@ describe("Episodes API - Validation", () => {
       const slug = `unique-slug-${Date.now()}`;
 
       // 1つ目を作成
-      await SELF.fetch("http://localhost/api/episodes", {
+      await SELF.fetch(`${getApiBase()}/episodes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "First Episode", slug }),
       });
 
       // 同じslugで2つ目を作成
-      const response = await SELF.fetch("http://localhost/api/episodes", {
+      const response = await SELF.fetch(`${getApiBase()}/episodes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Second Episode", slug }),
@@ -346,7 +340,7 @@ describe("Episodes API - Validation", () => {
     });
 
     it("creates episode with skipTranscription flag", async () => {
-      const response = await SELF.fetch("http://localhost/api/episodes", {
+      const response = await SELF.fetch(`${getApiBase()}/episodes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -362,7 +356,7 @@ describe("Episodes API - Validation", () => {
 
       // 詳細を取得して確認
       const detailResponse = await SELF.fetch(
-        `http://localhost/api/episodes/${json.id}`
+        `${getApiBase()}/episodes/${json.id}`
       );
       const detail = await detailResponse.json();
       expect(detail.skipTranscription).toBe(true);

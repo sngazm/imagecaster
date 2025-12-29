@@ -1,6 +1,7 @@
 import { useState, useEffect, FormEvent, ChangeEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api, uploadToR2, getAudioDuration, localDateTimeToISOString } from "../lib/api";
+import { useApi } from "../hooks/useApi";
+import { uploadToR2, getAudioDuration, localDateTimeToISOString } from "../lib/api";
 import type { DescriptionTemplate, ReferenceLink } from "../lib/api";
 import { HtmlEditor } from "../components/HtmlEditor";
 import { DateTimePicker } from "../components/DateTimePicker";
@@ -11,6 +12,7 @@ type Status = "idle" | "creating" | "uploading" | "completing" | "done" | "error
 type AudioSource = "file" | "url";
 
 export default function EpisodeNew() {
+  const api = useApi();
   const navigate = useNavigate();
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
@@ -33,8 +35,10 @@ export default function EpisodeNew() {
   const [ogImagePreview, setOgImagePreview] = useState<string | null>(null);
 
   useEffect(() => {
-    api.getTemplates().then(setTemplates).catch(console.error);
-  }, []);
+    if (api) {
+      api.getTemplates().then(setTemplates).catch(console.error);
+    }
+  }, [api]);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
@@ -64,6 +68,12 @@ export default function EpisodeNew() {
 
   const handleSubmit = async (e: FormEvent, isDraft: boolean = false) => {
     e.preventDefault();
+
+    if (!api) {
+      setStatus("error");
+      setMessage("ポッドキャストが選択されていません");
+      return;
+    }
 
     if (!title.trim()) {
       setStatus("error");

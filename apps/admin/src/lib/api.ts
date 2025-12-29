@@ -23,6 +23,16 @@ async function request<T>(
   return res.json();
 }
 
+export interface Podcast {
+  id: string;
+  title: string;
+  createdAt: string;
+}
+
+export interface PodcastsResponse {
+  podcasts: Podcast[];
+}
+
 export interface Episode {
   id: string;
   slug: string;
@@ -72,6 +82,12 @@ export interface PodcastSettings {
   ogImageUrl: string;
   websiteUrl: string;
   explicit: boolean;
+}
+
+export interface PodcastSecrets {
+  blueskyIdentifier?: string;
+  hasBlueskyPassword?: boolean;
+  deployHookUrl?: string;
 }
 
 export interface DescriptionTemplate {
@@ -177,153 +193,185 @@ export interface OgImageUploadUrlResponse {
   ogImageUrl: string;
 }
 
-export const api = {
-  // Episodes
-  getEpisodes: () =>
-    request<EpisodesListResponse>("/api/episodes"),
+// Factory function to create API methods with podcastId
+export function createApi(podcastId: string) {
+  const base = `/api/podcasts/${podcastId}`;
 
-  getEpisode: (id: string) =>
-    request<EpisodeDetail>(`/api/episodes/${id}`),
+  return {
+    // Episodes
+    getEpisodes: () =>
+      request<EpisodesListResponse>(`${base}/episodes`),
 
-  createEpisode: (data: {
-    title: string;
-    slug?: string;
-    description?: string;
-    publishAt?: string | null;
-    skipTranscription?: boolean;
-    blueskyPostText?: string | null;
-    blueskyPostEnabled?: boolean;
-    referenceLinks?: ReferenceLink[];
-  }) =>
-    request<CreateEpisodeResponse>("/api/episodes", {
+    getEpisode: (id: string) =>
+      request<EpisodeDetail>(`${base}/episodes/${id}`),
+
+    createEpisode: (data: {
+      title: string;
+      slug?: string;
+      description?: string;
+      publishAt?: string | null;
+      skipTranscription?: boolean;
+      blueskyPostText?: string | null;
+      blueskyPostEnabled?: boolean;
+      referenceLinks?: ReferenceLink[];
+    }) =>
+      request<CreateEpisodeResponse>(`${base}/episodes`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    updateEpisode: (id: string, data: UpdateEpisodeData) =>
+      request<EpisodeDetail>(`${base}/episodes/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+
+    deleteEpisode: (id: string) =>
+      request<{ success: boolean }>(`${base}/episodes/${id}`, {
+        method: "DELETE",
+      }),
+
+    getUploadUrl: (id: string, contentType: string, fileSize: number) =>
+      request<UploadUrlResponse>(`${base}/episodes/${id}/upload-url`, {
+        method: "POST",
+        body: JSON.stringify({ contentType, fileSize }),
+      }),
+
+    completeUpload: (id: string, duration: number, fileSize: number) =>
+      request<{ id: string; status: string }>(`${base}/episodes/${id}/upload-complete`, {
+        method: "POST",
+        body: JSON.stringify({ duration, fileSize }),
+      }),
+
+    uploadFromUrl: (id: string, sourceUrl: string) =>
+      request<{ id: string; status: string }>(`${base}/episodes/${id}/upload-from-url`, {
+        method: "POST",
+        body: JSON.stringify({ sourceUrl }),
+      }),
+
+    // Settings
+    getSettings: () =>
+      request<PodcastSettings>(`${base}/settings`),
+
+    updateSettings: (data: Partial<PodcastSettings>) =>
+      request<PodcastSettings>(`${base}/settings`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+
+    getArtworkUploadUrl: (contentType: string, fileSize: number) =>
+      request<ArtworkUploadUrlResponse>(`${base}/settings/artwork/upload-url`, {
+        method: "POST",
+        body: JSON.stringify({ contentType, fileSize }),
+      }),
+
+    completeArtworkUpload: (artworkUrl: string) =>
+      request<{ success: boolean; artworkUrl: string }>(`${base}/settings/artwork/upload-complete`, {
+        method: "POST",
+        body: JSON.stringify({ artworkUrl }),
+      }),
+
+    getOgImageUploadUrl: (contentType: string, fileSize: number) =>
+      request<OgImageUploadUrlResponse>(`${base}/settings/og-image/upload-url`, {
+        method: "POST",
+        body: JSON.stringify({ contentType, fileSize }),
+      }),
+
+    completeOgImageUpload: (ogImageUrl: string) =>
+      request<{ success: boolean; ogImageUrl: string }>(`${base}/settings/og-image/upload-complete`, {
+        method: "POST",
+        body: JSON.stringify({ ogImageUrl }),
+      }),
+
+    // Episode OGP image
+    getEpisodeOgImageUploadUrl: (id: string, contentType: string, fileSize: number) =>
+      request<OgImageUploadUrlResponse>(`${base}/episodes/${id}/og-image/upload-url`, {
+        method: "POST",
+        body: JSON.stringify({ contentType, fileSize }),
+      }),
+
+    completeEpisodeOgImageUpload: (id: string, ogImageUrl: string) =>
+      request<{ success: boolean; ogImageUrl: string }>(`${base}/episodes/${id}/og-image/upload-complete`, {
+        method: "POST",
+        body: JSON.stringify({ ogImageUrl }),
+      }),
+
+    // Secrets
+    getSecrets: () =>
+      request<PodcastSecrets>(`${base}/secrets`),
+
+    updateSecrets: (data: Partial<{
+      blueskyIdentifier: string;
+      blueskyPassword: string;
+      deployHookUrl: string;
+    }>) =>
+      request<PodcastSecrets>(`${base}/secrets`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+
+    // Templates
+    getTemplates: () =>
+      request<DescriptionTemplate[]>(`${base}/templates`),
+
+    createTemplate: (data: { name: string; content: string }) =>
+      request<DescriptionTemplate>(`${base}/templates`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    updateTemplate: (id: string, data: { name?: string; content?: string }) =>
+      request<DescriptionTemplate>(`${base}/templates/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+
+    deleteTemplate: (id: string) =>
+      request<{ success: boolean }>(`${base}/templates/${id}`, {
+        method: "DELETE",
+      }),
+
+    // Import
+    previewRssImport: (rssUrl: string) =>
+      request<RssPreviewResponse>(`${base}/import/rss/preview`, {
+        method: "POST",
+        body: JSON.stringify({ rssUrl }),
+      }),
+
+    importRss: (rssUrl: string) =>
+      request<RssImportResponse>(`${base}/import/rss`, {
+        method: "POST",
+        body: JSON.stringify({ rssUrl }),
+      }),
+
+    // Deployments
+    getDeployments: () =>
+      request<DeploymentsResponse>(`${base}/deployments`),
+  };
+}
+
+// Podcast management (not scoped to a specific podcast)
+export const podcastsApi = {
+  list: () =>
+    request<PodcastsResponse>("/api/podcasts"),
+
+  create: (data: { id: string; title: string }) =>
+    request<Podcast>("/api/podcasts", {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
-  updateEpisode: (id: string, data: {
-    title?: string;
-    slug?: string;
-    description?: string;
-    publishAt?: string | null;
-    skipTranscription?: boolean;
-    blueskyPostText?: string | null;
-    blueskyPostEnabled?: boolean;
-    referenceLinks?: ReferenceLink[];
-  }) =>
-    request<EpisodeDetail>(`/api/episodes/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
+  get: (id: string) =>
+    request<PodcastSettings>(`/api/podcasts/${id}`),
 
-  deleteEpisode: (id: string) =>
-    request<{ success: boolean }>(`/api/episodes/${id}`, {
+  delete: (id: string) =>
+    request<{ success: boolean }>(`/api/podcasts/${id}`, {
       method: "DELETE",
     }),
+};
 
-  getUploadUrl: (id: string, contentType: string, fileSize: number) =>
-    request<UploadUrlResponse>(`/api/episodes/${id}/upload-url`, {
-      method: "POST",
-      body: JSON.stringify({ contentType, fileSize }),
-    }),
-
-  completeUpload: (id: string, duration: number, fileSize: number) =>
-    request<{ id: string; status: string }>(`/api/episodes/${id}/upload-complete`, {
-      method: "POST",
-      body: JSON.stringify({ duration, fileSize }),
-    }),
-
-  uploadFromUrl: (id: string, sourceUrl: string) =>
-    request<{ id: string; status: string }>(`/api/episodes/${id}/upload-from-url`, {
-      method: "POST",
-      body: JSON.stringify({ sourceUrl }),
-    }),
-
-  // Settings
-  getSettings: () =>
-    request<PodcastSettings>("/api/settings"),
-
-  updateSettings: (data: Partial<PodcastSettings>) =>
-    request<PodcastSettings>("/api/settings", {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
-
-  getArtworkUploadUrl: (contentType: string, fileSize: number) =>
-    request<ArtworkUploadUrlResponse>("/api/settings/artwork/upload-url", {
-      method: "POST",
-      body: JSON.stringify({ contentType, fileSize }),
-    }),
-
-  completeArtworkUpload: (artworkUrl: string) =>
-    request<{ success: boolean; artworkUrl: string }>("/api/settings/artwork/upload-complete", {
-      method: "POST",
-      body: JSON.stringify({ artworkUrl }),
-    }),
-
-  getOgImageUploadUrl: (contentType: string, fileSize: number) =>
-    request<OgImageUploadUrlResponse>("/api/settings/og-image/upload-url", {
-      method: "POST",
-      body: JSON.stringify({ contentType, fileSize }),
-    }),
-
-  completeOgImageUpload: (ogImageUrl: string) =>
-    request<{ success: boolean; ogImageUrl: string }>("/api/settings/og-image/upload-complete", {
-      method: "POST",
-      body: JSON.stringify({ ogImageUrl }),
-    }),
-
-  // Episode OGP image
-  getEpisodeOgImageUploadUrl: (id: string, contentType: string, fileSize: number) =>
-    request<OgImageUploadUrlResponse>(`/api/episodes/${id}/og-image/upload-url`, {
-      method: "POST",
-      body: JSON.stringify({ contentType, fileSize }),
-    }),
-
-  completeEpisodeOgImageUpload: (id: string, ogImageUrl: string) =>
-    request<{ success: boolean; ogImageUrl: string }>(`/api/episodes/${id}/og-image/upload-complete`, {
-      method: "POST",
-      body: JSON.stringify({ ogImageUrl }),
-    }),
-
-  // Templates
-  getTemplates: () =>
-    request<DescriptionTemplate[]>("/api/templates"),
-
-  createTemplate: (data: { name: string; content: string }) =>
-    request<DescriptionTemplate>("/api/templates", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-
-  updateTemplate: (id: string, data: { name?: string; content?: string }) =>
-    request<DescriptionTemplate>(`/api/templates/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
-
-  deleteTemplate: (id: string) =>
-    request<{ success: boolean }>(`/api/templates/${id}`, {
-      method: "DELETE",
-    }),
-
-  // Import
-  previewRssImport: (rssUrl: string) =>
-    request<RssPreviewResponse>("/api/import/rss/preview", {
-      method: "POST",
-      body: JSON.stringify({ rssUrl }),
-    }),
-
-  importRss: (rssUrl: string) =>
-    request<RssImportResponse>("/api/import/rss", {
-      method: "POST",
-      body: JSON.stringify({ rssUrl }),
-    }),
-
-  // Deployments
-  getDeployments: () =>
-    request<DeploymentsResponse>("/api/deployments"),
-
-  // Link title fetch
+// Global API (not scoped to a specific podcast)
+export const globalApi = {
   fetchLinkTitle: (url: string) =>
     request<{ title: string }>("/api/fetch-link-title", {
       method: "POST",

@@ -1,24 +1,26 @@
 import { Hono } from "hono";
 import { AwsClient } from "aws4fetch";
 import type { Env, UpdatePodcastSettingsRequest } from "../types";
-import { getIndex, saveIndex, saveArtwork } from "../services/r2";
+import { getIndex, saveIndex } from "../services/r2";
 
 export const settings = new Hono<{ Bindings: Env }>();
 
 /**
- * Podcast設定を取得
+ * GET /api/podcasts/:podcastId/settings - Podcast設定を取得
  */
 settings.get("/", async (c) => {
-  const index = await getIndex(c.env);
+  const podcastId = c.req.param("podcastId");
+  const index = await getIndex(c.env, podcastId);
   return c.json(index.podcast);
 });
 
 /**
- * Podcast設定を更新
+ * PUT /api/podcasts/:podcastId/settings - Podcast設定を更新
  */
 settings.put("/", async (c) => {
+  const podcastId = c.req.param("podcastId");
   const body = await c.req.json<UpdatePodcastSettingsRequest>();
-  const index = await getIndex(c.env);
+  const index = await getIndex(c.env, podcastId);
 
   // 更新可能なフィールドのみ反映
   if (body.title !== undefined) index.podcast.title = body.title;
@@ -30,7 +32,7 @@ settings.put("/", async (c) => {
   if (body.websiteUrl !== undefined) index.podcast.websiteUrl = body.websiteUrl;
   if (body.explicit !== undefined) index.podcast.explicit = body.explicit;
 
-  await saveIndex(c.env, index);
+  await saveIndex(c.env, podcastId, index);
 
   return c.json(index.podcast);
 });
@@ -39,6 +41,7 @@ settings.put("/", async (c) => {
  * アートワークアップロード用のPresigned URL発行
  */
 settings.post("/artwork/upload-url", async (c) => {
+  const podcastId = c.req.param("podcastId");
   const body = await c.req.json<{ contentType: string; fileSize: number }>();
 
   const { contentType, fileSize } = body;
@@ -54,7 +57,7 @@ settings.post("/artwork/upload-url", async (c) => {
   }
 
   const extension = contentType === "image/png" ? "png" : "jpg";
-  const key = `assets/artwork.${extension}`;
+  const key = `podcasts/${podcastId}/assets/artwork.${extension}`;
 
   const r2 = new AwsClient({
     accessKeyId: c.env.R2_ACCESS_KEY_ID,
@@ -79,7 +82,7 @@ settings.post("/artwork/upload-url", async (c) => {
   return c.json({
     uploadUrl: signedRequest.url,
     expiresIn: 3600,
-    artworkUrl: `${c.env.WEBSITE_URL}/${key}`,
+    artworkUrl: `${c.env.R2_PUBLIC_URL}/${key}`,
   });
 });
 
@@ -87,11 +90,12 @@ settings.post("/artwork/upload-url", async (c) => {
  * アートワークアップロード完了通知
  */
 settings.post("/artwork/upload-complete", async (c) => {
+  const podcastId = c.req.param("podcastId");
   const body = await c.req.json<{ artworkUrl: string }>();
-  const index = await getIndex(c.env);
+  const index = await getIndex(c.env, podcastId);
 
   index.podcast.artworkUrl = body.artworkUrl;
-  await saveIndex(c.env, index);
+  await saveIndex(c.env, podcastId, index);
 
   return c.json({ success: true, artworkUrl: body.artworkUrl });
 });
@@ -100,6 +104,7 @@ settings.post("/artwork/upload-complete", async (c) => {
  * OGP画像アップロード用のPresigned URL発行
  */
 settings.post("/og-image/upload-url", async (c) => {
+  const podcastId = c.req.param("podcastId");
   const body = await c.req.json<{ contentType: string; fileSize: number }>();
 
   const { contentType, fileSize } = body;
@@ -115,7 +120,7 @@ settings.post("/og-image/upload-url", async (c) => {
   }
 
   const extension = contentType === "image/png" ? "png" : "jpg";
-  const key = `assets/og-image.${extension}`;
+  const key = `podcasts/${podcastId}/assets/og-image.${extension}`;
 
   const r2 = new AwsClient({
     accessKeyId: c.env.R2_ACCESS_KEY_ID,
@@ -140,7 +145,7 @@ settings.post("/og-image/upload-url", async (c) => {
   return c.json({
     uploadUrl: signedRequest.url,
     expiresIn: 3600,
-    ogImageUrl: `${c.env.WEBSITE_URL}/${key}`,
+    ogImageUrl: `${c.env.R2_PUBLIC_URL}/${key}`,
   });
 });
 
@@ -148,11 +153,12 @@ settings.post("/og-image/upload-url", async (c) => {
  * OGP画像アップロード完了通知
  */
 settings.post("/og-image/upload-complete", async (c) => {
+  const podcastId = c.req.param("podcastId");
   const body = await c.req.json<{ ogImageUrl: string }>();
-  const index = await getIndex(c.env);
+  const index = await getIndex(c.env, podcastId);
 
   index.podcast.ogImageUrl = body.ogImageUrl;
-  await saveIndex(c.env, index);
+  await saveIndex(c.env, podcastId, index);
 
   return c.json({ success: true, ogImageUrl: body.ogImageUrl });
 });

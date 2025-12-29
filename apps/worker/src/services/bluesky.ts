@@ -3,7 +3,8 @@
  * AT Protocol を使用してBlueskyに投稿
  */
 
-import type { Env, EpisodeMeta } from "../types";
+import type { Env, EpisodeMeta, PodcastSecrets } from "../types";
+import { getSecrets } from "./kv";
 
 const BLUESKY_API_URL = "https://bsky.social/xrpc";
 
@@ -168,18 +169,23 @@ async function createPost(
  * エピソードをBlueskyに投稿
  *
  * @param env - 環境変数
+ * @param podcastId - ポッドキャストID
  * @param meta - エピソードメタデータ
  * @param websiteUrl - ウェブサイトのベースURL
  * @returns 投稿成功時はtrue
  */
 export async function postEpisodeToBluesky(
   env: Env,
+  podcastId: string,
   meta: EpisodeMeta,
   websiteUrl: string
 ): Promise<boolean> {
+  // KVから認証情報を取得
+  const secrets = await getSecrets(env, podcastId);
+
   // 認証情報がない場合はスキップ
-  if (!env.BLUESKY_IDENTIFIER || !env.BLUESKY_PASSWORD) {
-    console.log("Bluesky credentials not configured, skipping post");
+  if (!secrets.blueskyIdentifier || !secrets.blueskyPassword) {
+    console.log(`Bluesky credentials not configured for podcast: ${podcastId}`);
     return false;
   }
 
@@ -198,8 +204,8 @@ export async function postEpisodeToBluesky(
   try {
     // ログイン
     const session = await createSession(
-      env.BLUESKY_IDENTIFIER,
-      env.BLUESKY_PASSWORD
+      secrets.blueskyIdentifier,
+      secrets.blueskyPassword
     );
 
     // エピソードURL

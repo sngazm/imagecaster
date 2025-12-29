@@ -16,7 +16,6 @@ import {
   deleteEpisode,
   findEpisodeBySlug,
   moveEpisode,
-  getAudioFile,
 } from "../services/r2";
 import { regenerateFeed } from "../services/feed";
 import { postEpisodeToBluesky } from "../services/bluesky";
@@ -25,14 +24,15 @@ import { triggerWebRebuild } from "../services/deploy";
 const episodes = new Hono<{ Bindings: Env }>();
 
 /**
- * GET /api/episodes - エピソード一覧を取得（publishAt降順）
+ * GET /api/podcasts/:podcastId/episodes - エピソード一覧を取得（publishAt降順）
  */
 episodes.get("/", async (c) => {
-  const index = await getIndex(c.env);
+  const podcastId = c.req.param("podcastId");
+  const index = await getIndex(c.env, podcastId);
 
   const episodeList = await Promise.all(
     index.episodes.map(async (ref) => {
-      const meta = await getEpisodeMeta(c.env, ref.id);
+      const meta = await getEpisodeMeta(c.env, podcastId, ref.id);
       return {
         id: meta.id,
         slug: meta.slug || meta.id,
@@ -56,13 +56,14 @@ episodes.get("/", async (c) => {
 });
 
 /**
- * GET /api/episodes/:id - エピソード詳細を取得
+ * GET /api/podcasts/:podcastId/episodes/:id - エピソード詳細を取得
  */
 episodes.get("/:id", async (c) => {
+  const podcastId = c.req.param("podcastId");
   const id = c.req.param("id");
 
   try {
-    const meta = await getEpisodeMeta(c.env, id);
+    const meta = await getEpisodeMeta(c.env, podcastId, id);
     return c.json(meta);
   } catch {
     return c.json({ error: "Episode not found" }, 404);
@@ -86,9 +87,10 @@ function generateUniqueSlug(): string {
 }
 
 /**
- * POST /api/episodes - 新規エピソード作成（メタデータのみ）
+ * POST /api/podcasts/:podcastId/episodes - 新規エピソード作成（メタデータのみ）
  */
 episodes.post("/", async (c) => {
+  const podcastId = c.req.param("podcastId");
   const body = await c.req.json<CreateEpisodeRequest>();
 
   // バリデーション（titleのみ必須、publishAtはnull許可で下書き）
@@ -96,7 +98,7 @@ episodes.post("/", async (c) => {
     return c.json({ error: "Title is required" }, 400);
   }
 
-  const index = await getIndex(c.env);
+  const index = await getIndex(c.env, podcastId);
 
   // slugの決定（指定がなければ自動生成）
   let slug: string;
@@ -106,7 +108,7 @@ episodes.post("/", async (c) => {
       return c.json({ error: "Invalid slug. Use lowercase letters, numbers, and hyphens only" }, 400);
     }
     // 重複チェック
-    const existing = await findEpisodeBySlug(c.env, body.slug);
+    const existing = await findEpisodeBySlug(c.env, podcastId, body.slug);
     if (existing) {
       return c.json({ error: `Slug "${body.slug}" already exists` }, 400);
     }
@@ -141,11 +143,11 @@ episodes.post("/", async (c) => {
   };
 
   // メタデータを保存
-  await saveEpisodeMeta(c.env, newMeta);
+  await saveEpisodeMeta(c.env, podcastId, newMeta);
 
   // インデックスを更新
   index.episodes.push({ id: slug });
-  await saveIndex(c.env, index);
+  await saveIndex(c.env, podcastId, index);
 
   const response: CreateEpisodeResponse = {
     id: slug,
@@ -157,15 +159,16 @@ episodes.post("/", async (c) => {
 });
 
 /**
- * PUT /api/episodes/:id - エピソード更新
+ * PUT /api/podcasts/:podcastId/episodes/:id - エピソード更新
  */
 episodes.put("/:id", async (c) => {
+  const podcastId = c.req.param("podcastId");
   const id = c.req.param("id");
   const body = await c.req.json<UpdateEpisodeRequest>();
 
   try {
-    const meta = await getEpisodeMeta(c.env, id);
-    const index = await getIndex(c.env);
+    const meta = await getEpisodeMeta(c.env, podcastId, id);
+    const index = await getIndex(c.env, podcastId);
     let needsMove = false;
     let newSlug = meta.slug || meta.id;
 
@@ -177,7 +180,7 @@ episodes.put("/:id", async (c) => {
       if (!isValidSlug(body.slug)) {
         return c.json({ error: "Invalid slug. Use lowercase letters, numbers, and hyphens only" }, 400);
       }
-      const existing = await findEpisodeBySlug(c.env, body.slug);
+      const existing = await findEpisodeBySlug(c.env, podcastId, body.slug);
       if (existing && existing.id !== meta.id) {
         return c.json({ error: `Slug "${body.slug}" already exists` }, 400);
       }
@@ -215,7 +218,7 @@ episodes.put("/:id", async (c) => {
 
     // slugが変わる場合はファイルを移動
     if (needsMove) {
-      await moveEpisode(c.env, meta.id, newSlug);
+      await moveEpisode(c.env, podcastId, meta.id, newSlug);
       // インデックスのIDを更新
       const indexEntry = index.episodes.find((ep) => ep.id === meta.id);
       if (indexEntry) {
@@ -225,13 +228,13 @@ episodes.put("/:id", async (c) => {
       meta.slug = newSlug;
     }
 
-    await saveEpisodeMeta(c.env, meta);
-    await saveIndex(c.env, index);
+    await saveEpisodeMeta(c.env, podcastId, meta);
+    await saveIndex(c.env, podcastId, index);
 
     // 公開済みの場合はフィードを再生成してWebをリビルド
     if (meta.status === "published") {
-      await regenerateFeed(c.env);
-      await triggerWebRebuild(c.env);
+      await regenerateFeed(c.env, podcastId);
+      await triggerWebRebuild(c.env, podcastId);
     }
 
     return c.json(meta);
@@ -241,26 +244,27 @@ episodes.put("/:id", async (c) => {
 });
 
 /**
- * DELETE /api/episodes/:id - エピソード削除
+ * DELETE /api/podcasts/:podcastId/episodes/:id - エピソード削除
  */
 episodes.delete("/:id", async (c) => {
+  const podcastId = c.req.param("podcastId");
   const id = c.req.param("id");
 
   try {
-    const meta = await getEpisodeMeta(c.env, id);
+    const meta = await getEpisodeMeta(c.env, podcastId, id);
     const wasPublished = meta.status === "published";
 
-    await deleteEpisode(c.env, id);
+    await deleteEpisode(c.env, podcastId, id);
 
     // インデックスから削除
-    const index = await getIndex(c.env);
+    const index = await getIndex(c.env, podcastId);
     index.episodes = index.episodes.filter((ep) => ep.id !== id);
-    await saveIndex(c.env, index);
+    await saveIndex(c.env, podcastId, index);
 
     // 公開済みだった場合はフィードを再生成してWebをリビルド
     if (wasPublished) {
-      await regenerateFeed(c.env);
-      await triggerWebRebuild(c.env);
+      await regenerateFeed(c.env, podcastId);
+      await triggerWebRebuild(c.env, podcastId);
     }
 
     return c.json({ success: true });
@@ -270,14 +274,16 @@ episodes.delete("/:id", async (c) => {
 });
 
 /**
- * POST /api/episodes/:id/transcription-complete - 文字起こし完了通知
+ * POST /api/podcasts/:podcastId/episodes/:id/transcription-complete - 文字起こし完了通知
  */
 episodes.post("/:id/transcription-complete", async (c) => {
+  const podcastId = c.req.param("podcastId");
   const id = c.req.param("id");
   const body = await c.req.json<TranscriptionCompleteRequest>();
 
   try {
-    const meta = await getEpisodeMeta(c.env, id);
+    const meta = await getEpisodeMeta(c.env, podcastId, id);
+    const index = await getIndex(c.env, podcastId);
 
     if (body.status === "completed") {
       // duration が提供されていれば更新
@@ -296,7 +302,7 @@ episodes.post("/:id/transcription-complete", async (c) => {
           meta.publishedAt = now.toISOString();
 
           // Bluesky に投稿
-          const posted = await postEpisodeToBluesky(c.env, meta, c.env.WEBSITE_URL);
+          const posted = await postEpisodeToBluesky(c.env, podcastId, meta, index.podcast.websiteUrl);
           if (posted) {
             meta.blueskyPostedAt = now.toISOString();
           }
@@ -308,12 +314,12 @@ episodes.post("/:id/transcription-complete", async (c) => {
       meta.status = "failed";
     }
 
-    await saveEpisodeMeta(c.env, meta);
+    await saveEpisodeMeta(c.env, podcastId, meta);
 
     // 公開された場合はフィードを再生成してWebをリビルド
     if (meta.status === "published") {
-      await regenerateFeed(c.env);
-      await triggerWebRebuild(c.env);
+      await regenerateFeed(c.env, podcastId);
+      await triggerWebRebuild(c.env, podcastId);
     }
 
     return c.json({ success: true, status: meta.status });

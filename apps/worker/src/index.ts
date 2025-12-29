@@ -2,13 +2,15 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { Env, EpisodeMeta } from "./types";
+import { podcasts } from "./routes/podcasts";
 import { episodes } from "./routes/episodes";
 import { upload } from "./routes/upload";
 import { settings } from "./routes/settings";
+import { secrets } from "./routes/secrets";
 import { templates } from "./routes/templates";
 import { importRoutes } from "./routes/import";
 import { deployments } from "./routes/deployments";
-import { getIndex, getEpisodeMeta, saveEpisodeMeta } from "./services/r2";
+import { getPodcastsIndex, getIndex, getEpisodeMeta, saveEpisodeMeta } from "./services/r2";
 import { getFeed, regenerateFeed } from "./services/feed";
 import { postEpisodeToBluesky } from "./services/bluesky";
 import { triggerWebRebuild } from "./services/deploy";
@@ -26,7 +28,6 @@ app.use(
   cors({
     origin: (origin) => {
       if (!origin) return "";
-      // 開発環境 or *.pages.dev ドメインを許可
       if (ALLOWED_ORIGINS.includes(origin) || origin.endsWith(".pages.dev")) {
         return origin;
       }
@@ -38,25 +39,34 @@ app.use(
   })
 );
 
-// RSS フィード（認証不要）
-app.get("/feed.xml", async (c) => {
-  const feed = await getFeed(c.env);
-  return c.text(feed, 200, {
-    "Content-Type": "application/xml; charset=utf-8",
-  });
-});
-
 // ヘルスチェック（認証不要）
 app.get("/health", (c) => {
   return c.json({ status: "ok" });
 });
+
+// 公開エンドポイント（認証不要）
+const publicRoutes = new Hono<{ Bindings: Env }>();
+
+// RSS フィード
+publicRoutes.get("/podcasts/:podcastId/feed.xml", async (c) => {
+  const podcastId = c.req.param("podcastId");
+  try {
+    const feed = await getFeed(c.env, podcastId);
+    return c.text(feed, 200, {
+      "Content-Type": "application/xml; charset=utf-8",
+    });
+  } catch {
+    return c.json({ error: "Podcast not found" }, 404);
+  }
+});
+
+app.route("/public", publicRoutes);
 
 // API ルート（認証必要）
 const api = new Hono<{ Bindings: Env }>();
 
 // Cloudflare Access JWT 認証
 api.use("*", async (c, next) => {
-  // ローカル開発時は認証スキップ
   if (c.env.IS_DEV === "true") {
     await next();
     return;
@@ -85,23 +95,20 @@ api.use("*", async (c, next) => {
   await next();
 });
 
-// エピソード関連のルートをマウント
-api.route("/episodes", episodes);
+// ポッドキャスト一覧・作成
+api.route("/podcasts", podcasts);
 
-// アップロード関連のルートをマウント（/api/episodes/:id/upload-* の形式）
-api.route("/episodes", upload);
+// 個別ポッドキャスト配下のルート
+const podcastRoutes = new Hono<{ Bindings: Env }>();
+podcastRoutes.route("/episodes", episodes);
+podcastRoutes.route("/episodes", upload); // upload-url, upload-complete 等
+podcastRoutes.route("/settings", settings);
+podcastRoutes.route("/secrets", secrets);
+podcastRoutes.route("/templates", templates);
+podcastRoutes.route("/import", importRoutes);
+podcastRoutes.route("/deployments", deployments);
 
-// 設定関連のルートをマウント
-api.route("/settings", settings);
-
-// テンプレート関連のルートをマウント
-api.route("/templates", templates);
-
-// インポート関連のルートをマウント
-api.route("/import", importRoutes);
-
-// デプロイ状況確認のルートをマウント
-api.route("/deployments", deployments);
+api.route("/podcasts/:podcastId", podcastRoutes);
 
 // URLからタイトルを取得（microlink.io API経由）
 api.post("/fetch-link-title", async (c) => {
@@ -159,46 +166,65 @@ app.onError((err, c) => {
 });
 
 /**
- * Cron 処理: 予約投稿をチェックして公開
+ * 説明に文字起こしリンクを追加
+ */
+function addTranscriptLink(
+  description: string,
+  transcriptUrl: string | null
+): string {
+  if (!transcriptUrl) {
+    return description;
+  }
+  return `${description}\n\n📝 文字起こし: ${transcriptUrl}`;
+}
+
+/**
+ * Cron 処理: 予約投稿をチェックして公開（全ポッドキャスト対象）
  */
 async function handleScheduledPublish(env: Env): Promise<void> {
   const now = new Date();
-  const index = await getIndex(env);
+  const podcastsIndex = await getPodcastsIndex(env);
 
-  let updated = false;
+  for (const podcast of podcastsIndex.podcasts) {
+    const podcastId = podcast.id;
+    const index = await getIndex(env, podcastId);
 
-  for (const epRef of index.episodes) {
-    let meta: EpisodeMeta;
-    try {
-      meta = await getEpisodeMeta(env, epRef.id);
-    } catch {
-      continue;
-    }
+    let updated = false;
 
-    if (meta.status === "scheduled" && meta.publishAt && new Date(meta.publishAt) <= now) {
-      // 公開処理
-      meta.status = "published";
-      meta.publishedAt = now.toISOString();
-
-      // Bluesky に投稿
-      const posted = await postEpisodeToBluesky(env, meta, env.WEBSITE_URL);
-      if (posted) {
-        meta.blueskyPostedAt = now.toISOString();
+    for (const epRef of index.episodes) {
+      let meta: EpisodeMeta;
+      try {
+        meta = await getEpisodeMeta(env, podcastId, epRef.id);
+      } catch {
+        continue;
       }
 
-      await saveEpisodeMeta(env, meta);
-      updated = true;
+      if (meta.status === "scheduled" && meta.publishAt && new Date(meta.publishAt) <= now) {
+        // 公開処理
+        meta.status = "published";
+        meta.publishedAt = now.toISOString();
+        meta.description = addTranscriptLink(meta.description, meta.transcriptUrl);
 
-      console.log(`Published episode: ${meta.id}`);
+        // Bluesky に投稿
+        const posted = await postEpisodeToBluesky(env, podcastId, meta, index.podcast.websiteUrl);
+        if (posted) {
+          meta.blueskyPostedAt = now.toISOString();
+        }
+
+        await saveEpisodeMeta(env, podcastId, meta);
+        updated = true;
+
+        console.log(`Published episode: ${podcastId}/${meta.id}`);
+      }
     }
-  }
 
-  if (updated) {
-    await regenerateFeed(env);
-    console.log("Feed regenerated");
+    if (updated) {
+      await regenerateFeed(env, podcastId);
+      console.log(`Feed regenerated for podcast: ${podcastId}`);
 
-    // Web サイトのリビルドをトリガー
-    await triggerWebRebuild(env);
+      // Web サイトのリビルドをトリガー
+      await triggerWebRebuild(env, podcastId);
+    }
   }
 }
 

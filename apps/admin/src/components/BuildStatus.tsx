@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { api, type Deployment } from "../lib/api";
+import { useApi } from "../hooks/useApi";
+import type { Deployment } from "../lib/api";
 import { getWebsiteUrl, getEnvironment } from "../lib/env";
 
 const STAGE_CONFIG: Record<string, { label: string; color: string }> = {
@@ -37,6 +38,7 @@ interface BuildStatusProps {
 }
 
 export function BuildStatus({ className = "" }: BuildStatusProps) {
+  const api = useApi();
   const [deployments, setDeployments] = useState<Deployment[]>([]);
   const [configured, setConfigured] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
@@ -47,6 +49,7 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchDeployments = async () => {
+    if (!api) return;
     try {
       const data = await api.getDeployments();
       setDeployments(data.deployments);
@@ -66,7 +69,7 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
 
   useEffect(() => {
     fetchDeployments();
-  }, []);
+  }, [api]);
 
   // ポーリング間隔を動的に変更
   useEffect(() => {
@@ -82,7 +85,7 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
         clearInterval(intervalRef.current);
       }
     };
-  }, [isBuilding]);
+  }, [isBuilding, api]);
 
   // 設定されていない場合は何も表示しない
   if (!configured && !isLoading) {

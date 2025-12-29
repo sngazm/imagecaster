@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { api, uploadToR2 } from "../lib/api";
-import type { PodcastSettings, DescriptionTemplate } from "../lib/api";
+import { useApi } from "../hooks/useApi";
+import { uploadToR2 } from "../lib/api";
+import type { PodcastSettings, PodcastSecrets, DescriptionTemplate } from "../lib/api";
 import { HtmlEditor } from "../components/HtmlEditor";
 
 const CATEGORIES = [
@@ -34,8 +35,10 @@ const LANGUAGES = [
 ];
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState<"general" | "templates" | "import">("general");
+  const api = useApi();
+  const [activeTab, setActiveTab] = useState<"general" | "templates" | "import" | "secrets">("general");
   const [settings, setSettings] = useState<PodcastSettings | null>(null);
+  const [secrets, setSecrets] = useState<PodcastSecrets | null>(null);
   const [templates, setTemplates] = useState<DescriptionTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -61,25 +64,36 @@ export default function Settings() {
   const [rssUrl, setRssUrl] = useState("");
   const [importing, setImporting] = useState(false);
   const [importPreview, setImportPreview] = useState<Awaited<
-    ReturnType<typeof api.previewRssImport>
+    ReturnType<NonNullable<typeof api>["previewRssImport"]>
   > | null>(null);
   const [importResult, setImportResult] = useState<Awaited<
-    ReturnType<typeof api.importRss>
+    ReturnType<NonNullable<typeof api>["importRss"]>
   > | null>(null);
+
+  // Secrets editing
+  const [editBlueskyId, setEditBlueskyId] = useState("");
+  const [editBlueskyPassword, setEditBlueskyPassword] = useState("");
+  const [editDeployHookUrl, setEditDeployHookUrl] = useState("");
+  const [savingSecrets, setSavingSecrets] = useState(false);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [api]);
 
   async function loadData() {
+    if (!api) return;
     setLoading(true);
     try {
-      const [settingsData, templatesData] = await Promise.all([
+      const [settingsData, templatesData, secretsData] = await Promise.all([
         api.getSettings(),
         api.getTemplates(),
+        api.getSecrets(),
       ]);
       setSettings(settingsData);
       setTemplates(templatesData);
+      setSecrets(secretsData);
+      setEditBlueskyId(secretsData.blueskyIdentifier || "");
+      setEditDeployHookUrl(secretsData.deployHookUrl || "");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load settings");
     } finally {
@@ -89,7 +103,7 @@ export default function Settings() {
 
   async function handleSaveSettings(e: React.FormEvent) {
     e.preventDefault();
-    if (!settings) return;
+    if (!settings || !api) return;
 
     setSaving(true);
     setError(null);
@@ -106,8 +120,34 @@ export default function Settings() {
     }
   }
 
+  async function handleSaveSecrets(e: React.FormEvent) {
+    e.preventDefault();
+    if (!api) return;
+
+    setSavingSecrets(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const updates: Partial<{ blueskyIdentifier: string; blueskyPassword: string; deployHookUrl: string }> = {};
+      if (editBlueskyId) updates.blueskyIdentifier = editBlueskyId;
+      if (editBlueskyPassword) updates.blueskyPassword = editBlueskyPassword;
+      if (editDeployHookUrl) updates.deployHookUrl = editDeployHookUrl;
+
+      const updated = await api.updateSecrets(updates);
+      setSecrets(updated);
+      setEditBlueskyPassword(""); // Clear password after save
+      setSuccess("シークレット設定を保存しました");
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save secrets");
+    } finally {
+      setSavingSecrets(false);
+    }
+  }
+
   async function handleArtworkUpload() {
-    if (!artworkFile) return;
+    if (!artworkFile || !api) return;
 
     setUploadingArtwork(true);
     setError(null);
@@ -142,7 +182,7 @@ export default function Settings() {
   }
 
   async function handleOgImageUpload() {
-    if (!ogImageFile) return;
+    if (!ogImageFile || !api) return;
 
     setUploadingOgImage(true);
     setError(null);
@@ -177,7 +217,7 @@ export default function Settings() {
   }
 
   async function handleCreateTemplate() {
-    if (!newTemplateName.trim()) return;
+    if (!newTemplateName.trim() || !api) return;
 
     try {
       const template = await api.createTemplate({
@@ -195,7 +235,7 @@ export default function Settings() {
   }
 
   async function handleUpdateTemplate() {
-    if (!editingTemplate) return;
+    if (!editingTemplate || !api) return;
 
     try {
       const updated = await api.updateTemplate(editingTemplate.id, {
@@ -214,7 +254,7 @@ export default function Settings() {
   }
 
   async function handleDeleteTemplate(id: string) {
-    if (!confirm("このテンプレートを削除しますか？")) return;
+    if (!confirm("このテンプレートを削除しますか？") || !api) return;
 
     try {
       await api.deleteTemplate(id);
@@ -227,7 +267,7 @@ export default function Settings() {
   }
 
   async function handlePreviewRss() {
-    if (!rssUrl.trim()) return;
+    if (!rssUrl.trim() || !api) return;
 
     setImporting(true);
     setError(null);
@@ -245,7 +285,7 @@ export default function Settings() {
   }
 
   async function handleImportRss() {
-    if (!rssUrl.trim()) return;
+    if (!rssUrl.trim() || !api) return;
 
     setImporting(true);
     setError(null);
@@ -311,6 +351,16 @@ export default function Settings() {
           }`}
         >
           基本設定
+        </button>
+        <button
+          onClick={() => setActiveTab("secrets")}
+          className={`px-4 py-3 text-sm font-medium transition-colors ${
+            activeTab === "secrets"
+              ? "text-violet-400 border-b-2 border-violet-400"
+              : "text-zinc-400 hover:text-white"
+          }`}
+        >
+          シークレット
         </button>
         <button
           onClick={() => setActiveTab("templates")}
@@ -587,6 +637,85 @@ export default function Settings() {
               className="px-6 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg font-medium transition-colors disabled:opacity-50"
             >
               {saving ? "保存中..." : "設定を保存"}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Secrets Settings */}
+      {activeTab === "secrets" && (
+        <form onSubmit={handleSaveSecrets} className="space-y-6">
+          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <svg className="w-5 h-5 text-sky-500" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+              </svg>
+              <h2 className="text-lg font-semibold">Bluesky連携</h2>
+            </div>
+            <p className="text-sm text-zinc-400 mb-4">
+              エピソード公開時にBlueskyへ自動投稿するための設定です。
+            </p>
+
+            <div>
+              <label className="block text-sm font-medium text-zinc-400 mb-1">
+                ハンドル / メールアドレス
+              </label>
+              <input
+                type="text"
+                value={editBlueskyId}
+                onChange={(e) => setEditBlueskyId(e.target.value)}
+                placeholder="example.bsky.social"
+                className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-zinc-400 mb-1">
+                アプリパスワード
+              </label>
+              <input
+                type="password"
+                value={editBlueskyPassword}
+                onChange={(e) => setEditBlueskyPassword(e.target.value)}
+                placeholder={secrets?.hasBlueskyPassword ? "（設定済み）新しいパスワードで上書き" : "アプリパスワードを入力"}
+                className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-colors"
+              />
+              <p className="text-xs text-zinc-500 mt-1">
+                Blueskyの設定 → アプリパスワードから発行してください
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 space-y-4">
+            <h2 className="text-lg font-semibold mb-4">Webサイトデプロイ</h2>
+            <p className="text-sm text-zinc-400 mb-4">
+              エピソード公開時にWebサイトの再ビルドをトリガーするためのWebhook URLです。
+            </p>
+
+            <div>
+              <label className="block text-sm font-medium text-zinc-400 mb-1">
+                デプロイフックURL
+              </label>
+              <input
+                type="url"
+                value={editDeployHookUrl}
+                onChange={(e) => setEditDeployHookUrl(e.target.value)}
+                placeholder="https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/..."
+                className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-colors font-mono text-sm"
+              />
+              <p className="text-xs text-zinc-500 mt-1">
+                Cloudflare Pages → プロジェクト設定 → ビルドとデプロイ → デプロイフック から取得
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={savingSecrets}
+              className="px-6 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg font-medium transition-colors disabled:opacity-50"
+            >
+              {savingSecrets ? "保存中..." : "シークレットを保存"}
             </button>
           </div>
         </form>

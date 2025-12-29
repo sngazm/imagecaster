@@ -1,12 +1,24 @@
 import type { Episode, PodcastIndex } from "./types";
 
 const R2_PUBLIC_URL = import.meta.env.R2_PUBLIC_URL || "";
+const PODCAST_ID = import.meta.env.PODCAST_ID || "";
+
+/**
+ * R2 の Podcast ベース URL を取得
+ * マルチポッドキャスト対応: /{podcastId}/ のプレフィックスが付く
+ */
+function getPodcastBaseUrl(): string {
+  if (!PODCAST_ID) {
+    throw new Error("PODCAST_ID environment variable is required");
+  }
+  return `${R2_PUBLIC_URL}/${PODCAST_ID}`;
+}
 
 /**
  * R2 から Podcast インデックスを取得
  */
 export async function getPodcastIndex(): Promise<PodcastIndex> {
-  const url = `${R2_PUBLIC_URL}/index.json`;
+  const url = `${getPodcastBaseUrl()}/index.json`;
   const res = await fetch(url);
 
   if (!res.ok) {
@@ -20,7 +32,7 @@ export async function getPodcastIndex(): Promise<PodcastIndex> {
  * R2 からエピソードメタデータを取得
  */
 export async function getEpisode(id: string): Promise<Episode> {
-  const url = `${R2_PUBLIC_URL}/episodes/${id}/meta.json`;
+  const url = `${getPodcastBaseUrl()}/episodes/${id}/meta.json`;
   const res = await fetch(url);
 
   if (!res.ok) {
@@ -107,7 +119,7 @@ export function stripHtml(html: string): string {
  * R2 から RSS フィードを取得
  */
 export async function getFeed(): Promise<string> {
-  const url = `${R2_PUBLIC_URL}/feed.xml`;
+  const url = `${getPodcastBaseUrl()}/feed.xml`;
   const res = await fetch(url);
 
   if (!res.ok) {

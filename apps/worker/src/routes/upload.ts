@@ -8,6 +8,7 @@ import type {
   UploadFromUrlRequest,
 } from "../types";
 import {
+  getIndex,
   getEpisodeMeta,
   saveEpisodeMeta,
   saveAudioFile,
@@ -20,15 +21,12 @@ const upload = new Hono<{ Bindings: Env }>();
 
 /**
  * NextCloud共有リンクを直接ダウンロードURLに変換
- * 例: https://cloud.example.com/s/AbCdEf123 -> https://cloud.example.com/s/AbCdEf123/download
  */
 function convertToDirectDownloadUrl(url: string): string {
-  // NextCloud/ownCloud共有リンクのパターン: /s/ または /index.php/s/
   const nextcloudPattern = /^(https?:\/\/[^/]+)(\/index\.php)?(\/s\/[a-zA-Z0-9]+)\/?$/;
   const match = url.match(nextcloudPattern);
 
   if (match) {
-    // 既に /download が付いていなければ追加
     const baseUrl = match[1] + (match[2] || "") + match[3];
     return `${baseUrl}/download`;
   }
@@ -37,23 +35,20 @@ function convertToDirectDownloadUrl(url: string): string {
 }
 
 /**
- * POST /api/episodes/:id/upload-url - Presigned URL 発行
+ * POST /api/podcasts/:podcastId/episodes/:id/upload-url - Presigned URL 発行
  */
 upload.post("/:id/upload-url", async (c) => {
+  const podcastId = c.req.param("podcastId");
   const id = c.req.param("id");
   const body = await c.req.json<UploadUrlRequest>();
 
-  // バリデーション
   if (!body.contentType || !body.fileSize) {
     return c.json({ error: "Missing required fields" }, 400);
   }
 
   try {
-    console.log(`[upload-url] Looking for episode: ${id}`);
-    const meta = await getEpisodeMeta(c.env, id);
-    console.log(`[upload-url] Found episode:`, meta);
+    const meta = await getEpisodeMeta(c.env, podcastId, id);
 
-    // draft または failed 状態のみ許可
     if (meta.status !== "draft" && meta.status !== "failed") {
       return c.json(
         { error: "Episode is not in draft or failed status" },
@@ -61,13 +56,12 @@ upload.post("/:id/upload-url", async (c) => {
       );
     }
 
-    // Presigned URL 生成
     const r2 = new AwsClient({
       accessKeyId: c.env.R2_ACCESS_KEY_ID,
       secretAccessKey: c.env.R2_SECRET_ACCESS_KEY,
     });
 
-    const key = `episodes/${id}/audio.mp3`;
+    const key = `podcasts/${podcastId}/episodes/${id}/audio.mp3`;
     const url = new URL(
       `https://${c.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${c.env.R2_BUCKET_NAME}/${key}`
     );
@@ -80,10 +74,9 @@ upload.post("/:id/upload-url", async (c) => {
       { aws: { signQuery: true }, expiresIn: 3600 }
     );
 
-    // ステータス更新
     meta.status = "uploading";
     meta.fileSize = body.fileSize;
-    await saveEpisodeMeta(c.env, meta);
+    await saveEpisodeMeta(c.env, podcastId, meta);
 
     const response: UploadUrlResponse = {
       uploadUrl: signed.url,
@@ -98,57 +91,45 @@ upload.post("/:id/upload-url", async (c) => {
 });
 
 /**
- * POST /api/episodes/:id/upload-complete - アップロード完了通知
+ * POST /api/podcasts/:podcastId/episodes/:id/upload-complete - アップロード完了通知
  */
 upload.post("/:id/upload-complete", async (c) => {
+  const podcastId = c.req.param("podcastId");
   const id = c.req.param("id");
   const body = await c.req.json<UploadCompleteRequest>();
 
   try {
-    const meta = await getEpisodeMeta(c.env, id);
-    console.log(`[upload-complete] Episode ${id} status: ${meta.status}`);
+    const meta = await getEpisodeMeta(c.env, podcastId, id);
+    const index = await getIndex(c.env, podcastId);
 
-    // uploading 状態のみ許可
     if (meta.status !== "uploading") {
-      console.log(`[upload-complete] Rejected: status is ${meta.status}, expected uploading`);
       return c.json({ error: "Episode is not in uploading status" }, 400);
     }
 
-    // R2 にファイルが存在するか確認
-    const audioKey = `episodes/${id}/audio.mp3`;
+    const audioKey = `podcasts/${podcastId}/episodes/${id}/audio.mp3`;
     let fileSize = body.fileSize || 0;
 
-    // ローカル開発時は R2 Binding が実際のバケットを参照しないためスキップ
     if (c.env.IS_DEV !== "true") {
-      console.log(`[upload-complete] Checking R2 for key: ${audioKey}`);
       const audioObj = await c.env.R2_BUCKET.head(audioKey);
-      console.log(`[upload-complete] R2 head result:`, audioObj ? `found (${audioObj.size} bytes)` : "not found");
-
       if (!audioObj) {
         return c.json({ error: "Audio file not found in R2" }, 400);
       }
       fileSize = audioObj.size;
-    } else {
-      console.log(`[upload-complete] Skipping R2 check (dev mode)`);
     }
 
-    // メタデータ更新
     meta.duration = body.duration;
     meta.fileSize = fileSize;
     meta.audioUrl = `${c.env.R2_PUBLIC_URL}/${audioKey}`;
 
-    // publishAt がnullの場合はdraft状態を維持（下書き保存）
     if (meta.publishAt === null) {
       meta.status = "draft";
     } else if (meta.skipTranscription) {
-      // skipTranscription に応じてステータスを設定
       const now = new Date();
       if (new Date(meta.publishAt) <= now) {
         meta.status = "published";
         meta.publishedAt = now.toISOString();
 
-        // Bluesky に投稿
-        const posted = await postEpisodeToBluesky(c.env, meta, c.env.WEBSITE_URL);
+        const posted = await postEpisodeToBluesky(c.env, podcastId, meta, index.podcast.websiteUrl);
         if (posted) {
           meta.blueskyPostedAt = now.toISOString();
         }
@@ -159,12 +140,11 @@ upload.post("/:id/upload-complete", async (c) => {
       meta.status = "transcribing";
     }
 
-    await saveEpisodeMeta(c.env, meta);
+    await saveEpisodeMeta(c.env, podcastId, meta);
 
-    // 公開された場合はフィードを再生成してWebをリビルド
     if (meta.status === "published") {
-      await regenerateFeed(c.env);
-      await triggerWebRebuild(c.env);
+      await regenerateFeed(c.env, podcastId);
+      await triggerWebRebuild(c.env, podcastId);
     }
 
     return c.json({ id: meta.id, status: meta.status });
@@ -174,21 +154,21 @@ upload.post("/:id/upload-complete", async (c) => {
 });
 
 /**
- * POST /api/episodes/:id/upload-from-url - URL から音声を取得
+ * POST /api/podcasts/:podcastId/episodes/:id/upload-from-url - URL から音声を取得
  */
 upload.post("/:id/upload-from-url", async (c) => {
+  const podcastId = c.req.param("podcastId");
   const id = c.req.param("id");
   const body = await c.req.json<UploadFromUrlRequest>();
 
-  // バリデーション
   if (!body.sourceUrl) {
     return c.json({ error: "Missing sourceUrl" }, 400);
   }
 
   try {
-    const meta = await getEpisodeMeta(c.env, id);
+    const meta = await getEpisodeMeta(c.env, podcastId, id);
+    const index = await getIndex(c.env, podcastId);
 
-    // draft または failed 状態のみ許可
     if (meta.status !== "draft" && meta.status !== "failed") {
       return c.json(
         { error: "Episode is not in draft or failed status" },
@@ -196,41 +176,33 @@ upload.post("/:id/upload-from-url", async (c) => {
       );
     }
 
-    // ステータスを processing に更新
     meta.status = "processing";
-    await saveEpisodeMeta(c.env, meta);
+    await saveEpisodeMeta(c.env, podcastId, meta);
 
-    // 音声ファイルをダウンロード（NextCloud共有リンクは自動変換）
     const downloadUrl = convertToDirectDownloadUrl(body.sourceUrl);
     const audioResponse = await fetch(downloadUrl);
 
     if (!audioResponse.ok) {
       meta.status = "failed";
-      await saveEpisodeMeta(c.env, meta);
+      await saveEpisodeMeta(c.env, podcastId, meta);
       return c.json({ error: "Failed to download audio file" }, 400);
     }
 
     const audioData = await audioResponse.arrayBuffer();
+    const { size } = await saveAudioFile(c.env, podcastId, id, audioData);
 
-    // R2 に保存
-    const { size } = await saveAudioFile(c.env, id, audioData);
-
-    // メタデータ更新
     meta.fileSize = size;
-    meta.audioUrl = `${c.env.R2_PUBLIC_URL}/episodes/${id}/audio.mp3`;
+    meta.audioUrl = `${c.env.R2_PUBLIC_URL}/podcasts/${podcastId}/episodes/${id}/audio.mp3`;
 
-    // publishAt がnullの場合はdraft状態を維持（下書き保存）
     if (meta.publishAt === null) {
       meta.status = "draft";
     } else if (meta.skipTranscription) {
-      // skipTranscription に応じてステータスを設定
       const now = new Date();
       if (new Date(meta.publishAt) <= now) {
         meta.status = "published";
         meta.publishedAt = now.toISOString();
 
-        // Bluesky に投稿
-        const posted = await postEpisodeToBluesky(c.env, meta, c.env.WEBSITE_URL);
+        const posted = await postEpisodeToBluesky(c.env, podcastId, meta, index.podcast.websiteUrl);
         if (posted) {
           meta.blueskyPostedAt = now.toISOString();
         }
@@ -241,21 +213,19 @@ upload.post("/:id/upload-from-url", async (c) => {
       meta.status = "transcribing";
     }
 
-    await saveEpisodeMeta(c.env, meta);
+    await saveEpisodeMeta(c.env, podcastId, meta);
 
-    // 公開された場合はフィードを再生成してWebをリビルド
     if (meta.status === "published") {
-      await regenerateFeed(c.env);
-      await triggerWebRebuild(c.env);
+      await regenerateFeed(c.env, podcastId);
+      await triggerWebRebuild(c.env, podcastId);
     }
 
     return c.json({ id: meta.id, status: meta.status });
   } catch (error) {
-    // エラー時は failed に
     try {
-      const meta = await getEpisodeMeta(c.env, id);
+      const meta = await getEpisodeMeta(c.env, podcastId, id);
       meta.status = "failed";
-      await saveEpisodeMeta(c.env, meta);
+      await saveEpisodeMeta(c.env, podcastId, meta);
     } catch {
       // ignore
     }
@@ -264,29 +234,29 @@ upload.post("/:id/upload-from-url", async (c) => {
 });
 
 /**
- * POST /api/episodes/:id/og-image/upload-url - エピソードOGP画像のPresigned URL発行
+ * POST /api/podcasts/:podcastId/episodes/:id/og-image/upload-url - エピソードOGP画像のPresigned URL発行
  */
 upload.post("/:id/og-image/upload-url", async (c) => {
+  const podcastId = c.req.param("podcastId");
   const id = c.req.param("id");
   const body = await c.req.json<{ contentType: string; fileSize: number }>();
+  const index = await getIndex(c.env, podcastId);
 
   const { contentType, fileSize } = body;
 
-  // 画像形式のバリデーション
   if (!["image/jpeg", "image/png"].includes(contentType)) {
     return c.json({ error: "Invalid content type. Use image/jpeg or image/png" }, 400);
   }
 
-  // ファイルサイズ上限（5MB）
   if (fileSize > 5 * 1024 * 1024) {
     return c.json({ error: "File too large. Max 5MB" }, 400);
   }
 
   try {
-    const meta = await getEpisodeMeta(c.env, id);
+    const meta = await getEpisodeMeta(c.env, podcastId, id);
 
     const extension = contentType === "image/png" ? "png" : "jpg";
-    const key = `episodes/${meta.slug}/og-image.${extension}`;
+    const key = `podcasts/${podcastId}/episodes/${meta.slug}/og-image.${extension}`;
 
     const r2 = new AwsClient({
       accessKeyId: c.env.R2_ACCESS_KEY_ID,
@@ -311,7 +281,7 @@ upload.post("/:id/og-image/upload-url", async (c) => {
     return c.json({
       uploadUrl: signedRequest.url,
       expiresIn: 3600,
-      ogImageUrl: `${c.env.WEBSITE_URL}/episodes/${meta.slug}/og-image.${extension}`,
+      ogImageUrl: `${index.podcast.websiteUrl}/episodes/${meta.slug}/og-image.${extension}`,
     });
   } catch {
     return c.json({ error: "Episode not found" }, 404);
@@ -319,16 +289,17 @@ upload.post("/:id/og-image/upload-url", async (c) => {
 });
 
 /**
- * POST /api/episodes/:id/og-image/upload-complete - エピソードOGP画像アップロード完了通知
+ * POST /api/podcasts/:podcastId/episodes/:id/og-image/upload-complete - エピソードOGP画像アップロード完了通知
  */
 upload.post("/:id/og-image/upload-complete", async (c) => {
+  const podcastId = c.req.param("podcastId");
   const id = c.req.param("id");
   const body = await c.req.json<{ ogImageUrl: string }>();
 
   try {
-    const meta = await getEpisodeMeta(c.env, id);
+    const meta = await getEpisodeMeta(c.env, podcastId, id);
     meta.ogImageUrl = body.ogImageUrl;
-    await saveEpisodeMeta(c.env, meta);
+    await saveEpisodeMeta(c.env, podcastId, meta);
 
     return c.json({ success: true, ogImageUrl: body.ogImageUrl });
   } catch {

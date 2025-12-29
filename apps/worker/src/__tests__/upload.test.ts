@@ -1,33 +1,20 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { SELF } from "cloudflare:test";
-
-/**
- * テスト用ヘルパー: エピソードを作成してIDを返す
- */
-async function createTestEpisode(data: {
-  title: string;
-  description?: string;
-  publishAt?: string | null;
-  skipTranscription?: boolean;
-}): Promise<{ id: string; slug: string }> {
-  const response = await SELF.fetch("http://localhost/api/episodes", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  const json = await response.json();
-  return { id: json.id, slug: json.slug };
-}
+import { getApiBase, ensureTestPodcast, createTestEpisode } from "./helpers";
 
 describe("Upload API", () => {
-  describe("POST /api/episodes/:id/upload-url", () => {
+  beforeAll(async () => {
+    await ensureTestPodcast();
+  });
+
+  describe("POST /api/podcasts/:podcastId/episodes/:id/upload-url", () => {
     it("generates presigned URL for draft episode", async () => {
       const { id } = await createTestEpisode({
         title: "Upload URL Test",
       });
 
       const response = await SELF.fetch(
-        `http://localhost/api/episodes/${id}/upload-url`,
+        `${getApiBase()}/episodes/${id}/upload-url`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -56,7 +43,7 @@ describe("Upload API", () => {
       });
 
       const response = await SELF.fetch(
-        `http://localhost/api/episodes/${id}/upload-url`,
+        `${getApiBase()}/episodes/${id}/upload-url`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -72,7 +59,7 @@ describe("Upload API", () => {
 
     it("returns 404 for non-existent episode", async () => {
       const response = await SELF.fetch(
-        "http://localhost/api/episodes/non-existent-id/upload-url",
+        `${getApiBase()}/episodes/non-existent-id/upload-url`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -87,7 +74,7 @@ describe("Upload API", () => {
     });
   });
 
-  describe("POST /api/episodes/:id/upload-complete", () => {
+  describe("POST /api/podcasts/:podcastId/episodes/:id/upload-complete", () => {
     it("returns 400 for episode not in uploading status", async () => {
       const { id } = await createTestEpisode({
         title: "Upload Complete Test",
@@ -95,7 +82,7 @@ describe("Upload API", () => {
 
       // draftステータスのままupload-completeを呼ぶ
       const response = await SELF.fetch(
-        `http://localhost/api/episodes/${id}/upload-complete`,
+        `${getApiBase()}/episodes/${id}/upload-complete`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -114,7 +101,7 @@ describe("Upload API", () => {
 
     it("returns 404 for non-existent episode", async () => {
       const response = await SELF.fetch(
-        "http://localhost/api/episodes/non-existent-id/upload-complete",
+        `${getApiBase()}/episodes/non-existent-id/upload-complete`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -128,14 +115,14 @@ describe("Upload API", () => {
     });
   });
 
-  describe("POST /api/episodes/:id/upload-from-url", () => {
+  describe("POST /api/podcasts/:podcastId/episodes/:id/upload-from-url", () => {
     it("rejects missing sourceUrl", async () => {
       const { id } = await createTestEpisode({
         title: "Upload From URL Test",
       });
 
       const response = await SELF.fetch(
-        `http://localhost/api/episodes/${id}/upload-from-url`,
+        `${getApiBase()}/episodes/${id}/upload-from-url`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -151,7 +138,7 @@ describe("Upload API", () => {
 
     it("returns error for non-existent episode", async () => {
       const response = await SELF.fetch(
-        "http://localhost/api/episodes/non-existent-id/upload-from-url",
+        `${getApiBase()}/episodes/non-existent-id/upload-from-url`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -166,14 +153,14 @@ describe("Upload API", () => {
     });
   });
 
-  describe("POST /api/episodes/:id/og-image/upload-url", () => {
+  describe("POST /api/podcasts/:podcastId/episodes/:id/og-image/upload-url", () => {
     it("rejects invalid content type", async () => {
       const { id } = await createTestEpisode({
         title: "OG Image Content Type Test",
       });
 
       const response = await SELF.fetch(
-        `http://localhost/api/episodes/${id}/og-image/upload-url`,
+        `${getApiBase()}/episodes/${id}/og-image/upload-url`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -196,7 +183,7 @@ describe("Upload API", () => {
       });
 
       const response = await SELF.fetch(
-        `http://localhost/api/episodes/${id}/og-image/upload-url`,
+        `${getApiBase()}/episodes/${id}/og-image/upload-url`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -215,7 +202,7 @@ describe("Upload API", () => {
 
     it("returns 404 for non-existent episode", async () => {
       const response = await SELF.fetch(
-        "http://localhost/api/episodes/non-existent-id/og-image/upload-url",
+        `${getApiBase()}/episodes/non-existent-id/og-image/upload-url`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -230,7 +217,7 @@ describe("Upload API", () => {
     });
   });
 
-  describe("POST /api/episodes/:id/og-image/upload-complete", () => {
+  describe("POST /api/podcasts/:podcastId/episodes/:id/og-image/upload-complete", () => {
     it("updates ogImageUrl in episode metadata", async () => {
       const { id } = await createTestEpisode({
         title: "OG Image Complete Test",
@@ -239,7 +226,7 @@ describe("Upload API", () => {
       const ogImageUrl = "https://example.com/og-image.jpg";
 
       const response = await SELF.fetch(
-        `http://localhost/api/episodes/${id}/og-image/upload-complete`,
+        `${getApiBase()}/episodes/${id}/og-image/upload-complete`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -255,7 +242,7 @@ describe("Upload API", () => {
 
       // 詳細を取得して確認
       const detailResponse = await SELF.fetch(
-        `http://localhost/api/episodes/${id}`
+        `${getApiBase()}/episodes/${id}`
       );
       const detail = await detailResponse.json();
       expect(detail.ogImageUrl).toBe(ogImageUrl);
@@ -263,7 +250,7 @@ describe("Upload API", () => {
 
     it("returns 404 for non-existent episode", async () => {
       const response = await SELF.fetch(
-        "http://localhost/api/episodes/non-existent-id/og-image/upload-complete",
+        `${getApiBase()}/episodes/non-existent-id/og-image/upload-complete`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

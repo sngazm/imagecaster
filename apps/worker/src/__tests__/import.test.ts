@@ -1,10 +1,15 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { SELF } from "cloudflare:test";
+import { getApiBase, ensureTestPodcast } from "./helpers";
 
 describe("Import API", () => {
-  describe("POST /api/import/rss", () => {
+  beforeAll(async () => {
+    await ensureTestPodcast();
+  });
+
+  describe("POST /api/podcasts/:podcastId/import/rss", () => {
     it("rejects missing rssUrl", async () => {
-      const response = await SELF.fetch("http://localhost/api/import/rss", {
+      const response = await SELF.fetch(`${getApiBase()}/import/rss`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
@@ -17,7 +22,7 @@ describe("Import API", () => {
     });
 
     it("returns error for invalid RSS URL", async () => {
-      const response = await SELF.fetch("http://localhost/api/import/rss", {
+      const response = await SELF.fetch(`${getApiBase()}/import/rss`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -33,10 +38,10 @@ describe("Import API", () => {
     });
   });
 
-  describe("POST /api/import/rss/preview", () => {
+  describe("POST /api/podcasts/:podcastId/import/rss/preview", () => {
     it("rejects missing rssUrl", async () => {
       const response = await SELF.fetch(
-        "http://localhost/api/import/rss/preview",
+        `${getApiBase()}/import/rss/preview`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -52,7 +57,7 @@ describe("Import API", () => {
 
     it("returns error for invalid RSS URL", async () => {
       const response = await SELF.fetch(
-        "http://localhost/api/import/rss/preview",
+        `${getApiBase()}/import/rss/preview`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -71,9 +76,13 @@ describe("Import API", () => {
 });
 
 describe("Deployments API", () => {
-  describe("GET /api/deployments", () => {
+  beforeAll(async () => {
+    await ensureTestPodcast();
+  });
+
+  describe("GET /api/podcasts/:podcastId/deployments", () => {
     it("returns deployments response", async () => {
-      const response = await SELF.fetch("http://localhost/api/deployments");
+      const response = await SELF.fetch(`${getApiBase()}/deployments`);
 
       expect(response.status).toBe(200);
 

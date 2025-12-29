@@ -3,8 +3,7 @@
  */
 export interface Env {
   R2_BUCKET: R2Bucket;
-  PODCAST_TITLE: string;
-  WEBSITE_URL: string;
+  SECRETS_KV: KVNamespace;
   R2_ACCOUNT_ID: string;
   R2_BUCKET_NAME: string;
   R2_ACCESS_KEY_ID: string;
@@ -13,23 +12,29 @@ export interface Env {
   // Cloudflare Access
   CF_ACCESS_TEAM_DOMAIN: string;
   CF_ACCESS_AUD: string;
-  // Deploy Hook（Cloudflare Pages）
-  WEB_DEPLOY_HOOK_URL?: string;
-  // Bluesky
-  BLUESKY_IDENTIFIER?: string; // ハンドル or DID
-  BLUESKY_PASSWORD?: string; // アプリパスワード
   // Cloudflare Pages API（ビルド状況確認用）
   CLOUDFLARE_API_TOKEN?: string;
-  PAGES_PROJECT_NAME?: string;
   // ローカル開発用
   IS_DEV?: string;
 }
 
 /**
- * Podcast 全体のインデックス (index.json)
+ * ポッドキャスト一覧 (podcasts/index.json)
+ */
+export interface PodcastsIndex {
+  podcasts: Array<{
+    id: string;
+    title: string;
+    createdAt: string;
+  }>;
+}
+
+/**
+ * 個別ポッドキャストのインデックス (podcasts/{podcastId}/index.json)
  */
 export interface PodcastIndex {
   podcast: {
+    id: string;
     title: string;
     description: string;
     author: string;
@@ -44,6 +49,15 @@ export interface PodcastIndex {
   episodes: Array<{
     id: string;
   }>;
+}
+
+/**
+ * ポッドキャストのシークレット情報 (KVに保存)
+ */
+export interface PodcastSecrets {
+  blueskyIdentifier?: string;
+  blueskyPassword?: string;
+  deployHookUrl?: string;
 }
 
 /**
@@ -290,4 +304,39 @@ export interface DeploymentsResponse {
   websiteUrl?: string;
   accountId?: string;
   projectName?: string;
+}
+
+/**
+ * ポッドキャスト作成リクエスト
+ */
+export interface CreatePodcastRequest {
+  id: string; // slug形式
+  title: string;
+}
+
+/**
+ * ポッドキャスト更新リクエスト
+ */
+export interface UpdatePodcastRequest {
+  title?: string;
+}
+
+/**
+ * ポッドキャスト一覧レスポンス
+ */
+export interface PodcastsListResponse {
+  podcasts: Array<{
+    id: string;
+    title: string;
+    createdAt: string;
+  }>;
+}
+
+/**
+ * シークレット更新リクエスト
+ */
+export interface UpdateSecretsRequest {
+  blueskyIdentifier?: string;
+  blueskyPassword?: string;
+  deployHookUrl?: string;
 }

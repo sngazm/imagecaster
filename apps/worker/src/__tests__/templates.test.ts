@@ -1,26 +1,15 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { SELF } from "cloudflare:test";
-
-/**
- * テスト用ヘルパー: テンプレートを作成してIDを返す
- */
-async function createTestTemplate(data: {
-  name: string;
-  content: string;
-}): Promise<{ id: string }> {
-  const response = await SELF.fetch("http://localhost/api/templates", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  const json = await response.json();
-  return { id: json.id };
-}
+import { getApiBase, ensureTestPodcast, createTestTemplate } from "./helpers";
 
 describe("Templates API", () => {
-  describe("GET /api/templates", () => {
+  beforeAll(async () => {
+    await ensureTestPodcast();
+  });
+
+  describe("GET /api/podcasts/:podcastId/templates", () => {
     it("returns template list", async () => {
-      const response = await SELF.fetch("http://localhost/api/templates");
+      const response = await SELF.fetch(`${getApiBase()}/templates`);
 
       expect(response.status).toBe(200);
 
@@ -29,14 +18,14 @@ describe("Templates API", () => {
     });
   });
 
-  describe("POST /api/templates", () => {
+  describe("POST /api/podcasts/:podcastId/templates", () => {
     it("creates a new template", async () => {
       const templateData = {
         name: `Test Template ${Date.now()}`,
         content: "This is a test template content with {{placeholder}}",
       };
 
-      const response = await SELF.fetch("http://localhost/api/templates", {
+      const response = await SELF.fetch(`${getApiBase()}/templates`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(templateData),
@@ -53,7 +42,7 @@ describe("Templates API", () => {
     });
 
     it("rejects template without name", async () => {
-      const response = await SELF.fetch("http://localhost/api/templates", {
+      const response = await SELF.fetch(`${getApiBase()}/templates`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -68,7 +57,7 @@ describe("Templates API", () => {
     });
 
     it("rejects template without content", async () => {
-      const response = await SELF.fetch("http://localhost/api/templates", {
+      const response = await SELF.fetch(`${getApiBase()}/templates`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -83,7 +72,7 @@ describe("Templates API", () => {
     });
   });
 
-  describe("GET /api/templates/:id", () => {
+  describe("GET /api/podcasts/:podcastId/templates/:id", () => {
     it("returns template details", async () => {
       const templateData = {
         name: `Detail Template ${Date.now()}`,
@@ -92,7 +81,7 @@ describe("Templates API", () => {
       const { id } = await createTestTemplate(templateData);
 
       const response = await SELF.fetch(
-        `http://localhost/api/templates/${id}`
+        `${getApiBase()}/templates/${id}`
       );
 
       expect(response.status).toBe(200);
@@ -105,7 +94,7 @@ describe("Templates API", () => {
 
     it("returns 404 for non-existent template", async () => {
       const response = await SELF.fetch(
-        "http://localhost/api/templates/non-existent-template-id"
+        `${getApiBase()}/templates/non-existent-template-id`
       );
 
       expect(response.status).toBe(404);
@@ -115,7 +104,7 @@ describe("Templates API", () => {
     });
   });
 
-  describe("PUT /api/templates/:id", () => {
+  describe("PUT /api/podcasts/:podcastId/templates/:id", () => {
     it("updates template name", async () => {
       const { id } = await createTestTemplate({
         name: "Original Name",
@@ -124,7 +113,7 @@ describe("Templates API", () => {
 
       const newName = `Updated Name ${Date.now()}`;
       const response = await SELF.fetch(
-        `http://localhost/api/templates/${id}`,
+        `${getApiBase()}/templates/${id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -147,7 +136,7 @@ describe("Templates API", () => {
 
       const newContent = "Updated content with new {{variables}}";
       const response = await SELF.fetch(
-        `http://localhost/api/templates/${id}`,
+        `${getApiBase()}/templates/${id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -173,7 +162,7 @@ describe("Templates API", () => {
       };
 
       const response = await SELF.fetch(
-        `http://localhost/api/templates/${id}`,
+        `${getApiBase()}/templates/${id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -192,7 +181,7 @@ describe("Templates API", () => {
 
     it("returns 404 for non-existent template", async () => {
       const response = await SELF.fetch(
-        "http://localhost/api/templates/non-existent-template-id",
+        `${getApiBase()}/templates/non-existent-template-id`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -207,7 +196,7 @@ describe("Templates API", () => {
     });
   });
 
-  describe("DELETE /api/templates/:id", () => {
+  describe("DELETE /api/podcasts/:podcastId/templates/:id", () => {
     it("deletes an existing template", async () => {
       const { id } = await createTestTemplate({
         name: "Template to Delete",
@@ -215,7 +204,7 @@ describe("Templates API", () => {
       });
 
       const response = await SELF.fetch(
-        `http://localhost/api/templates/${id}`,
+        `${getApiBase()}/templates/${id}`,
         {
           method: "DELETE",
         }
@@ -228,14 +217,14 @@ describe("Templates API", () => {
 
       // 削除後は取得できないことを確認
       const getResponse = await SELF.fetch(
-        `http://localhost/api/templates/${id}`
+        `${getApiBase()}/templates/${id}`
       );
       expect(getResponse.status).toBe(404);
     });
 
     it("returns 404 for non-existent template", async () => {
       const response = await SELF.fetch(
-        "http://localhost/api/templates/non-existent-template-id",
+        `${getApiBase()}/templates/non-existent-template-id`,
         {
           method: "DELETE",
         }
