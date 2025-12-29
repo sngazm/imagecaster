@@ -49,6 +49,17 @@ export default function EpisodeNew() {
     }
   };
 
+  // タイトルからエピソード番号を抽出してslugに設定
+  const handleTitleBlur = () => {
+    if (slug) return; // 既にslugが入力されている場合は何もしない
+
+    // 「#123」「#1」などのパターンを抽出
+    const match = title.match(/^#(\d+)/);
+    if (match) {
+      setSlug(match[1]);
+    }
+  };
+
   const handleSubmit = async (e: FormEvent, isDraft: boolean = false) => {
     e.preventDefault();
 
@@ -167,7 +178,8 @@ export default function EpisodeNew() {
                   id="title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="エピソードのタイトル"
+                  onBlur={handleTitleBlur}
+                  placeholder="#123 エピソードのタイトル"
                   disabled={isSubmitting || status === "done"}
                   className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all disabled:opacity-50"
                 />
