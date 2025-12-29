@@ -120,7 +120,11 @@ export default function EpisodeList() {
                     {ep.title}
                   </h3>
                   <p className="text-sm text-zinc-500 mt-0.5">
-                    {ep.publishAt ? formatDate(ep.publishAt) : "下書き"}
+                    {ep.status === "scheduled" && ep.publishAt
+                      ? `公開予定: ${formatDate(ep.publishAt)}`
+                      : ep.publishAt
+                        ? formatDate(ep.publishAt)
+                        : "下書き"}
                   </p>
                 </div>
                 <span className={`px-3 py-1 rounded-full text-xs font-medium ${status.color}`}>
