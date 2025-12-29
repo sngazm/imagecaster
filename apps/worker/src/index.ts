@@ -12,7 +12,6 @@ import { getIndex, getEpisodeMeta, saveEpisodeMeta } from "./services/r2";
 import { getFeed, regenerateFeed } from "./services/feed";
 import { postEpisodeToBluesky } from "./services/bluesky";
 import { triggerWebRebuild } from "./services/deploy";
-import { processDescriptionForPublish } from "./services/description";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -180,8 +179,6 @@ async function handleScheduledPublish(env: Env): Promise<void> {
       // 公開処理
       meta.status = "published";
       meta.publishedAt = now.toISOString();
-      // プレースホルダーを置換して文字起こしリンクを追加
-      meta.description = processDescriptionForPublish(meta);
 
       // Bluesky に投稿
       const posted = await postEpisodeToBluesky(env, meta, env.WEBSITE_URL);

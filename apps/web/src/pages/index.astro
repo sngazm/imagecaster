@@ -45,7 +45,7 @@ const podcast = index.podcast;
         ) : (
           <div class="space-y-4">
             {episodes.map((episode) => (
-              <EpisodeCard episode={episode} />
+              <EpisodeCard episode={episode} websiteUrl={podcast.websiteUrl} />
             ))}
           </div>
         )}

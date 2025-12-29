@@ -116,3 +116,65 @@ export async function getFeed(): Promise<string> {
 
   return res.text();
 }
+
+/**
+ * HTMLエスケープ
+ */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+/**
+ * 参考リンクをHTMLに変換
+ */
+function formatReferenceLinks(links: Episode["referenceLinks"]): string {
+  if (!links || links.length === 0) {
+    return "";
+  }
+  return links
+    .map(
+      (link) =>
+        `<p>${escapeHtml(link.title)}<br><a href="${escapeHtml(link.url)}">${escapeHtml(link.url)}</a></p>`
+    )
+    .join("\n");
+}
+
+/**
+ * 説明文のプレースホルダーを置換
+ * {{TRANSCRIPT_URL}} - 文字起こしページへのリンク
+ * {{EPISODE_URL}} - エピソードページへのリンク
+ * {{AUDIO_URL}} - 音声ファイルへのリンク
+ * {{REFERENCE_LINKS}} - 参考リンク一覧
+ */
+export function processDescription(
+  description: string,
+  episode: Episode,
+  websiteUrl: string
+): string {
+  const episodePageUrl = `${websiteUrl}/episodes/${episode.slug || episode.id}`;
+  const transcriptPageUrl = episode.transcriptUrl
+    ? `${episodePageUrl}/transcript`
+    : "";
+
+  let result = description
+    .replace(/\{\{TRANSCRIPT_URL\}\}/g, transcriptPageUrl)
+    .replace(/\{\{EPISODE_URL\}\}/g, episodePageUrl)
+    .replace(/\{\{AUDIO_URL\}\}/g, episode.audioUrl || "");
+
+  // {{REFERENCE_LINKS}} を変換
+  if (episode.referenceLinks && episode.referenceLinks.length > 0) {
+    result = result.replace(/\{\{REFERENCE_LINKS\}\}/g, formatReferenceLinks(episode.referenceLinks));
+  } else {
+    // リンクがない場合は、タグごと削除（<p>{{REFERENCE_LINKS}}</p> など）
+    result = result.replace(/<p>\s*\{\{REFERENCE_LINKS\}\}\s*<\/p>\s*/gi, "");
+    result = result.replace(/<div>\s*\{\{REFERENCE_LINKS\}\}\s*<\/div>\s*/gi, "");
+    result = result.replace(/\{\{REFERENCE_LINKS\}\}/g, "");
+  }
+
+  return result;
+}
