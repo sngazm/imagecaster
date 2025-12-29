@@ -134,12 +134,12 @@ export function HtmlEditor({
     editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
   }, [editor]);
 
-  // Cmd+K / Ctrl+K でリンク設定
+  // Cmd+K でリンク設定（Ctrl+K は macOS の行末削除と競合するため除外）
   useEffect(() => {
     if (!editor) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      if (e.metaKey && e.key === "k") {
         e.preventDefault();
         setLink();
       }
