@@ -66,7 +66,7 @@ export function formatDuration(seconds: number): string {
 }
 
 /**
- * 日付を "YYYY年MM月DD日" 形式に変換
+ * 日付を "YYYY年MM月DD日" 形式に変換（JSTで表示）
  */
 export function formatDate(dateString: string): string {
   const date = new Date(dateString);
@@ -74,6 +74,7 @@ export function formatDate(dateString: string): string {
     year: "numeric",
     month: "long",
     day: "numeric",
+    timeZone: "Asia/Tokyo",
   });
 }
 

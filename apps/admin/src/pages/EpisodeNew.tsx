@@ -1,6 +1,6 @@
 import { useState, useEffect, FormEvent, ChangeEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api, uploadToR2, getAudioDuration } from "../lib/api";
+import { api, uploadToR2, getAudioDuration, localDateTimeToISOString } from "../lib/api";
 import type { DescriptionTemplate } from "../lib/api";
 import { HtmlEditor } from "../components/HtmlEditor";
 
@@ -52,7 +52,7 @@ export default function EpisodeNew() {
         title: title.trim(),
         slug: slug.trim() || undefined,
         description: description.trim(),
-        publishAt: isDraft ? null : (publishAt || new Date().toISOString()),
+        publishAt: isDraft ? null : (publishAt ? localDateTimeToISOString(publishAt) : new Date().toISOString()),
         skipTranscription,
         blueskyPostText: blueskyPostText.trim() || null,
         blueskyPostEnabled,
