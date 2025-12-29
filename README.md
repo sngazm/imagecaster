@@ -18,23 +18,23 @@
 └────────────────────────────────────┘
         │                   │
         ▼                   ▼
-┌───────────────┐   ┌─────────────────┐         ┌───────────────┐
-│  apps/admin   │   │   apps/worker   │         │   apps/web    │
-│  (React+Vite) │──▶│ (Hono+Workers)  │◀─fetch──│  (Astro SSG)  │
-│               │API│                 │         │               │
-│ CF Pages      │   │ CF Workers      │         │ CF Pages      │
-│ (認証必要)     │   │ (認証必要)       │         │ (公開)        │
-└───────────────┘   └────────┬────────┘         └───────────────┘
-                             │                          ▲
-                    R2 Bind  │  Pages API               │ rebuild
-                             ▼    (Deploy Hook)         │
-                    ┌─────────────────┐─────────────────┘
-                    │  Cloudflare R2  │  エピソード公開時に
-                    │                 │  Worker が Pages API を叩いて
-                    │ - episodes/     │  Web サイトをリビルド
-                    │ - index.json    │
-                    │ - feed.xml      │
-                    └─────────────────┘
+┌───────────────┐   ┌─────────────────┐            ┌───────────────┐
+│  apps/admin   │   │   apps/worker   │──Pages API─▶│  apps/web    │
+│  (React+Vite) │──▶│ (Hono+Workers)  │  (rebuild)  │  (Astro SSG)  │
+│               │API│                 │            │               │
+│ CF Pages      │   │ CF Workers      │            │ CF Pages      │
+│ (認証必要)     │   │ (認証必要)       │            │ (公開)        │
+└───────────────┘   └────────┬────────┘            └───────┬───────┘
+                             │                             │
+                             │ R2 Binding                  │ fetch (build時)
+                             ▼                             ▼
+                    ┌─────────────────────────────────────────┐
+                    │              Cloudflare R2              │
+                    │                                         │
+                    │  - episodes/{id}/meta.json, audio.mp3   │
+                    │  - index.json                           │
+                    │  - feed.xml                             │
+                    └─────────────────────────────────────────┘
 ```
 
 ## 技術スタック
