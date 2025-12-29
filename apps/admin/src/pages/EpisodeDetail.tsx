@@ -359,8 +359,14 @@ export default function EpisodeDetail() {
                 <div className="text-zinc-200 font-medium">{formatDate(episode.createdAt)}</div>
               </div>
               <div className="bg-zinc-900 rounded-lg p-4">
-                <div className="text-xs text-zinc-500 mb-1">公開日</div>
-                <div className="text-zinc-200 font-medium">{formatDate(episode.publishedAt)}</div>
+                <div className="text-xs text-zinc-500 mb-1">
+                  {episode.status === "scheduled" ? "公開予定日" : "公開日"}
+                </div>
+                <div className="text-zinc-200 font-medium">
+                  {episode.status === "scheduled"
+                    ? formatDate(episode.publishAt)
+                    : formatDate(episode.publishedAt)}
+                </div>
               </div>
             </div>
           </div>
