@@ -93,6 +93,7 @@ export interface RssPreviewResponse {
     category: string;
   };
   episodeCount: number;
+  newEpisodeCount: number;
   totalFileSize: number;
   episodes: Array<{
     title: string;
@@ -103,6 +104,7 @@ export interface RssPreviewResponse {
     slug: string;
     originalSlug: string;
     hasConflict: boolean;
+    alreadyImported: boolean;
   }>;
 }
 

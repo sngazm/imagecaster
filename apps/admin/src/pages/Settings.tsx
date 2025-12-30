@@ -802,11 +802,18 @@ export default function Settings() {
                   <p className="text-sm text-zinc-400">{importPreview.podcast.author}</p>
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                  <span className="px-3 py-1 bg-violet-500/20 text-violet-400 rounded-full text-sm">
-                    {importPreview.episodeCount}件
-                  </span>
+                  <div className="flex gap-2">
+                    <span className="px-3 py-1 bg-violet-500/20 text-violet-400 rounded-full text-sm">
+                      新規 {importPreview.newEpisodeCount}件
+                    </span>
+                    {importPreview.episodeCount - importPreview.newEpisodeCount > 0 && (
+                      <span className="px-3 py-1 bg-zinc-700/50 text-zinc-400 rounded-full text-sm">
+                        済 {importPreview.episodeCount - importPreview.newEpisodeCount}件
+                      </span>
+                    )}
+                  </div>
                   <span className="text-xs text-zinc-500">
-                    合計: {(importPreview.totalFileSize / 1024 / 1024).toFixed(1)} MB
+                    新規分: {(importPreview.totalFileSize / 1024 / 1024).toFixed(1)} MB
                   </span>
                 </div>
               </div>
@@ -816,10 +823,10 @@ export default function Settings() {
               </p>
 
               {/* 重複警告 */}
-              {importPreview.episodes.some((ep) => ep.hasConflict) && (
+              {importPreview.episodes.some((ep) => ep.hasConflict && !ep.alreadyImported) && (
                 <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
                   <p className="text-sm text-red-400">
-                    {importPreview.episodes.filter((ep) => ep.hasConflict).length}
+                    {importPreview.episodes.filter((ep) => ep.hasConflict && !ep.alreadyImported).length}
                     件のエピソードでslugが既存と重複しています（赤字で表示）
                   </p>
                 </div>
@@ -841,18 +848,28 @@ export default function Settings() {
                       {importPreview.episodes.map((ep, i) => (
                         <tr
                           key={i}
-                          className={ep.hasConflict ? "text-red-400" : ""}
+                          className={
+                            ep.alreadyImported
+                              ? "text-zinc-600"
+                              : ep.hasConflict
+                              ? "text-red-400"
+                              : ""
+                          }
                         >
                           <td className="py-2 pr-4">
                             <div className="flex items-center gap-2">
-                              {ep.hasConflict && (
+                              {ep.alreadyImported ? (
+                                <span title="インポート済み" className="text-zinc-500">✓</span>
+                              ) : ep.hasConflict ? (
                                 <span title="slugが既存と重複">⚠</span>
-                              )}
+                              ) : null}
                               <span className="line-clamp-1">{ep.title}</span>
                             </div>
                           </td>
                           <td className="py-2 pr-4 font-mono text-xs">
-                            {ep.hasConflict ? (
+                            {ep.alreadyImported ? (
+                              <span className="text-zinc-600">-</span>
+                            ) : ep.hasConflict ? (
                               <span>
                                 <del className="text-red-400/50">{ep.originalSlug}</del>
                                 <br />→ {ep.slug}
@@ -878,14 +895,16 @@ export default function Settings() {
 
               <button
                 onClick={handleImportRss}
-                disabled={importing}
+                disabled={importing || importPreview.newEpisodeCount === 0}
                 className="w-full px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg font-medium disabled:opacity-50"
               >
                 {importing
                   ? importAudio
                     ? "インポート中（オーディオをダウンロード中...）"
                     : "インポート中..."
-                  : `${importPreview.episodeCount}件をインポート`}
+                  : importPreview.newEpisodeCount === 0
+                  ? "インポートするエピソードがありません"
+                  : `${importPreview.newEpisodeCount}件をインポート`}
               </button>
             </div>
           )}
