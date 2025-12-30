@@ -43,6 +43,11 @@ export function EnvironmentBadge() {
   const previewInfo = getPreviewInfo();
   const label = previewInfo?.identifier || "preview";
 
+  // mainブランチは本番扱いなので表示しない
+  if (label === "main" || label === "master") {
+    return null;
+  }
+
   return (
     <div
       className="fixed top-3 right-3 z-50 flex items-center gap-2 px-3 py-1.5 bg-amber-500/20 border border-amber-500/50 rounded-lg text-amber-300 text-xs font-medium backdrop-blur-sm max-w-[280px] group cursor-default"
