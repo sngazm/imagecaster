@@ -265,4 +265,137 @@ describe("Templates API", () => {
       expect(template2.id).toMatch(/^tmpl-/);
     });
   });
+
+  describe("Default template", () => {
+    it("creates template with isDefault: false by default", async () => {
+      const response = await SELF.fetch("http://localhost/api/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Non-default Template",
+          content: "Content",
+        }),
+      });
+
+      expect(response.status).toBe(201);
+
+      const json = await response.json();
+      expect(json.isDefault).toBe(false);
+    });
+
+    it("sets template as default when isDefault: true", async () => {
+      const response = await SELF.fetch("http://localhost/api/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Default Template",
+          content: "Default content",
+          isDefault: true,
+        }),
+      });
+
+      expect(response.status).toBe(201);
+
+      const json = await response.json();
+      expect(json.isDefault).toBe(true);
+    });
+
+    it("clears other default when setting new default", async () => {
+      // 最初にデフォルトテンプレートを作成
+      const firstResponse = await SELF.fetch("http://localhost/api/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "First Default",
+          content: "First content",
+          isDefault: true,
+        }),
+      });
+      const firstTemplate = await firstResponse.json();
+      expect(firstTemplate.isDefault).toBe(true);
+
+      // 2つ目のテンプレートをデフォルトに設定
+      const secondResponse = await SELF.fetch("http://localhost/api/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Second Default",
+          content: "Second content",
+          isDefault: true,
+        }),
+      });
+      const secondTemplate = await secondResponse.json();
+      expect(secondTemplate.isDefault).toBe(true);
+
+      // 1つ目のテンプレートを確認（デフォルトが解除されているはず）
+      const checkResponse = await SELF.fetch(
+        `http://localhost/api/templates/${firstTemplate.id}`
+      );
+      const checkJson = await checkResponse.json();
+      expect(checkJson.isDefault).toBe(false);
+    });
+
+    it("updates isDefault via PUT", async () => {
+      const { id } = await createTestTemplate({
+        name: "Template to set default",
+        content: "Content",
+      });
+
+      // デフォルトに設定
+      const updateResponse = await SELF.fetch(
+        `http://localhost/api/templates/${id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isDefault: true }),
+        }
+      );
+
+      expect(updateResponse.status).toBe(200);
+
+      const json = await updateResponse.json();
+      expect(json.isDefault).toBe(true);
+    });
+
+    it("clears default from other templates when updating isDefault", async () => {
+      // 最初のテンプレートを作成してデフォルトに設定
+      const first = await createTestTemplate({
+        name: "First for update test",
+        content: "Content 1",
+      });
+
+      await SELF.fetch(`http://localhost/api/templates/${first.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isDefault: true }),
+      });
+
+      // 2つ目のテンプレートを作成
+      const second = await createTestTemplate({
+        name: "Second for update test",
+        content: "Content 2",
+      });
+
+      // 2つ目をデフォルトに設定
+      await SELF.fetch(`http://localhost/api/templates/${second.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isDefault: true }),
+      });
+
+      // 1つ目のテンプレートを確認
+      const checkFirst = await SELF.fetch(
+        `http://localhost/api/templates/${first.id}`
+      );
+      const firstJson = await checkFirst.json();
+      expect(firstJson.isDefault).toBe(false);
+
+      // 2つ目のテンプレートを確認
+      const checkSecond = await SELF.fetch(
+        `http://localhost/api/templates/${second.id}`
+      );
+      const secondJson = await checkSecond.json();
+      expect(secondJson.isDefault).toBe(true);
+    });
+  });
 });

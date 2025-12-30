@@ -28,10 +28,18 @@ templates.post("/", async (c) => {
   const id = `tmpl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const now = new Date().toISOString();
 
+  // デフォルトに設定する場合、他のテンプレートのデフォルトを解除
+  if (body.isDefault) {
+    for (const t of index.templates) {
+      t.isDefault = false;
+    }
+  }
+
   const newTemplate = {
     id,
     name: body.name,
     content: body.content,
+    isDefault: body.isDefault ?? false,
     createdAt: now,
     updatedAt: now,
   };
@@ -75,6 +83,18 @@ templates.put("/:id", async (c) => {
 
   if (body.name !== undefined) template.name = body.name;
   if (body.content !== undefined) template.content = body.content;
+
+  // デフォルトに設定する場合、他のテンプレートのデフォルトを解除
+  if (body.isDefault !== undefined) {
+    if (body.isDefault) {
+      for (const t of index.templates) {
+        t.isDefault = t.id === id;
+      }
+    } else {
+      template.isDefault = false;
+    }
+  }
+
   template.updatedAt = new Date().toISOString();
 
   await saveTemplatesIndex(c.env, index);

@@ -78,6 +78,7 @@ export interface DescriptionTemplate {
   id: string;
   name: string;
   content: string;
+  isDefault: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -295,7 +296,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  updateTemplate: (id: string, data: { name?: string; content?: string }) =>
+  updateTemplate: (id: string, data: { name?: string; content?: string; isDefault?: boolean }) =>
     request<DescriptionTemplate>(`/api/templates/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
