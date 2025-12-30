@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Env, ImportRssRequest, ImportRssResponse, EpisodeMeta } from "../types";
-import { getIndex, saveIndex, saveEpisodeMeta } from "../services/r2";
+import { getIndex, saveIndex, saveEpisodeMeta, saveAudioFile } from "../services/r2";
 
 export const importRoutes = new Hono<{ Bindings: Env }>();
 
@@ -13,6 +13,7 @@ function parseRssXml(xml: string): Array<{
   pubDate: string;
   duration: number;
   audioUrl: string;
+  fileSize: number;
   guid: string;
 }> {
   const episodes: Array<{
@@ -21,6 +22,7 @@ function parseRssXml(xml: string): Array<{
     pubDate: string;
     duration: number;
     audioUrl: string;
+    fileSize: number;
     guid: string;
   }> = [];
 
@@ -46,6 +48,10 @@ function parseRssXml(xml: string): Array<{
     // 音声URL (enclosure)
     const enclosureMatch = itemContent.match(/<enclosure[^>]*url=["']([^"']+)["'][^>]*>/i);
     const audioUrl = enclosureMatch ? enclosureMatch[1] : "";
+
+    // ファイルサイズ (enclosure length)
+    const lengthMatch = itemContent.match(/<enclosure[^>]*length=["'](\d+)["'][^>]*>/i);
+    const fileSize = lengthMatch ? parseInt(lengthMatch[1], 10) : 0;
 
     // duration (itunes:duration)
     const durationMatch = itemContent.match(/<itunes:duration[^>]*>([\s\S]*?)<\/itunes:duration>/i);
@@ -76,6 +82,7 @@ function parseRssXml(xml: string): Array<{
         pubDate,
         duration,
         audioUrl,
+        fileSize,
         guid,
       });
     }
@@ -118,14 +125,23 @@ function parsePodcastMeta(xml: string): {
 
 /**
  * タイトルからslugを生成
+ * 新規作成時と同様に、最初のスペースまでの文字列を使用
+ * 「#123」パターンがあればエピソード番号を使用
  */
 function generateSlug(title: string): string {
-  // 簡易的なslug生成（英数字とハイフンのみ）
-  let slug = title
+  // 「#123」パターンがあればエピソード番号を使用
+  const numberMatch = title.match(/^#(\d+)/);
+  if (numberMatch) {
+    return numberMatch[1];
+  }
+
+  // 最初のスペースまでの文字列を取得（日本語タイトルを考慮）
+  const firstPart = title.split(/\s+/)[0];
+
+  // 英数字とハイフンのみに変換
+  let slug = firstPart
     .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
     .slice(0, 50);
 
   // 空の場合はタイムスタンプでフォールバック
@@ -137,6 +153,32 @@ function generateSlug(title: string): string {
 }
 
 /**
+ * 外部URLからオーディオをダウンロードしてR2に保存
+ */
+async function downloadAndSaveAudio(
+  env: Env,
+  episodeId: string,
+  audioUrl: string
+): Promise<{ size: number; audioUrl: string } | null> {
+  try {
+    const response = await fetch(audioUrl);
+    if (!response.ok) {
+      return null;
+    }
+
+    const audioData = await response.arrayBuffer();
+    const { size } = await saveAudioFile(env, episodeId, audioData);
+
+    // 公開URLを生成
+    const publicAudioUrl = `${env.R2_PUBLIC_URL}/episodes/${episodeId}/audio.mp3`;
+
+    return { size, audioUrl: publicAudioUrl };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * RSSフィードをインポート
  */
 importRoutes.post("/rss", async (c) => {
@@ -145,6 +187,8 @@ importRoutes.post("/rss", async (c) => {
   if (!body.rssUrl) {
     return c.json({ error: "rssUrl is required" }, 400);
   }
+
+  const importAudio = body.importAudio ?? false;
 
   // RSSフィードを取得
   let rssXml: string;
@@ -175,7 +219,10 @@ importRoutes.post("/rss", async (c) => {
   );
 
   // バッチ処理用の配列
-  const episodesToSave: EpisodeMeta[] = [];
+  const episodesToSave: Array<{
+    meta: EpisodeMeta;
+    audioUrl: string;
+  }> = [];
 
   for (const rssEp of sortedEpisodes) {
     // slugを生成
@@ -210,9 +257,9 @@ importRoutes.post("/rss", async (c) => {
       title: rssEp.title,
       description: rssEp.description,
       duration: rssEp.duration,
-      fileSize: 0,
+      fileSize: rssEp.fileSize,
       audioUrl: "",
-      sourceAudioUrl: rssEp.audioUrl,
+      sourceAudioUrl: importAudio ? null : rssEp.audioUrl, // コピーする場合はsourceAudioUrlは不要
       transcriptUrl: null,
       ogImageUrl: null,
       skipTranscription: true,
@@ -226,7 +273,7 @@ importRoutes.post("/rss", async (c) => {
       referenceLinks: [],
     };
 
-    episodesToSave.push(meta);
+    episodesToSave.push({ meta, audioUrl: rssEp.audioUrl });
     existingSlugs.add(slug);
 
     // インデックスに追加
@@ -245,7 +292,19 @@ importRoutes.post("/rss", async (c) => {
   const BATCH_SIZE = 10;
   for (let i = 0; i < episodesToSave.length; i += BATCH_SIZE) {
     const batch = episodesToSave.slice(i, i + BATCH_SIZE);
-    await Promise.all(batch.map((meta) => saveEpisodeMeta(c.env, meta)));
+    await Promise.all(
+      batch.map(async ({ meta, audioUrl }) => {
+        // オーディオをコピーする場合
+        if (importAudio) {
+          const result = await downloadAndSaveAudio(c.env, meta.id, audioUrl);
+          if (result) {
+            meta.audioUrl = result.audioUrl;
+            meta.fileSize = result.size;
+          }
+        }
+        await saveEpisodeMeta(c.env, meta);
+      })
+    );
   }
 
   // インデックスを保存
@@ -262,6 +321,7 @@ importRoutes.post("/rss", async (c) => {
 
 /**
  * RSSフィードをプレビュー（インポートせずに内容を確認）
+ * ドライラン機能: slug生成、ファイルサイズ、既存重複チェックを含む
  */
 importRoutes.post("/rss/preview", async (c) => {
   const body = await c.req.json<{ rssUrl: string }>();
@@ -286,14 +346,48 @@ importRoutes.post("/rss/preview", async (c) => {
   const episodes = parseRssXml(rssXml);
   const podcastMeta = parsePodcastMeta(rssXml);
 
-  return c.json({
-    podcast: podcastMeta,
-    episodeCount: episodes.length,
-    episodes: episodes.map((ep) => ({
+  // 既存のエピソード一覧を取得してslug重複チェック用のSetを作成
+  const index = await getIndex(c.env);
+  const existingSlugs = new Set(index.episodes.map((ep) => ep.id));
+
+  // 合計ファイルサイズを計算
+  const totalFileSize = episodes.reduce((sum, ep) => sum + ep.fileSize, 0);
+
+  // 各エピソードのslugを生成し、重複をチェック
+  const slugSet = new Set<string>();
+  const episodesWithSlug = episodes.map((ep) => {
+    let slug = generateSlug(ep.title);
+
+    // 重複を避けるためにサフィックスを追加
+    const originalSlug = slug;
+    let suffix = 1;
+    while (existingSlugs.has(slug) || slugSet.has(slug)) {
+      slug = `${originalSlug}-${suffix}`;
+      suffix++;
+      if (suffix > 100) break;
+    }
+
+    // 既存のslugと衝突しているかどうか
+    const hasConflict = existingSlugs.has(originalSlug);
+
+    slugSet.add(slug);
+
+    return {
       title: ep.title,
       pubDate: ep.pubDate,
       duration: ep.duration,
+      fileSize: ep.fileSize,
       hasAudio: !!ep.audioUrl,
-    })),
+      slug,
+      originalSlug,
+      hasConflict,
+    };
+  });
+
+  return c.json({
+    podcast: podcastMeta,
+    episodeCount: episodes.length,
+    totalFileSize,
+    episodes: episodesWithSlug,
   });
 });
