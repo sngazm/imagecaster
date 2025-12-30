@@ -6,7 +6,6 @@ import { HtmlEditor } from "../components/HtmlEditor";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { BlueskyPostEditor } from "../components/BlueskyPostEditor";
 import { ReferenceLinksEditor } from "../components/ReferenceLinksEditor";
-import { EnvironmentBadge } from "../components/EnvironmentBadge";
 import { getWebsiteUrl } from "../lib/env";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
@@ -260,15 +259,12 @@ export default function EpisodeDetail() {
   return (
     <div className="max-w-6xl mx-auto px-6 py-10">
       <header className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <Link to="/" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            戻る
-          </Link>
-          <EnvironmentBadge />
-        </div>
+        <Link to="/" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-4">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          戻る
+        </Link>
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             {isEditing ? (
