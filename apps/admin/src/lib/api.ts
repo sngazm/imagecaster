@@ -93,11 +93,16 @@ export interface RssPreviewResponse {
     category: string;
   };
   episodeCount: number;
+  totalFileSize: number;
   episodes: Array<{
     title: string;
     pubDate: string;
     duration: number;
+    fileSize: number;
     hasAudio: boolean;
+    slug: string;
+    originalSlug: string;
+    hasConflict: boolean;
   }>;
 }
 
@@ -314,10 +319,10 @@ export const api = {
       body: JSON.stringify({ rssUrl }),
     }),
 
-  importRss: (rssUrl: string) =>
+  importRss: (rssUrl: string, importAudio: boolean = false) =>
     request<RssImportResponse>("/api/import/rss", {
       method: "POST",
-      body: JSON.stringify({ rssUrl }),
+      body: JSON.stringify({ rssUrl, importAudio }),
     }),
 
   // Deployments

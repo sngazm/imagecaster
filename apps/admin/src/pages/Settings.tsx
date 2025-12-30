@@ -60,6 +60,7 @@ export default function Settings() {
   // RSS Import
   const [rssUrl, setRssUrl] = useState("");
   const [importing, setImporting] = useState(false);
+  const [importAudio, setImportAudio] = useState(false);
   const [importPreview, setImportPreview] = useState<Awaited<
     ReturnType<typeof api.previewRssImport>
   > | null>(null);
@@ -264,11 +265,20 @@ export default function Settings() {
   async function handleImportRss() {
     if (!rssUrl.trim()) return;
 
+    // 重複があるエピソードをスキップ確認
+    const conflictCount = importPreview?.episodes.filter((ep) => ep.hasConflict).length ?? 0;
+    if (conflictCount > 0) {
+      const confirmed = window.confirm(
+        `${conflictCount}件のエピソードでslugが既存と重複しています。\n重複したエピソードはサフィックス付きのslugでインポートされます。\n\n続行しますか？`
+      );
+      if (!confirmed) return;
+    }
+
     setImporting(true);
     setError(null);
 
     try {
-      const result = await api.importRss(rssUrl);
+      const result = await api.importRss(rssUrl, importAudio);
       setImportResult(result);
       setImportPreview(null);
       setSuccess(`${result.imported}件のエピソードをインポートしました`);
@@ -748,10 +758,9 @@ export default function Settings() {
             <h2 className="text-lg font-semibold mb-4">RSSフィードからインポート</h2>
             <p className="text-sm text-zinc-400 mb-4">
               既存のポッドキャストのRSSフィードURLを入力してエピソードをインポートします。
-              音声ファイルはダウンロードせず、外部URLへの参照として保存されます。
             </p>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 mb-4">
               <input
                 type="url"
                 value={rssUrl}
@@ -767,6 +776,21 @@ export default function Settings() {
                 {importing ? "読み込み中..." : "プレビュー"}
               </button>
             </div>
+
+            <label className="flex items-center gap-2 text-sm text-zinc-400">
+              <input
+                type="checkbox"
+                checked={importAudio}
+                onChange={(e) => setImportAudio(e.target.checked)}
+                className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-violet-600 focus:ring-violet-500"
+              />
+              <span>オーディオファイルをコピーする（R2にダウンロード保存）</span>
+            </label>
+            {!importAudio && (
+              <p className="text-xs text-zinc-500 mt-1 ml-6">
+                チェックしない場合、音声は外部URLへの参照として保存されます
+              </p>
+            )}
           </div>
 
           {/* Preview */}
@@ -777,34 +801,78 @@ export default function Settings() {
                   <h3 className="text-lg font-semibold">{importPreview.podcast.title}</h3>
                   <p className="text-sm text-zinc-400">{importPreview.podcast.author}</p>
                 </div>
-                <span className="px-3 py-1 bg-violet-500/20 text-violet-400 rounded-full text-sm">
-                  {importPreview.episodeCount}件
-                </span>
+                <div className="flex flex-col items-end gap-1">
+                  <span className="px-3 py-1 bg-violet-500/20 text-violet-400 rounded-full text-sm">
+                    {importPreview.episodeCount}件
+                  </span>
+                  <span className="text-xs text-zinc-500">
+                    合計: {(importPreview.totalFileSize / 1024 / 1024).toFixed(1)} MB
+                  </span>
+                </div>
               </div>
 
               <p className="text-sm text-zinc-500 mb-4 line-clamp-2">
                 {importPreview.podcast.description}
               </p>
 
+              {/* 重複警告 */}
+              {importPreview.episodes.some((ep) => ep.hasConflict) && (
+                <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                  <p className="text-sm text-red-400">
+                    {importPreview.episodes.filter((ep) => ep.hasConflict).length}
+                    件のエピソードでslugが既存と重複しています（赤字で表示）
+                  </p>
+                </div>
+              )}
+
               <div className="border-t border-zinc-800 pt-4 mb-4">
                 <h4 className="text-sm font-medium mb-2">エピソード一覧</h4>
-                <div className="max-h-60 overflow-y-auto space-y-2">
-                  {importPreview.episodes.slice(0, 20).map((ep, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center justify-between text-sm py-2 border-b border-zinc-800 last:border-0"
-                    >
-                      <div>
-                        <span>{ep.title}</span>
-                      </div>
-                      <span className="text-zinc-500">{new Date(ep.pubDate).toLocaleDateString()}</span>
-                    </div>
-                  ))}
-                  {importPreview.episodes.length > 20 && (
-                    <p className="text-center text-zinc-500 py-2">
-                      他 {importPreview.episodes.length - 20} 件
-                    </p>
-                  )}
+                <div className="max-h-80 overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="text-zinc-500 text-left">
+                      <tr>
+                        <th className="pb-2 pr-4">タイトル</th>
+                        <th className="pb-2 pr-4 w-24">Slug</th>
+                        <th className="pb-2 pr-4 w-20 text-right">サイズ</th>
+                        <th className="pb-2 w-24 text-right">公開日</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800">
+                      {importPreview.episodes.map((ep, i) => (
+                        <tr
+                          key={i}
+                          className={ep.hasConflict ? "text-red-400" : ""}
+                        >
+                          <td className="py-2 pr-4">
+                            <div className="flex items-center gap-2">
+                              {ep.hasConflict && (
+                                <span title="slugが既存と重複">⚠</span>
+                              )}
+                              <span className="line-clamp-1">{ep.title}</span>
+                            </div>
+                          </td>
+                          <td className="py-2 pr-4 font-mono text-xs">
+                            {ep.hasConflict ? (
+                              <span>
+                                <del className="text-red-400/50">{ep.originalSlug}</del>
+                                <br />→ {ep.slug}
+                              </span>
+                            ) : (
+                              ep.slug
+                            )}
+                          </td>
+                          <td className="py-2 pr-4 text-right text-zinc-500">
+                            {ep.fileSize > 0
+                              ? `${(ep.fileSize / 1024 / 1024).toFixed(1)} MB`
+                              : "-"}
+                          </td>
+                          <td className="py-2 text-right text-zinc-500">
+                            {new Date(ep.pubDate).toLocaleDateString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
@@ -813,7 +881,11 @@ export default function Settings() {
                 disabled={importing}
                 className="w-full px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg font-medium disabled:opacity-50"
               >
-                {importing ? "インポート中..." : "インポートを実行"}
+                {importing
+                  ? importAudio
+                    ? "インポート中（オーディオをダウンロード中...）"
+                    : "インポート中..."
+                  : `${importPreview.episodeCount}件をインポート`}
               </button>
             </div>
           )}
