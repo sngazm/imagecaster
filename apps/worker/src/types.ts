@@ -189,6 +189,7 @@ export interface DescriptionTemplate {
   id: string;
   name: string;
   content: string;
+  isDefault: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -206,6 +207,7 @@ export interface TemplatesIndex {
 export interface TemplateRequest {
   name: string;
   content: string;
+  isDefault?: boolean;
 }
 
 /**

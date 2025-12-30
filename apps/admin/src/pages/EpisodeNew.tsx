@@ -33,7 +33,14 @@ export default function EpisodeNew() {
   const [ogImagePreview, setOgImagePreview] = useState<string | null>(null);
 
   useEffect(() => {
-    api.getTemplates().then(setTemplates).catch(console.error);
+    api.getTemplates().then((loadedTemplates) => {
+      setTemplates(loadedTemplates);
+      // デフォルトテンプレートがあれば自動的に適用
+      const defaultTemplate = loadedTemplates.find((t) => t.isDefault);
+      if (defaultTemplate) {
+        setDescription(defaultTemplate.content);
+      }
+    }).catch(console.error);
   }, []);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {

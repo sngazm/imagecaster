@@ -226,6 +226,23 @@ export default function Settings() {
     }
   }
 
+  async function handleSetDefaultTemplate(id: string) {
+    try {
+      const updated = await api.updateTemplate(id, { isDefault: true });
+      // 他のテンプレートのisDefaultをfalseに更新
+      setTemplates((prev) =>
+        prev.map((t) => ({
+          ...t,
+          isDefault: t.id === updated.id,
+        }))
+      );
+      setSuccess("デフォルトテンプレートを設定しました");
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to set default template");
+    }
+  }
+
   async function handlePreviewRss() {
     if (!rssUrl.trim()) return;
 
@@ -643,12 +660,30 @@ export default function Settings() {
                 ) : (
                   <div className="flex items-start justify-between">
                     <div>
-                      <h3 className="font-medium">{template.name}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-medium">{template.name}</h3>
+                        {template.isDefault && (
+                          <span className="px-2 py-0.5 bg-violet-500/20 text-violet-400 rounded text-xs font-medium">
+                            デフォルト
+                          </span>
+                        )}
+                      </div>
                       <p className="text-sm text-zinc-500 mt-1 line-clamp-2">
                         {template.content.replace(/<[^>]*>/g, "").slice(0, 100)}...
                       </p>
                     </div>
                     <div className="flex gap-2">
+                      {!template.isDefault && (
+                        <button
+                          onClick={() => handleSetDefaultTemplate(template.id)}
+                          className="p-2 text-zinc-400 hover:text-violet-400 hover:bg-zinc-800 rounded-lg transition-colors"
+                          title="デフォルトに設定"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                          </svg>
+                        </button>
+                      )}
                       <button
                         onClick={() => setEditingTemplate(template)}
                         className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
