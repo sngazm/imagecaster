@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { api, type Deployment } from "../lib/api";
 import { getWebsiteUrl, getEnvironment } from "../lib/env";
 
@@ -109,11 +109,7 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
     : undefined;
 
   // 環境に応じたwebサイトURLを計算
-  const displayWebsiteUrl = useMemo(() => {
-    if (!websiteUrl) return undefined;
-    return getWebsiteUrl(websiteUrl);
-  }, [websiteUrl]);
-
+  const displayWebsiteUrl = websiteUrl ? getWebsiteUrl(websiteUrl) : undefined;
   const env = getEnvironment();
 
   return (

@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { api, Episode } from "../lib/api";
 import { BuildStatus } from "../components/BuildStatus";
-import { EnvironmentBadge } from "../components/EnvironmentBadge";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   draft: { label: "下書き", color: "bg-zinc-800 text-zinc-400" },
@@ -48,12 +47,9 @@ export default function EpisodeList() {
   }, []);
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-10">
+    <div className="max-w-4xl mx-auto px-6 py-10 pt-14">
       <header className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold tracking-tight">エピソード</h1>
-          <EnvironmentBadge />
-        </div>
+        <h1 className="text-2xl font-bold tracking-tight">エピソード</h1>
         <div className="flex items-center gap-3">
           <BuildStatus />
           <Link
