@@ -1,8 +1,49 @@
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEditor, EditorContent, Extension } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { useState, useEffect, useCallback } from "react";
+
+// プレースホルダータグをハイライト表示する拡張
+const PlaceholderHighlight = Extension.create({
+  name: "placeholderHighlight",
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey("placeholderHighlight"),
+        props: {
+          decorations(state) {
+            const decorations: Decoration[] = [];
+            const doc = state.doc;
+
+            doc.descendants((node, pos) => {
+              if (node.isText && node.text) {
+                const regex = /\{\{[A-Z_]+\}\}/g;
+                let match;
+                while ((match = regex.exec(node.text)) !== null) {
+                  decorations.push(
+                    Decoration.inline(
+                      pos + match.index,
+                      pos + match.index + match[0].length,
+                      {
+                        class: "placeholder-tag",
+                      }
+                    )
+                  );
+                }
+              }
+            });
+
+            return DecorationSet.create(doc, decorations);
+          },
+        },
+      }),
+    ];
+  },
+});
 
 // HTML整形ユーティリティ: インデントと改行を追加
 function formatHtml(html: string): string {
@@ -70,7 +111,7 @@ export function HtmlEditor({
   onChange,
   placeholder = "エピソードの説明を入力...",
 }: HtmlEditorProps) {
-  const [mode, setMode] = useState<"visual" | "html" | "preview">("visual");
+  const [mode, setMode] = useState<"visual" | "html">("visual");
   const [htmlSource, setHtmlSource] = useState(value);
 
   const editor = useEditor({
@@ -85,6 +126,7 @@ export function HtmlEditor({
       Placeholder.configure({
         placeholder,
       }),
+      PlaceholderHighlight,
     ],
     content: value,
     onUpdate: ({ editor }) => {
@@ -195,17 +237,6 @@ export function HtmlEditor({
           >
             HTML
           </button>
-          <button
-            type="button"
-            onClick={() => setMode("preview")}
-            className={`px-3 py-1 text-xs font-medium transition-colors ${
-              mode === "preview"
-                ? "bg-violet-600 text-white"
-                : "bg-zinc-800 text-zinc-400 hover:text-white"
-            }`}
-          >
-            プレビュー
-          </button>
         </div>
 
         {mode === "visual" && (
@@ -312,7 +343,7 @@ export function HtmlEditor({
         {mode === "visual" && (
           <EditorContent
             editor={editor}
-            className="prose prose-invert prose-sm max-w-none p-4 min-h-[200px] focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[168px] [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-zinc-600 [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)] [&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none [&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0"
+            className="prose prose-invert prose-sm max-w-none p-4 min-h-[200px] focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[168px] [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-zinc-600 [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)] [&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none [&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0 [&_.placeholder-tag]:bg-violet-500/30 [&_.placeholder-tag]:text-violet-300 [&_.placeholder-tag]:px-1.5 [&_.placeholder-tag]:py-0.5 [&_.placeholder-tag]:rounded [&_.placeholder-tag]:font-mono [&_.placeholder-tag]:text-xs [&_.placeholder-tag]:border [&_.placeholder-tag]:border-violet-500/50"
           />
         )}
         {mode === "html" && (
@@ -321,12 +352,6 @@ export function HtmlEditor({
             onChange={(e) => handleHtmlChange(e.target.value)}
             className="w-full min-h-[200px] p-4 bg-transparent text-zinc-100 font-mono text-sm resize-y focus:outline-none"
             spellCheck={false}
-          />
-        )}
-        {mode === "preview" && (
-          <div
-            className="prose prose-invert prose-sm max-w-none p-4 min-h-[200px]"
-            dangerouslySetInnerHTML={{ __html: htmlSource }}
           />
         )}
       </div>
