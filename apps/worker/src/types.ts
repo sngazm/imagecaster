@@ -78,6 +78,7 @@ export interface EpisodeMeta {
   fileSize: number;
   audioUrl: string;
   sourceAudioUrl: string | null; // 外部参照の音声URL（インポート時）
+  sourceGuid: string | null; // RSSのGUID（差分インポート用）
   transcriptUrl: string | null;
   ogImageUrl: string | null; // OGP画像URL
   skipTranscription: boolean;
