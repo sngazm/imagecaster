@@ -3,11 +3,13 @@ import EpisodeList from "./pages/EpisodeList";
 import EpisodeNew from "./pages/EpisodeNew";
 import EpisodeDetail from "./pages/EpisodeDetail";
 import Settings from "./pages/Settings";
+import { EnvironmentBadge } from "./components/EnvironmentBadge";
 
 export default function App() {
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-zinc-950 text-zinc-100">
+        <EnvironmentBadge />
         <Routes>
           <Route path="/" element={<EpisodeList />} />
           <Route path="/new" element={<EpisodeNew />} />
