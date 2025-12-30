@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { api, type Deployment } from "../lib/api";
+import { getWebsiteUrl, getEnvironment } from "../lib/env";
 
 const STAGE_CONFIG: Record<string, { label: string; color: string }> = {
   queued: { label: "待機中", color: "text-zinc-400 bg-zinc-800" },
@@ -107,6 +108,14 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
     ? `https://dash.cloudflare.com/${accountId}/pages/view/${projectName}`
     : undefined;
 
+  // 環境に応じたwebサイトURLを計算
+  const displayWebsiteUrl = useMemo(() => {
+    if (!websiteUrl) return undefined;
+    return getWebsiteUrl(websiteUrl);
+  }, [websiteUrl]);
+
+  const env = getEnvironment();
+
   return (
     <div className={`relative ${className}`}>
       <button
@@ -131,14 +140,14 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
             <div className="p-3 border-b border-zinc-700">
               <h3 className="font-medium text-zinc-100">Web サイトのビルド状況</h3>
               <div className="flex gap-3 mt-2">
-                {websiteUrl && (
+                {displayWebsiteUrl && (
                   <a
-                    href={websiteUrl}
+                    href={displayWebsiteUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-violet-400 hover:underline"
                   >
-                    サイトを開く →
+                    サイトを開く{env === "preview" ? " (プレビュー)" : ""} →
                   </a>
                 )}
                 {dashboardUrl && (
