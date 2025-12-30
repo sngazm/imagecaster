@@ -142,6 +142,8 @@ export function generateFeed(
     .map((ep) => generateEpisodeItem(ep, podcast.websiteUrl))
     .join("\n");
 
+  const lastBuildDate = toRFC2822(new Date().toISOString());
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"
      xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
@@ -152,6 +154,7 @@ export function generateFeed(
     <link>${escapeXml(podcast.websiteUrl)}</link>
     <description>${escapeXml(podcast.description)}</description>
     <language>${podcast.language}</language>
+    <lastBuildDate>${lastBuildDate}</lastBuildDate>
     <itunes:author>${escapeXml(podcast.author)}</itunes:author>
     <itunes:image href="${escapeXml(podcast.artworkUrl)}"/>
     <itunes:category text="${escapeXml(podcast.category)}"/>
