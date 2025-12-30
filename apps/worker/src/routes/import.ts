@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Env, ImportRssRequest, ImportRssResponse, EpisodeMeta } from "../types";
-import { getIndex, saveIndex, saveEpisodeMeta, saveAudioFile } from "../services/r2";
+import { getIndex, saveIndex, saveEpisodeMeta, saveAudioFile, getEpisodeMeta } from "../services/r2";
 
 export const importRoutes = new Hono<{ Bindings: Env }>();
 
@@ -179,6 +179,59 @@ async function downloadAndSaveAudio(
 }
 
 /**
+ * 既存エピソードのGUIDとAudioURLを取得（差分インポート用）
+ */
+async function getExistingIdentifiers(
+  env: Env,
+  episodeIds: string[]
+): Promise<{ guids: Set<string>; audioUrls: Set<string> }> {
+  const guids = new Set<string>();
+  const audioUrls = new Set<string>();
+
+  // バッチで取得
+  const BATCH_SIZE = 10;
+  for (let i = 0; i < episodeIds.length; i += BATCH_SIZE) {
+    const batch = episodeIds.slice(i, i + BATCH_SIZE);
+    const metas = await Promise.all(
+      batch.map(async (id) => {
+        try {
+          return await getEpisodeMeta(env, id);
+        } catch {
+          return null;
+        }
+      })
+    );
+
+    for (const meta of metas) {
+      if (!meta) continue;
+      if (meta.sourceGuid) guids.add(meta.sourceGuid);
+      if (meta.sourceAudioUrl) audioUrls.add(meta.sourceAudioUrl);
+    }
+  }
+
+  return { guids, audioUrls };
+}
+
+/**
+ * RSSエピソードが既にインポート済みかチェック
+ */
+function isAlreadyImported(
+  rssEp: { guid: string; audioUrl: string },
+  existingGuids: Set<string>,
+  existingAudioUrls: Set<string>
+): boolean {
+  // GUIDで照合（優先）
+  if (rssEp.guid && existingGuids.has(rssEp.guid)) {
+    return true;
+  }
+  // AudioURLでフォールバック照合
+  if (rssEp.audioUrl && existingAudioUrls.has(rssEp.audioUrl)) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * RSSフィードをインポート
  */
 importRoutes.post("/rss", async (c) => {
@@ -213,6 +266,10 @@ importRoutes.post("/rss", async (c) => {
   // 既存のslug一覧を作成（高速チェック用）
   const existingSlugs = new Set(index.episodes.map((ep) => ep.id));
 
+  // 既存エピソードのGUIDとAudioURLを取得（差分インポート用）
+  const { guids: existingGuids, audioUrls: existingAudioUrls } =
+    await getExistingIdentifiers(c.env, index.episodes.map((ep) => ep.id));
+
   // エピソードを古い順に処理（pubDateでソート）
   const sortedEpisodes = [...rssEpisodes].sort((a, b) =>
     new Date(a.pubDate).getTime() - new Date(b.pubDate).getTime()
@@ -225,6 +282,18 @@ importRoutes.post("/rss", async (c) => {
   }> = [];
 
   for (const rssEp of sortedEpisodes) {
+    // 既にインポート済みの場合はスキップ
+    if (isAlreadyImported(rssEp, existingGuids, existingAudioUrls)) {
+      results.push({
+        title: rssEp.title,
+        slug: "",
+        status: "skipped",
+        reason: "Already imported",
+      });
+      skipped++;
+      continue;
+    }
+
     // slugを生成
     let slug = generateSlug(rssEp.title);
 
@@ -259,7 +328,8 @@ importRoutes.post("/rss", async (c) => {
       duration: rssEp.duration,
       fileSize: rssEp.fileSize,
       audioUrl: "",
-      sourceAudioUrl: importAudio ? null : rssEp.audioUrl, // コピーする場合はsourceAudioUrlは不要
+      sourceAudioUrl: importAudio ? null : rssEp.audioUrl,
+      sourceGuid: rssEp.guid || null, // GUIDを保存（差分インポート用）
       transcriptUrl: null,
       ogImageUrl: null,
       skipTranscription: true,
@@ -275,6 +345,10 @@ importRoutes.post("/rss", async (c) => {
 
     episodesToSave.push({ meta, audioUrl: rssEp.audioUrl });
     existingSlugs.add(slug);
+
+    // 新しいGUID/AudioURLをセットに追加（同一RSS内の重複防止）
+    if (rssEp.guid) existingGuids.add(rssEp.guid);
+    if (rssEp.audioUrl) existingAudioUrls.add(rssEp.audioUrl);
 
     // インデックスに追加
     index.episodes.push({ id: slug });
@@ -321,7 +395,7 @@ importRoutes.post("/rss", async (c) => {
 
 /**
  * RSSフィードをプレビュー（インポートせずに内容を確認）
- * ドライラン機能: slug生成、ファイルサイズ、既存重複チェックを含む
+ * ドライラン機能: slug生成、ファイルサイズ、既存重複チェック、差分インポート検出を含む
  */
 importRoutes.post("/rss/preview", async (c) => {
   const body = await c.req.json<{ rssUrl: string }>();
@@ -346,31 +420,47 @@ importRoutes.post("/rss/preview", async (c) => {
   const episodes = parseRssXml(rssXml);
   const podcastMeta = parsePodcastMeta(rssXml);
 
-  // 既存のエピソード一覧を取得してslug重複チェック用のSetを作成
+  // 既存のエピソード一覧を取得
   const index = await getIndex(c.env);
   const existingSlugs = new Set(index.episodes.map((ep) => ep.id));
 
-  // 合計ファイルサイズを計算
-  const totalFileSize = episodes.reduce((sum, ep) => sum + ep.fileSize, 0);
+  // 既存エピソードのGUIDとAudioURLを取得（差分インポート用）
+  const { guids: existingGuids, audioUrls: existingAudioUrls } =
+    await getExistingIdentifiers(c.env, index.episodes.map((ep) => ep.id));
 
-  // 各エピソードのslugを生成し、重複をチェック
+  // 合計ファイルサイズを計算（インポート済みを除く）
+  let totalFileSize = 0;
+  let newEpisodeCount = 0;
+
+  // 各エピソードのslugを生成し、重複・インポート済みをチェック
   const slugSet = new Set<string>();
   const episodesWithSlug = episodes.map((ep) => {
-    let slug = generateSlug(ep.title);
+    // インポート済みかチェック
+    const alreadyImported = isAlreadyImported(ep, existingGuids, existingAudioUrls);
 
-    // 重複を避けるためにサフィックスを追加
-    const originalSlug = slug;
-    let suffix = 1;
-    while (existingSlugs.has(slug) || slugSet.has(slug)) {
-      slug = `${originalSlug}-${suffix}`;
-      suffix++;
-      if (suffix > 100) break;
+    let slug = "";
+    let originalSlug = "";
+    let hasConflict = false;
+
+    if (!alreadyImported) {
+      slug = generateSlug(ep.title);
+      originalSlug = slug;
+
+      // 重複を避けるためにサフィックスを追加
+      let suffix = 1;
+      while (existingSlugs.has(slug) || slugSet.has(slug)) {
+        slug = `${originalSlug}-${suffix}`;
+        suffix++;
+        if (suffix > 100) break;
+      }
+
+      // 既存のslugと衝突しているかどうか
+      hasConflict = existingSlugs.has(originalSlug);
+
+      slugSet.add(slug);
+      totalFileSize += ep.fileSize;
+      newEpisodeCount++;
     }
-
-    // 既存のslugと衝突しているかどうか
-    const hasConflict = existingSlugs.has(originalSlug);
-
-    slugSet.add(slug);
 
     return {
       title: ep.title,
@@ -381,12 +471,14 @@ importRoutes.post("/rss/preview", async (c) => {
       slug,
       originalSlug,
       hasConflict,
+      alreadyImported,
     };
   });
 
   return c.json({
     podcast: podcastMeta,
     episodeCount: episodes.length,
+    newEpisodeCount,
     totalFileSize,
     episodes: episodesWithSlug,
   });
