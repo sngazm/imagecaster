@@ -6,6 +6,8 @@ import { HtmlEditor } from "../components/HtmlEditor";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { BlueskyPostEditor } from "../components/BlueskyPostEditor";
 import { ReferenceLinksEditor } from "../components/ReferenceLinksEditor";
+import { EnvironmentBadge } from "../components/EnvironmentBadge";
+import { getWebsiteUrl } from "../lib/env";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   draft: { label: "下書き", color: "bg-zinc-800 text-zinc-400" },
@@ -57,14 +59,18 @@ export default function EpisodeDetail() {
   const [ogImagePreview, setOgImagePreview] = useState<string | null>(null);
   const [uploadingOgImage, setUploadingOgImage] = useState(false);
 
+  // Website URL
+  const [baseWebsiteUrl, setBaseWebsiteUrl] = useState<string>("");
+
   useEffect(() => {
     const fetchData = async () => {
       if (!id) return;
       try {
         setIsLoading(true);
-        const [data, templatesData] = await Promise.all([
+        const [data, templatesData, deploymentsData] = await Promise.all([
           api.getEpisode(id),
           api.getTemplates(),
+          api.getDeployments(),
         ]);
         setEpisode(data);
         setEditTitle(data.title);
@@ -75,6 +81,9 @@ export default function EpisodeDetail() {
         setEditBlueskyPostEnabled(data.blueskyPostEnabled);
         setEditReferenceLinks(data.referenceLinks || []);
         setTemplates(templatesData);
+        if (deploymentsData.websiteUrl) {
+          setBaseWebsiteUrl(deploymentsData.websiteUrl);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "エピソードの取得に失敗しました");
       } finally {
@@ -245,16 +254,21 @@ export default function EpisodeDetail() {
   const status = STATUS_CONFIG[episode.status] || { label: episode.status, color: "bg-zinc-800 text-zinc-400" };
   const audioUrl = episode.audioUrl || episode.sourceAudioUrl;
   const canEditSlug = episode.status === "draft";
+  const episodeWebUrl = baseWebsiteUrl ? getWebsiteUrl(baseWebsiteUrl, episode.slug || episode.id) : null;
+  const canShowWebLink = episode.status === "published" || episode.status === "scheduled";
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-10">
       <header className="mb-8">
-        <Link to="/" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-4">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          戻る
-        </Link>
+        <div className="flex items-center justify-between mb-4">
+          <Link to="/" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            戻る
+          </Link>
+          <EnvironmentBadge />
+        </div>
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             {isEditing ? (
@@ -279,7 +293,22 @@ export default function EpisodeDetail() {
               </div>
             )}
             {!isEditing && (
-              <p className="text-xs text-zinc-500 mt-1 font-mono">{episode.slug || episode.id}</p>
+              <div className="flex items-center gap-3 mt-1">
+                <p className="text-xs text-zinc-500 font-mono">{episode.slug || episode.id}</p>
+                {canShowWebLink && episodeWebUrl && (
+                  <a
+                    href={episodeWebUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    Webで見る
+                  </a>
+                )}
+              </div>
             )}
           </div>
           <span className={`px-3 py-1 rounded-full text-xs font-medium shrink-0 ${status.color}`}>

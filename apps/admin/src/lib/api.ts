@@ -1,4 +1,6 @@
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8787";
+import { getApiBaseUrl } from "./env";
+
+const API_BASE = getApiBaseUrl();
 
 async function request<T>(
   path: string,
