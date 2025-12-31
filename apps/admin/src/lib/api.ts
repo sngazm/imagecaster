@@ -151,6 +151,71 @@ export interface DeploymentsResponse {
   projectName?: string;
 }
 
+// Backup types
+export interface ExportManifest {
+  version: number;
+  exportedAt: string;
+  podcast: {
+    title: string;
+    description: string;
+    author: string;
+    email: string;
+    language: string;
+    category: string;
+    explicit: boolean;
+  };
+  templates: DescriptionTemplate[];
+  episodes: Array<{
+    meta: EpisodeDetail;
+    files: {
+      audio?: { key: string; url: string };
+      transcript?: { key: string; url: string };
+      ogImage?: { key: string; url: string };
+    };
+  }>;
+  assets: {
+    artwork?: { key: string; url: string };
+    ogImage?: { key: string; url: string };
+  };
+}
+
+export interface ImportBackupRequest {
+  podcast: {
+    title: string;
+    description: string;
+    author: string;
+    email: string;
+    language: string;
+    category: string;
+    explicit: boolean;
+  };
+  templates: DescriptionTemplate[];
+  episodes: Array<{
+    meta: EpisodeDetail;
+    hasAudio: boolean;
+    hasTranscript: boolean;
+    hasOgImage: boolean;
+  }>;
+  hasArtwork: boolean;
+  hasOgImage: boolean;
+}
+
+export interface ImportBackupResponse {
+  success: boolean;
+  uploadUrls: {
+    episodes: Array<{
+      id: string;
+      audio?: string;
+      transcript?: string;
+      ogImage?: string;
+    }>;
+    assets: {
+      artwork?: string;
+      ogImage?: string;
+    };
+  };
+}
+
 export interface EpisodesListResponse {
   episodes: Episode[];
 }
@@ -336,6 +401,32 @@ export const api = {
     request<{ title: string }>("/api/fetch-link-title", {
       method: "POST",
       body: JSON.stringify({ url }),
+    }),
+
+  // Backup
+  getExportManifest: () =>
+    request<ExportManifest>("/api/backup/export"),
+
+  importBackup: (data: ImportBackupRequest) =>
+    request<ImportBackupResponse>("/api/backup/import", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  completeBackupImport: (data: {
+    episodes: Array<{
+      id: string;
+      hasAudio: boolean;
+      hasTranscript: boolean;
+      hasOgImage: boolean;
+      status: "draft" | "scheduled" | "published";
+    }>;
+    hasArtwork: boolean;
+    hasOgImage: boolean;
+  }) =>
+    request<{ success: boolean }>("/api/backup/import/complete", {
+      method: "POST",
+      body: JSON.stringify(data),
     }),
 };
 

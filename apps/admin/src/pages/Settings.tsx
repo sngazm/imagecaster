@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
+import JSZip from "jszip";
 import { api, uploadToR2 } from "../lib/api";
-import type { PodcastSettings, DescriptionTemplate } from "../lib/api";
+import type { PodcastSettings, DescriptionTemplate, ExportManifest } from "../lib/api";
 import { HtmlEditor } from "../components/HtmlEditor";
 
 const CATEGORIES = [
@@ -34,7 +35,7 @@ const LANGUAGES = [
 ];
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState<"general" | "templates" | "import" | "danger">("general");
+  const [activeTab, setActiveTab] = useState<"general" | "templates" | "import" | "backup" | "danger">("general");
   const [settings, setSettings] = useState<PodcastSettings | null>(null);
   const [templates, setTemplates] = useState<DescriptionTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,6 +71,13 @@ export default function Settings() {
   // Danger zone
   const [resetting, setResetting] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState("");
+
+  // Backup
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState<{ current: number; total: number } | null>(null);
+  const [importingBackup, setImportingBackup] = useState(false);
+  const [importProgress, setImportProgress] = useState<{ current: number; total: number; phase: string } | null>(null);
+  const backupFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadData();
@@ -303,6 +311,253 @@ export default function Settings() {
     }
   }
 
+  async function handleExportBackup() {
+    setExporting(true);
+    setExportProgress(null);
+    setError(null);
+
+    try {
+      // マニフェストを取得
+      const manifest = await api.getExportManifest();
+
+      const zip = new JSZip();
+
+      // manifest.jsonを追加
+      zip.file("manifest.json", JSON.stringify(manifest, null, 2));
+
+      // ファイル数をカウント
+      let totalFiles = 0;
+      manifest.episodes.forEach((ep) => {
+        if (ep.files.audio) totalFiles++;
+        if (ep.files.transcript) totalFiles++;
+        if (ep.files.ogImage) totalFiles++;
+      });
+      if (manifest.assets.artwork) totalFiles++;
+      if (manifest.assets.ogImage) totalFiles++;
+
+      let downloadedFiles = 0;
+      setExportProgress({ current: 0, total: totalFiles });
+
+      // エピソードファイルをダウンロードしてzipに追加
+      for (const ep of manifest.episodes) {
+        if (ep.files.audio) {
+          const response = await fetch(ep.files.audio.url);
+          const blob = await response.blob();
+          zip.file(ep.files.audio.key, blob);
+          downloadedFiles++;
+          setExportProgress({ current: downloadedFiles, total: totalFiles });
+        }
+        if (ep.files.transcript) {
+          const response = await fetch(ep.files.transcript.url);
+          const blob = await response.blob();
+          zip.file(ep.files.transcript.key, blob);
+          downloadedFiles++;
+          setExportProgress({ current: downloadedFiles, total: totalFiles });
+        }
+        if (ep.files.ogImage) {
+          const response = await fetch(ep.files.ogImage.url);
+          const blob = await response.blob();
+          zip.file(ep.files.ogImage.key, blob);
+          downloadedFiles++;
+          setExportProgress({ current: downloadedFiles, total: totalFiles });
+        }
+      }
+
+      // アセットをダウンロードしてzipに追加
+      if (manifest.assets.artwork) {
+        const response = await fetch(manifest.assets.artwork.url);
+        const blob = await response.blob();
+        zip.file(manifest.assets.artwork.key, blob);
+        downloadedFiles++;
+        setExportProgress({ current: downloadedFiles, total: totalFiles });
+      }
+      if (manifest.assets.ogImage) {
+        const response = await fetch(manifest.assets.ogImage.url);
+        const blob = await response.blob();
+        zip.file(manifest.assets.ogImage.key, blob);
+        downloadedFiles++;
+        setExportProgress({ current: downloadedFiles, total: totalFiles });
+      }
+
+      // zipファイルを生成してダウンロード
+      const content = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(content);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `podcast-backup-${new Date().toISOString().slice(0, 10)}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setSuccess("バックアップをエクスポートしました");
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to export backup");
+    } finally {
+      setExporting(false);
+      setExportProgress(null);
+    }
+  }
+
+  async function handleImportBackup(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportingBackup(true);
+    setImportProgress({ current: 0, total: 0, phase: "zipファイルを読み込み中..." });
+    setError(null);
+
+    try {
+      // zipを展開
+      const zip = await JSZip.loadAsync(file);
+
+      // manifest.jsonを読み込み
+      const manifestFile = zip.file("manifest.json");
+      if (!manifestFile) {
+        throw new Error("manifest.jsonが見つかりません");
+      }
+      const manifestText = await manifestFile.async("text");
+      const manifest: ExportManifest = JSON.parse(manifestText);
+
+      setImportProgress({ current: 0, total: 0, phase: "インポートを準備中..." });
+
+      // インポートリクエストを構築
+      const importRequest = {
+        podcast: manifest.podcast,
+        templates: manifest.templates,
+        episodes: manifest.episodes.map((ep) => ({
+          meta: ep.meta,
+          hasAudio: !!ep.files.audio,
+          hasTranscript: !!ep.files.transcript,
+          hasOgImage: !!ep.files.ogImage,
+        })),
+        hasArtwork: !!manifest.assets.artwork,
+        hasOgImage: !!manifest.assets.ogImage,
+      };
+
+      // インポート開始 - アップロードURLを取得
+      const importResult = await api.importBackup(importRequest);
+
+      // ファイル数をカウント
+      let totalFiles = 0;
+      importResult.uploadUrls.episodes.forEach((ep) => {
+        if (ep.audio) totalFiles++;
+        if (ep.transcript) totalFiles++;
+        if (ep.ogImage) totalFiles++;
+      });
+      if (importResult.uploadUrls.assets.artwork) totalFiles++;
+      if (importResult.uploadUrls.assets.ogImage) totalFiles++;
+
+      let uploadedFiles = 0;
+      setImportProgress({ current: 0, total: totalFiles, phase: "ファイルをアップロード中..." });
+
+      // エピソードファイルをアップロード
+      for (const epUrl of importResult.uploadUrls.episodes) {
+        const epData = manifest.episodes.find((e) => e.meta.id === epUrl.id);
+        if (!epData) continue;
+
+        if (epUrl.audio && epData.files.audio) {
+          const fileData = zip.file(epData.files.audio.key);
+          if (fileData) {
+            const blob = await fileData.async("blob");
+            await fetch(epUrl.audio, {
+              method: "PUT",
+              body: blob,
+              headers: { "Content-Type": "audio/mpeg" },
+            });
+            uploadedFiles++;
+            setImportProgress({ current: uploadedFiles, total: totalFiles, phase: "ファイルをアップロード中..." });
+          }
+        }
+        if (epUrl.transcript && epData.files.transcript) {
+          const fileData = zip.file(epData.files.transcript.key);
+          if (fileData) {
+            const blob = await fileData.async("blob");
+            await fetch(epUrl.transcript, {
+              method: "PUT",
+              body: blob,
+              headers: { "Content-Type": "text/vtt" },
+            });
+            uploadedFiles++;
+            setImportProgress({ current: uploadedFiles, total: totalFiles, phase: "ファイルをアップロード中..." });
+          }
+        }
+        if (epUrl.ogImage && epData.files.ogImage) {
+          const fileData = zip.file(epData.files.ogImage.key);
+          if (fileData) {
+            const blob = await fileData.async("blob");
+            await fetch(epUrl.ogImage, {
+              method: "PUT",
+              body: blob,
+              headers: { "Content-Type": "image/jpeg" },
+            });
+            uploadedFiles++;
+            setImportProgress({ current: uploadedFiles, total: totalFiles, phase: "ファイルをアップロード中..." });
+          }
+        }
+      }
+
+      // アセットをアップロード
+      if (importResult.uploadUrls.assets.artwork && manifest.assets.artwork) {
+        const fileData = zip.file(manifest.assets.artwork.key);
+        if (fileData) {
+          const blob = await fileData.async("blob");
+          await fetch(importResult.uploadUrls.assets.artwork, {
+            method: "PUT",
+            body: blob,
+            headers: { "Content-Type": "image/jpeg" },
+          });
+          uploadedFiles++;
+          setImportProgress({ current: uploadedFiles, total: totalFiles, phase: "ファイルをアップロード中..." });
+        }
+      }
+      if (importResult.uploadUrls.assets.ogImage && manifest.assets.ogImage) {
+        const fileData = zip.file(manifest.assets.ogImage.key);
+        if (fileData) {
+          const blob = await fileData.async("blob");
+          await fetch(importResult.uploadUrls.assets.ogImage, {
+            method: "PUT",
+            body: blob,
+            headers: { "Content-Type": "image/jpeg" },
+          });
+          uploadedFiles++;
+          setImportProgress({ current: uploadedFiles, total: totalFiles, phase: "ファイルをアップロード中..." });
+        }
+      }
+
+      setImportProgress({ current: uploadedFiles, total: totalFiles, phase: "インポートを完了中..." });
+
+      // インポート完了処理
+      await api.completeBackupImport({
+        episodes: manifest.episodes.map((ep) => ({
+          id: ep.meta.id,
+          hasAudio: !!ep.files.audio,
+          hasTranscript: !!ep.files.transcript,
+          hasOgImage: !!ep.files.ogImage,
+          status: ep.meta.status as "draft" | "scheduled" | "published",
+        })),
+        hasArtwork: !!manifest.assets.artwork,
+        hasOgImage: !!manifest.assets.ogImage,
+      });
+
+      setSuccess(`${manifest.episodes.length}件のエピソードをインポートしました`);
+      setTimeout(() => setSuccess(null), 5000);
+
+      // データをリロード
+      await loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to import backup");
+    } finally {
+      setImportingBackup(false);
+      setImportProgress(null);
+      // ファイル入力をリセット
+      if (backupFileInputRef.current) {
+        backupFileInputRef.current.value = "";
+      }
+    }
+  }
+
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto px-6 py-10">
@@ -371,6 +626,16 @@ export default function Settings() {
           }`}
         >
           RSSインポート
+        </button>
+        <button
+          onClick={() => setActiveTab("backup")}
+          className={`px-4 py-3 text-sm font-medium transition-colors ${
+            activeTab === "backup"
+              ? "text-violet-400 border-b-2 border-violet-400"
+              : "text-zinc-400 hover:text-white"
+          }`}
+        >
+          バックアップ
         </button>
         <button
           onClick={() => setActiveTab("danger")}
@@ -895,6 +1160,112 @@ export default function Settings() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Backup */}
+      {activeTab === "backup" && (
+        <div className="space-y-6">
+          {/* Export */}
+          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
+            <h2 className="text-lg font-semibold mb-4">エクスポート</h2>
+            <p className="text-sm text-zinc-400 mb-4">
+              全てのデータ（設定、エピソード、音声ファイル、文字起こし、画像）をZIPファイルとしてダウンロードします。
+            </p>
+
+            {exportProgress && (
+              <div className="mb-4">
+                <div className="flex justify-between text-sm text-zinc-400 mb-1">
+                  <span>ファイルをダウンロード中...</span>
+                  <span>{exportProgress.current} / {exportProgress.total}</span>
+                </div>
+                <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-violet-500 transition-all duration-300"
+                    style={{ width: `${(exportProgress.current / exportProgress.total) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={handleExportBackup}
+              disabled={exporting}
+              className="px-6 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              {exporting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  エクスポート中...
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  ZIPをダウンロード
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Import */}
+          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
+            <h2 className="text-lg font-semibold mb-4">インポート</h2>
+            <p className="text-sm text-zinc-400 mb-4">
+              エクスポートしたZIPファイルからデータを復元します。
+              既存のエピソードと重複するIDは上書きされます。
+            </p>
+
+            {importProgress && (
+              <div className="mb-4">
+                <div className="flex justify-between text-sm text-zinc-400 mb-1">
+                  <span>{importProgress.phase}</span>
+                  {importProgress.total > 0 && (
+                    <span>{importProgress.current} / {importProgress.total}</span>
+                  )}
+                </div>
+                {importProgress.total > 0 && (
+                  <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-violet-500 transition-all duration-300"
+                      style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            <input
+              ref={backupFileInputRef}
+              type="file"
+              accept=".zip"
+              onChange={handleImportBackup}
+              disabled={importingBackup}
+              className="hidden"
+              id="backup-import"
+            />
+            <label
+              htmlFor="backup-import"
+              className={`inline-flex items-center gap-2 px-6 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg font-medium transition-colors cursor-pointer ${
+                importingBackup ? "opacity-50 cursor-not-allowed" : ""
+              }`}
+            >
+              {importingBackup ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  インポート中...
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
+                  ZIPファイルを選択
+                </>
+              )}
+            </label>
+          </div>
         </div>
       )}
 
