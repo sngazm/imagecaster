@@ -324,6 +324,13 @@ export const api = {
   getDeployments: () =>
     request<DeploymentsResponse>("/api/deployments"),
 
+  // Podcast management
+  resetAllData: () =>
+    request<{ success: boolean; message: string; deletedCount: number }>(
+      "/api/podcast/reset",
+      { method: "DELETE" }
+    ),
+
   // Link title fetch
   fetchLinkTitle: (url: string) =>
     request<{ title: string }>("/api/fetch-link-title", {

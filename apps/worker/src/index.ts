@@ -8,6 +8,7 @@ import { settings } from "./routes/settings";
 import { templates } from "./routes/templates";
 import { importRoutes } from "./routes/import";
 import { deployments } from "./routes/deployments";
+import { podcast } from "./routes/podcast";
 import { getIndex, getEpisodeMeta, saveEpisodeMeta } from "./services/r2";
 import { getFeed, regenerateFeed } from "./services/feed";
 import { postEpisodeToBluesky } from "./services/bluesky";
@@ -102,6 +103,9 @@ api.route("/import", importRoutes);
 
 // デプロイ状況確認のルートをマウント
 api.route("/deployments", deployments);
+
+// Podcast 全体管理のルートをマウント
+api.route("/podcast", podcast);
 
 // URLからタイトルを取得（microlink.io API経由）
 api.post("/fetch-link-title", async (c) => {

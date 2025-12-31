@@ -235,6 +235,37 @@ export async function findEpisodeBySlug(env: Env, slug: string): Promise<Episode
 }
 
 /**
+ * R2バケット内の全データを削除
+ */
+export async function deleteAllData(env: Env): Promise<{
+  deletedCount: number;
+  deletedKeys: string[];
+}> {
+  const deletedKeys: string[] = [];
+  let cursor: string | undefined;
+
+  // 全オブジェクトを一覧して削除（ページネーション対応）
+  do {
+    const listed = await env.R2_BUCKET.list({ cursor, limit: 1000 });
+
+    if (listed.objects.length > 0) {
+      const keys = listed.objects.map((obj) => obj.key);
+      deletedKeys.push(...keys);
+
+      // バッチ削除
+      await Promise.all(keys.map((key) => env.R2_BUCKET.delete(key)));
+    }
+
+    cursor = listed.truncated ? listed.cursor : undefined;
+  } while (cursor);
+
+  return {
+    deletedCount: deletedKeys.length,
+    deletedKeys,
+  };
+}
+
+/**
  * エピソードを別のslug（フォルダ）に移動
  */
 export async function moveEpisode(
