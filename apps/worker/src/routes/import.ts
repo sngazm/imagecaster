@@ -242,6 +242,7 @@ importRoutes.post("/rss", async (c) => {
   }
 
   const importAudio = body.importAudio ?? false;
+  const importPodcastSettings = body.importPodcastSettings ?? false;
 
   // RSSフィードを取得
   let rssXml: string;
@@ -257,6 +258,7 @@ importRoutes.post("/rss", async (c) => {
 
   // RSSをパース
   const rssEpisodes = parseRssXml(rssXml);
+  const podcastMeta = parsePodcastMeta(rssXml);
 
   const index = await getIndex(c.env);
   const results: ImportRssResponse["episodes"] = [];
@@ -381,6 +383,19 @@ importRoutes.post("/rss", async (c) => {
     );
   }
 
+  // Podcast設定を上書き
+  if (importPodcastSettings) {
+    index.podcast.title = podcastMeta.title || index.podcast.title;
+    index.podcast.description = podcastMeta.description || index.podcast.description;
+    index.podcast.author = podcastMeta.author || index.podcast.author;
+    index.podcast.language = podcastMeta.language || index.podcast.language;
+    index.podcast.category = podcastMeta.category || index.podcast.category;
+    // アートワークURLは外部URLなのでそのまま設定（後でダウンロードが必要な場合は別途対応）
+    if (podcastMeta.artworkUrl) {
+      index.podcast.artworkUrl = podcastMeta.artworkUrl;
+    }
+  }
+
   // インデックスを保存
   await saveIndex(c.env, index);
 
@@ -475,8 +490,19 @@ importRoutes.post("/rss/preview", async (c) => {
     };
   });
 
+  // 既存のPodcast設定を取得
+  const existingPodcast = {
+    title: index.podcast.title,
+    description: index.podcast.description,
+    author: index.podcast.author,
+    artworkUrl: index.podcast.artworkUrl,
+    language: index.podcast.language,
+    category: index.podcast.category,
+  };
+
   return c.json({
     podcast: podcastMeta,
+    existingPodcast,
     episodeCount: episodes.length,
     newEpisodeCount,
     totalFileSize,

@@ -61,6 +61,7 @@ export default function Settings() {
   const [rssUrl, setRssUrl] = useState("");
   const [importing, setImporting] = useState(false);
   const [importAudio, setImportAudio] = useState(false);
+  const [importPodcastSettings, setImportPodcastSettings] = useState(false);
   const [importPreview, setImportPreview] = useState<Awaited<
     ReturnType<typeof api.previewRssImport>
   > | null>(null);
@@ -278,11 +279,19 @@ export default function Settings() {
     setError(null);
 
     try {
-      const result = await api.importRss(rssUrl, importAudio);
+      const result = await api.importRss(rssUrl, importAudio, importPodcastSettings);
       setImportResult(result);
       setImportPreview(null);
-      setSuccess(`${result.imported}件のエピソードをインポートしました`);
+      let successMsg = `${result.imported}件のエピソードをインポートしました`;
+      if (importPodcastSettings) {
+        successMsg += "（Podcast設定も更新）";
+      }
+      setSuccess(successMsg);
       setTimeout(() => setSuccess(null), 5000);
+      // 設定を再読み込み
+      if (importPodcastSettings) {
+        loadData();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to import RSS");
     } finally {
@@ -791,6 +800,19 @@ export default function Settings() {
                 チェックしない場合、音声は外部URLへの参照として保存されます
               </p>
             )}
+
+            <label className="flex items-center gap-2 text-sm text-zinc-400 mt-3">
+              <input
+                type="checkbox"
+                checked={importPodcastSettings}
+                onChange={(e) => setImportPodcastSettings(e.target.checked)}
+                className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-violet-600 focus:ring-violet-500"
+              />
+              <span>Podcast設定を上書きする</span>
+            </label>
+            <p className="text-xs text-zinc-500 mt-1 ml-6">
+              チェックすると、RSSフィードの番組情報で現在の設定を上書きします
+            </p>
           </div>
 
           {/* Preview */}
@@ -821,6 +843,102 @@ export default function Settings() {
               <p className="text-sm text-zinc-500 mb-4 line-clamp-2">
                 {importPreview.podcast.description}
               </p>
+
+              {/* Podcast設定比較 */}
+              {importPodcastSettings && (
+                <div className="mb-4 p-4 bg-violet-500/10 border border-violet-500/30 rounded-lg">
+                  <h4 className="text-sm font-medium text-violet-400 mb-3">Podcast設定の変更内容</h4>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="text-zinc-500 text-left">
+                        <tr>
+                          <th className="pb-2 pr-4 w-24">項目</th>
+                          <th className="pb-2 pr-4">現在の設定</th>
+                          <th className="pb-2">RSSフィードの値</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-800">
+                        <tr>
+                          <td className="py-2 pr-4 text-zinc-400">番組名</td>
+                          <td className="py-2 pr-4 text-zinc-500 truncate max-w-[200px]">
+                            {importPreview.existingPodcast.title || <span className="text-zinc-600">未設定</span>}
+                          </td>
+                          <td className={`py-2 truncate max-w-[200px] ${
+                            importPreview.podcast.title !== importPreview.existingPodcast.title
+                              ? "text-violet-400"
+                              : "text-zinc-500"
+                          }`}>
+                            {importPreview.podcast.title || <span className="text-zinc-600">-</span>}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 pr-4 text-zinc-400">著者</td>
+                          <td className="py-2 pr-4 text-zinc-500 truncate max-w-[200px]">
+                            {importPreview.existingPodcast.author || <span className="text-zinc-600">未設定</span>}
+                          </td>
+                          <td className={`py-2 truncate max-w-[200px] ${
+                            importPreview.podcast.author !== importPreview.existingPodcast.author
+                              ? "text-violet-400"
+                              : "text-zinc-500"
+                          }`}>
+                            {importPreview.podcast.author || <span className="text-zinc-600">-</span>}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 pr-4 text-zinc-400">言語</td>
+                          <td className="py-2 pr-4 text-zinc-500">
+                            {importPreview.existingPodcast.language || <span className="text-zinc-600">未設定</span>}
+                          </td>
+                          <td className={`py-2 ${
+                            importPreview.podcast.language !== importPreview.existingPodcast.language
+                              ? "text-violet-400"
+                              : "text-zinc-500"
+                          }`}>
+                            {importPreview.podcast.language || <span className="text-zinc-600">-</span>}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 pr-4 text-zinc-400">カテゴリ</td>
+                          <td className="py-2 pr-4 text-zinc-500">
+                            {importPreview.existingPodcast.category || <span className="text-zinc-600">未設定</span>}
+                          </td>
+                          <td className={`py-2 ${
+                            importPreview.podcast.category !== importPreview.existingPodcast.category
+                              ? "text-violet-400"
+                              : "text-zinc-500"
+                          }`}>
+                            {importPreview.podcast.category || <span className="text-zinc-600">-</span>}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 pr-4 text-zinc-400">アートワーク</td>
+                          <td className="py-2 pr-4 text-zinc-500">
+                            {importPreview.existingPodcast.artworkUrl ? (
+                              <span className="text-emerald-400">設定済み</span>
+                            ) : (
+                              <span className="text-zinc-600">未設定</span>
+                            )}
+                          </td>
+                          <td className={`py-2 ${
+                            importPreview.podcast.artworkUrl !== importPreview.existingPodcast.artworkUrl
+                              ? "text-violet-400"
+                              : "text-zinc-500"
+                          }`}>
+                            {importPreview.podcast.artworkUrl ? (
+                              <span>外部URL（上書き）</span>
+                            ) : (
+                              <span className="text-zinc-600">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="text-xs text-zinc-500 mt-3">
+                    ※ 紫色で表示されている項目は現在の設定と異なる値です
+                  </p>
+                </div>
+              )}
 
               {/* 重複警告 */}
               {importPreview.episodes.some((ep) => ep.hasConflict && !ep.alreadyImported) && (
