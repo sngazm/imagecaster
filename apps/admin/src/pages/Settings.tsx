@@ -34,7 +34,7 @@ const LANGUAGES = [
 ];
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState<"general" | "templates" | "import">("general");
+  const [activeTab, setActiveTab] = useState<"general" | "templates" | "import" | "danger">("general");
   const [settings, setSettings] = useState<PodcastSettings | null>(null);
   const [templates, setTemplates] = useState<DescriptionTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,6 +66,10 @@ export default function Settings() {
   const [importResult, setImportResult] = useState<Awaited<
     ReturnType<typeof api.importRss>
   > | null>(null);
+
+  // Danger zone
+  const [resetting, setResetting] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState("");
 
   useEffect(() => {
     loadData();
@@ -280,6 +284,25 @@ export default function Settings() {
     }
   }
 
+  async function handleResetAllData() {
+    if (resetConfirmText !== "削除する") return;
+
+    setResetting(true);
+    setError(null);
+
+    try {
+      const result = await api.resetAllData();
+      setSuccess(`${result.deletedCount}件のファイルを削除しました`);
+      setResetConfirmText("");
+      // 設定をリロード
+      await loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to reset data");
+    } finally {
+      setResetting(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto px-6 py-10">
@@ -348,6 +371,16 @@ export default function Settings() {
           }`}
         >
           RSSインポート
+        </button>
+        <button
+          onClick={() => setActiveTab("danger")}
+          className={`px-4 py-3 text-sm font-medium transition-colors ${
+            activeTab === "danger"
+              ? "text-red-400 border-b-2 border-red-400"
+              : "text-zinc-400 hover:text-red-400"
+          }`}
+        >
+          危険な操作
         </button>
       </div>
 
@@ -862,6 +895,55 @@ export default function Settings() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Danger Zone */}
+      {activeTab === "danger" && (
+        <div className="space-y-6">
+          <div className="border border-red-500/50 bg-red-500/5 rounded-xl p-6">
+            <h2 className="text-lg font-semibold text-red-400 mb-4">
+              全データの削除
+            </h2>
+            <div className="space-y-4">
+              <div className="text-sm text-zinc-400 space-y-2">
+                <p>
+                  この操作を実行すると、R2バケット内の全てのデータが削除されます：
+                </p>
+                <ul className="list-disc list-inside text-zinc-500 space-y-1">
+                  <li>全てのエピソード（音声ファイル、文字起こし、OG画像を含む）</li>
+                  <li>Podcast設定（タイトル、説明、著者など）</li>
+                  <li>アートワークとOGP画像</li>
+                  <li>説明文テンプレート</li>
+                  <li>RSSフィード</li>
+                </ul>
+                <p className="text-red-400 font-medium mt-4">
+                  この操作は取り消せません。
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">
+                  確認のため「削除する」と入力してください
+                </label>
+                <input
+                  type="text"
+                  value={resetConfirmText}
+                  onChange={(e) => setResetConfirmText(e.target.value)}
+                  placeholder="削除する"
+                  className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-500/20 transition-colors"
+                />
+              </div>
+
+              <button
+                onClick={handleResetAllData}
+                disabled={resetting || resetConfirmText !== "削除する"}
+                className="w-full py-3 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/50 hover:border-red-500 font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-500/10 disabled:hover:text-red-400"
+              >
+                {resetting ? "削除中..." : "全データを削除"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
