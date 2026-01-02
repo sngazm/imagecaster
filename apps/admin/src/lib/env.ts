@@ -99,9 +99,10 @@ export function getWebsiteUrl(baseWebUrl: string, slug?: string): string {
 /**
  * 対応するWorker APIのURLを生成
  *
- * プレビュー環境では本番URLのパターンから自動的にプレビューURLを生成
- * 例: https://podcast-worker.imagecast.workers.dev
- *   → https://<branch>-podcast-worker.imagecast.workers.dev
+ * 本番環境: 空文字列（相対パス）を返す
+ *   → Worker が caster.image.club/api/* にルーティングされているため
+ * プレビュー環境: Worker URLを自動生成
+ * ローカル開発: localhost:8787 を返す
  */
 export function getApiBaseUrl(): string {
   const configuredBase = import.meta.env.VITE_API_BASE;
@@ -137,9 +138,15 @@ export function getApiBaseUrl(): string {
         // URLパースに失敗した場合はフォールバック
       }
     }
+
+    // プレビュー環境でもフォールバックがなければconfiguredBaseを使用
+    return configuredBase || "http://localhost:8787";
   }
 
-  return configuredBase || "http://localhost:8787";
+  // 本番環境: 空文字列（相対パス）を返す
+  // Worker が同一ドメインの /api/* にルーティングされているため
+  // 例: fetch("/api/episodes") → caster.image.club/api/episodes
+  return "";
 }
 
 /**
