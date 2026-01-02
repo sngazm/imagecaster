@@ -18,6 +18,9 @@ import { triggerWebRebuild } from "./services/deploy";
 const app = new Hono<{ Bindings: Env }>();
 
 // CORS 設定
+// 注: 本番環境では Worker が同一ドメイン (caster.image.club/api/*) にルーティングされるため、
+//     同一オリジンのリクエストには CORS ヘッダーは不要。
+//     ただし、プレビュー環境やローカル開発ではクロスオリジンになるため CORS 設定を維持。
 const ALLOWED_ORIGINS = [
   "http://localhost:5173",
   "http://localhost:4321",
@@ -28,6 +31,7 @@ app.use(
   "*",
   cors({
     origin: (origin) => {
+      // 同一オリジン（Origin ヘッダーなし）の場合は CORS 不要
       if (!origin) return "";
       // 開発環境 or *.pages.dev or image.club ドメインを許可
       if (
