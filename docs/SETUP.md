@@ -148,21 +148,23 @@ Presigned URL の生成に必要です。
 - JWT 検証が失敗する
 - CORS エラーや 401 エラーが発生する
 
-### ⚠️ 推奨: 同一ドメインのサブドメインを使用
+### ⚠️ 推奨: 同一ドメインで運用（サブディレクトリ構成）
 
-**Admin と Worker は同一ドメインのサブドメインで運用することを強く推奨します。**
+**Admin と Worker は同一ドメインで運用することを強く推奨します。**
+
+Worker の `wrangler.toml` で `routes` を設定することで、Admin Pages のサブディレクトリとして API を配置できます：
 
 ```
-admin.yourdomain.com  → Admin (Cloudflare Pages)
-api.yourdomain.com    → Worker
+admin.yourdomain.com      → Admin (Cloudflare Pages)
+admin.yourdomain.com/api  → Worker（routes 設定で同一ドメインにマウント）
 ```
 
-異なるドメイン（例: `xxx.pages.dev` と `xxx.workers.dev`）で運用すると、サードパーティ Cookie の問題が発生する可能性があります:
-- Chrome シークレットモード、Safari などでサードパーティ Cookie がブロックされる
-- Admin から Worker への API リクエストで認証 Cookie が送信されず CORS エラーになる
-- ブラウザのプライバシー設定強化により、今後さらに問題が発生する可能性がある
+この構成により：
+- サードパーティ Cookie の問題を回避
+- CORS 設定が簡素化（同一オリジン）
+- Admin 側の `VITE_API_BASE` 設定が不要（相対パスで動作）
 
-同一ドメインのサブドメインを使用すれば、Cookie はファーストパーティとして扱われ、この問題を回避できます。
+異なるドメイン（例: `xxx.pages.dev` と `xxx.workers.dev`）で運用すると、サードパーティ Cookie の問題が発生する可能性があります。
 
 ### 1. Zero Trust ダッシュボードにアクセス
 
@@ -379,12 +381,12 @@ pnpm deploy:worker
 ### 2. Admin をデプロイ
 
 ```bash
-# 環境変数を設定（.env.production を作成）
-echo "VITE_API_BASE=https://podcast-worker.your-domain.workers.dev" > apps/admin/.env.production
-
 # デプロイ
 pnpm deploy:admin
 ```
+
+> **Note**: Worker が同一ドメインの `/api/*` にルーティングされている場合、`VITE_API_BASE` の設定は不要です（相対パスで動作）。
+> 別ドメインで運用する場合のみ `.env.production` で `VITE_API_BASE` を設定してください。
 
 ### 3. 本番用バケットの CORS 設定
 

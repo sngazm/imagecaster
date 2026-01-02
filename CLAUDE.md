@@ -202,7 +202,7 @@ podcast-bucket/
 - `CLOUDFLARE_API_TOKEN` - CF API トークン
 
 ### Admin (.env)
-- `VITE_API_BASE` - Worker の URL
+- `VITE_API_BASE` - Worker の URL（本番環境では不要、ローカル開発用）
 
 ## 注意事項
 
