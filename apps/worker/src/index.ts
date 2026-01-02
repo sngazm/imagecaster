@@ -21,6 +21,7 @@ const app = new Hono<{ Bindings: Env }>();
 const ALLOWED_ORIGINS = [
   "http://localhost:5173",
   "http://localhost:4321",
+  "https://caster.image.club",
 ];
 
 app.use(
@@ -28,8 +29,12 @@ app.use(
   cors({
     origin: (origin) => {
       if (!origin) return "";
-      // 開発環境 or *.pages.dev ドメインを許可
-      if (ALLOWED_ORIGINS.includes(origin) || origin.endsWith(".pages.dev")) {
+      // 開発環境 or *.pages.dev or image.club ドメインを許可
+      if (
+        ALLOWED_ORIGINS.includes(origin) ||
+        origin.endsWith(".pages.dev") ||
+        origin.endsWith(".image.club")
+      ) {
         return origin;
       }
       return "";
