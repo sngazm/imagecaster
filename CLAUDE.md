@@ -201,8 +201,8 @@ podcast-bucket/
 - `BLUESKY_PASSWORD` - Blueskyアプリパスワード
 - `CLOUDFLARE_API_TOKEN` - CF API トークン
 
-### Admin (.env)
-- `VITE_API_BASE` - Worker の URL（本番環境では不要、ローカル開発用）
+### Admin
+環境変数は不要（Vite プロキシと Worker routes で自動的に `/api/*` にルーティング）
 
 ## 注意事項
 

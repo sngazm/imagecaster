@@ -148,23 +148,14 @@ Presigned URL の生成に必要です。
 - JWT 検証が失敗する
 - CORS エラーや 401 エラーが発生する
 
-### ⚠️ 推奨: 同一ドメインで運用（サブディレクトリ構成）
+### 同一ドメインで運用（サブディレクトリ構成）
 
-**Admin と Worker は同一ドメインで運用することを強く推奨します。**
-
-Worker の `wrangler.toml` で `routes` を設定することで、Admin Pages のサブディレクトリとして API を配置できます：
+Worker の `wrangler.toml` で `routes` を設定し、Admin Pages のサブディレクトリとして API を配置します：
 
 ```
 admin.yourdomain.com      → Admin (Cloudflare Pages)
 admin.yourdomain.com/api  → Worker（routes 設定で同一ドメインにマウント）
 ```
-
-この構成により：
-- サードパーティ Cookie の問題を回避
-- CORS 設定が簡素化（同一オリジン）
-- Admin 側の `VITE_API_BASE` 設定が不要（相対パスで動作）
-
-異なるドメイン（例: `xxx.pages.dev` と `xxx.workers.dev`）で運用すると、サードパーティ Cookie の問題が発生する可能性があります。
 
 ### 1. Zero Trust ダッシュボードにアクセス
 
@@ -381,12 +372,8 @@ pnpm deploy:worker
 ### 2. Admin をデプロイ
 
 ```bash
-# デプロイ
 pnpm deploy:admin
 ```
-
-> **Note**: Worker が同一ドメインの `/api/*` にルーティングされている場合、`VITE_API_BASE` の設定は不要です（相対パスで動作）。
-> 別ドメインで運用する場合のみ `.env.production` で `VITE_API_BASE` を設定してください。
 
 ### 3. 本番用バケットの CORS 設定
 
@@ -403,22 +390,6 @@ pnpm deploy:admin
 **解決策**:
 1. R2 バケットの CORS 設定を確認（`wrangler r2 bucket cors list podcast-bucket`）
 2. Cloudflare Access で「オリジンへのオプション リクエストをバイパスする」が ON か確認
-3. Worker の CORS 設定で対象オリジンが許可されているか確認
-
-### サードパーティ Cookie ブロックによる CORS エラー
-
-**症状**:
-- Chrome シークレットモードや Safari で `Access to fetch has been blocked by CORS policy` が発生
-- Cloudflare Access のログインページへリダイレクトされる
-- 通常の Chrome では動作するが、シークレットモードでは動作しない
-- ブラウザの DevTools で Cookie を確認すると `CF_AppSession` に「ユーザー設定によりブロックされました」と表示される
-
-**原因**:
-Admin (`*.pages.dev`) と Worker (`*.workers.dev`) が異なるドメインの場合、Worker への Cookie はサードパーティ Cookie として扱われます。Chrome シークレットモードや Safari はデフォルトでサードパーティ Cookie をブロックするため、認証が失敗します。
-
-**解決策**:
-1. **推奨**: Admin と Worker を同一ドメインのサブドメインに移行する（例: `admin.yourdomain.com` と `api.yourdomain.com`）
-2. **暫定対応**: Worker の URL（`https://xxx.workers.dev/health`）に直接アクセスして Cloudflare Access でログインし、Worker ドメインにもファーストパーティ Cookie を設定する（ただし Safari の ITP では 7 日で Cookie が削除される可能性あり）
 
 ### 401 Unauthorized: Missing Access token
 
