@@ -7,3 +7,9 @@
 .prose p:last-child {
   margin-bottom: 0;
 }
+
+/* URLが突き抜けないように折り返す */
+.prose a {
+  overflow-wrap: break-word;
+  word-break: break-all;
+}

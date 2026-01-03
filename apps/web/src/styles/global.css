@@ -7,6 +7,20 @@
   --font-sans: "Inter", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
 }
 
+/* エピソード概要のpタグにマージンを追加（brとの区別を明確にする） */
+.prose p {
+  margin-bottom: 1.25em;
+}
+.prose p:last-child {
+  margin-bottom: 0;
+}
+
+/* URLが突き抜けないように折り返す */
+.prose a {
+  overflow-wrap: break-word;
+  word-break: break-all;
+}
+
 /* ユーティリティ */
 @layer utilities {
   .line-clamp-2 {
