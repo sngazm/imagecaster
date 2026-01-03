@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import type { Env, ImportRssRequest, ImportRssResponse, EpisodeMeta } from "../types";
 import { getIndex, saveIndex, saveEpisodeMeta, saveAudioFile, getEpisodeMeta } from "../services/r2";
+import { regenerateFeed } from "../services/feed";
+import { triggerWebRebuild } from "../services/deploy";
 
 export const importRoutes = new Hono<{ Bindings: Env }>();
 
@@ -398,6 +400,12 @@ importRoutes.post("/rss", async (c) => {
 
   // インデックスを保存
   await saveIndex(c.env, index);
+
+  // エピソードがインポートされた場合はフィードを再生成してWebをリビルド
+  if (imported > 0) {
+    await regenerateFeed(c.env);
+    await triggerWebRebuild(c.env);
+  }
 
   const response: ImportRssResponse = {
     imported,
