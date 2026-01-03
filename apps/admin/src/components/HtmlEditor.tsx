@@ -182,13 +182,27 @@ export function HtmlEditor({
   useEffect(() => {
     if (!editor) return;
 
-    const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+    const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.userAgent);
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      const modifierKey = isMac ? e.metaKey : e.ctrlKey;
-      if (modifierKey && e.key === "k") {
-        e.preventDefault();
-        setLink();
+      // エディタにフォーカスがない場合は何もしない
+      if (!editor.isFocused) return;
+
+      // macOS: Cmd+K のみ、Ctrl+K は無視（行末削除のため）
+      // Windows/Linux: Ctrl+K
+      if (e.key === "k") {
+        if (isMac) {
+          if (e.metaKey && !e.ctrlKey) {
+            e.preventDefault();
+            setLink();
+          }
+          // Ctrl+K は何もしない（行末削除をOSに任せる）
+        } else {
+          if (e.ctrlKey) {
+            e.preventDefault();
+            setLink();
+          }
+        }
       }
     };
 
