@@ -122,7 +122,7 @@ function generateEpisodeItem(episode: EpisodeMeta, websiteUrl: string): string {
         url="${escapeXml(audioUrl)}"
         length="${episode.fileSize}"
         type="audio/mpeg"/>
-      <guid isPermaLink="false">${episode.slug || episode.id}</guid>
+      <guid isPermaLink="false">${episode.sourceGuid || episode.slug || episode.id}</guid>
       <pubDate>${toRFC2822(episode.publishedAt!)}</pubDate>
       <itunes:duration>${formatDuration(episode.duration)}</itunes:duration>
       <itunes:explicit>false</itunes:explicit>${transcriptTag}
