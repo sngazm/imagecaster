@@ -5,9 +5,8 @@ import SubscribeSection from "../../components/SubscribeSection.astro";
 import Pagination from "../../components/Pagination.astro";
 import { getPublishedEpisodes, getPodcastIndex } from "../../lib/api";
 
-const EPISODES_PER_PAGE = 10;
-
 export async function getStaticPaths() {
+  const EPISODES_PER_PAGE = 10;
   const allEpisodes = await getPublishedEpisodes();
   const totalPages = Math.ceil(allEpisodes.length / EPISODES_PER_PAGE);
 
@@ -20,6 +19,7 @@ export async function getStaticPaths() {
   return paths;
 }
 
+const EPISODES_PER_PAGE = 10;
 const { page } = Astro.params;
 const currentPage = Number(page);
 
