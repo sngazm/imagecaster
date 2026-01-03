@@ -40,6 +40,9 @@ export interface PodcastIndex {
     ogImageUrl: string; // OGP画像URL
     websiteUrl: string;
     explicit: boolean;
+    // 購読リンク
+    applePodcastsUrl?: string;
+    spotifyUrl?: string;
   };
   episodes: Array<{
     id: string;
@@ -223,6 +226,9 @@ export interface UpdatePodcastSettingsRequest {
   category?: string;
   websiteUrl?: string;
   explicit?: boolean;
+  // 購読リンク
+  applePodcastsUrl?: string;
+  spotifyUrl?: string;
 }
 
 /**

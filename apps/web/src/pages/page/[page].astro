@@ -91,7 +91,7 @@ const { episodes, allEpisodesCount, totalPages, podcast } = Astro.props;
 
       <!-- サイドバー -->
       <aside class="space-y-6">
-        <SubscribeSection />
+        <SubscribeSection podcast={podcast} />
 
         {podcast.author && (
           <section class="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-800">
