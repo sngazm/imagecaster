@@ -29,6 +29,9 @@ settings.put("/", async (c) => {
   if (body.category !== undefined) index.podcast.category = body.category;
   if (body.websiteUrl !== undefined) index.podcast.websiteUrl = body.websiteUrl;
   if (body.explicit !== undefined) index.podcast.explicit = body.explicit;
+  // 購読リンク
+  if (body.applePodcastsUrl !== undefined) index.podcast.applePodcastsUrl = body.applePodcastsUrl;
+  if (body.spotifyUrl !== undefined) index.podcast.spotifyUrl = body.spotifyUrl;
 
   await saveIndex(c.env, index);
 

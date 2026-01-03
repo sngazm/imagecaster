@@ -31,6 +31,9 @@ export interface PodcastInfo {
   artworkUrl: string;
   websiteUrl: string;
   explicit: boolean;
+  // 購読リンク
+  applePodcastsUrl?: string;
+  spotifyUrl?: string;
 }
 
 export interface PodcastIndex {

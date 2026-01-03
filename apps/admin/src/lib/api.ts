@@ -72,6 +72,9 @@ export interface PodcastSettings {
   ogImageUrl: string;
   websiteUrl: string;
   explicit: boolean;
+  // 購読リンク
+  applePodcastsUrl?: string;
+  spotifyUrl?: string;
 }
 
 export interface DescriptionTemplate {
