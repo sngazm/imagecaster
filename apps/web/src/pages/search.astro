@@ -46,92 +46,99 @@ import Layout from "../layouts/Layout.astro";
 </Layout>
 
 <script is:inline>
+  // Pagefindインスタンスをグローバルに保持
+  window.__pagefind = window.__pagefind || null;
+
   async function initPagefind() {
     const input = document.getElementById("search-input");
     const resultsContainer = document.getElementById("search-results");
 
     if (!input || !resultsContainer) return;
 
-    // Pagefindを動的にロード
-    let pagefind;
-    try {
-      pagefind = await import("/pagefind/pagefind.js");
-      await pagefind.init();
-    } catch (e) {
-      console.error("Pagefind not available:", e);
-      resultsContainer.innerHTML = `
-        <p class="text-zinc-500 dark:text-zinc-400">
-          検索機能は現在利用できません
-        </p>
-      `;
-      return;
+    // Pagefindを動的にロード（既存インスタンスがあれば再利用）
+    let pagefind = window.__pagefind;
+    if (!pagefind) {
+      try {
+        pagefind = await import("/pagefind/pagefind.js");
+        await pagefind.init();
+        window.__pagefind = pagefind;
+      } catch (e) {
+        console.error("Pagefind not available:", e);
+        resultsContainer.innerHTML = `
+          <p class="text-zinc-500 dark:text-zinc-400">
+            検索機能は現在利用できません
+          </p>
+        `;
+        return;
+      }
     }
 
-    let debounceTimer;
+    async function performSearch(query) {
+      if (!query) {
+        resultsContainer.innerHTML = `
+          <p class="text-zinc-500 dark:text-zinc-400">
+            検索キーワードを入力してください
+          </p>
+        `;
+        return;
+      }
 
-    input.addEventListener("input", () => {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(async () => {
-        const query = input.value.trim();
+      resultsContainer.innerHTML = `
+        <p class="text-zinc-500 dark:text-zinc-400">
+          検索中...
+        </p>
+      `;
 
-        if (!query) {
+      try {
+        const search = await pagefind.search(query);
+        const results = await Promise.all(
+          search.results.slice(0, 20).map((r) => r.data())
+        );
+
+        if (results.length === 0) {
           resultsContainer.innerHTML = `
             <p class="text-zinc-500 dark:text-zinc-400">
-              検索キーワードを入力してください
+              「${escapeHtml(query)}」に一致する結果が見つかりませんでした
             </p>
           `;
           return;
         }
 
         resultsContainer.innerHTML = `
-          <p class="text-zinc-500 dark:text-zinc-400">
-            検索中...
+          <p class="mb-4 text-sm text-zinc-500 dark:text-zinc-400">
+            ${search.results.length}件の結果
+          </p>
+          <div class="space-y-4">
+            ${results.map((r) => `
+              <a
+                href="${r.url}"
+                class="block rounded-xl border border-zinc-200 bg-white p-4 transition-colors hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:border-zinc-600 dark:hover:bg-zinc-700/50"
+              >
+                <h2 class="mb-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                  ${escapeHtml(r.meta?.title || "無題")}
+                </h2>
+                <p class="text-sm text-zinc-600 dark:text-zinc-400">
+                  ${r.excerpt || ""}
+                </p>
+              </a>
+            `).join("")}
+          </div>
+        `;
+      } catch (error) {
+        console.error("Search error:", error);
+        resultsContainer.innerHTML = `
+          <p class="text-red-500">
+            検索中にエラーが発生しました
           </p>
         `;
+      }
+    }
 
-        try {
-          const search = await pagefind.search(query);
-          const results = await Promise.all(
-            search.results.slice(0, 20).map((r) => r.data())
-          );
-
-          if (results.length === 0) {
-            resultsContainer.innerHTML = `
-              <p class="text-zinc-500 dark:text-zinc-400">
-                「${escapeHtml(query)}」に一致する結果が見つかりませんでした
-              </p>
-            `;
-            return;
-          }
-
-          resultsContainer.innerHTML = `
-            <p class="mb-4 text-sm text-zinc-500 dark:text-zinc-400">
-              ${search.results.length}件の結果
-            </p>
-            <div class="space-y-4">
-              ${results.map((r) => `
-                <a
-                  href="${r.url}"
-                  class="block rounded-xl border border-zinc-200 bg-white p-4 transition-colors hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:border-zinc-600 dark:hover:bg-zinc-700/50"
-                >
-                  <h2 class="mb-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-                    ${escapeHtml(r.meta?.title || "無題")}
-                  </h2>
-                  <p class="text-sm text-zinc-600 dark:text-zinc-400">
-                    ${r.excerpt || ""}
-                  </p>
-                </a>
-              `).join("")}
-            </div>
-          `;
-        } catch (error) {
-          console.error("Search error:", error);
-          resultsContainer.innerHTML = `
-            <p class="text-red-500">
-              検索中にエラーが発生しました
-            </p>
-          `;
-        }
+    let debounceTimer;
+    input.addEventListener("input", () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        performSearch(input.value.trim());
       }, 300);
     });
 
@@ -140,7 +147,7 @@ import Layout from "../layouts/Layout.astro";
     const q = params.get("q");
     if (q) {
       input.value = q;
-      input.dispatchEvent(new Event("input"));
+      performSearch(q);
     }
   }
 
@@ -150,10 +157,6 @@ import Layout from "../layouts/Layout.astro";
     return div.innerHTML;
   }
 
-  // DOMContentLoaded後に初期化
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initPagefind);
-  } else {
-    initPagefind();
-  }
+  // 初回ロード時とView Transitionsでのページ遷移時に実行
+  document.addEventListener("astro:page-load", initPagefind);
 </script>
