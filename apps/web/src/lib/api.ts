@@ -40,13 +40,38 @@ export async function getTranscriptText(transcriptUrl: string): Promise<string> 
 const R2_PUBLIC_URL = import.meta.env.R2_PUBLIC_URL || "";
 
 /**
+ * R2が空の場合のデフォルトインデックス
+ */
+function getDefaultPodcastIndex(): PodcastIndex {
+  return {
+    podcast: {
+      title: "Podcast",
+      description: "",
+      author: "",
+      email: "",
+      language: "ja",
+      category: "Technology",
+      artworkUrl: "",
+      websiteUrl: "",
+      explicit: false,
+    },
+    episodes: [],
+  };
+}
+
+/**
  * R2 から Podcast インデックスを取得
+ * R2が空（404）の場合はデフォルト値を返す
  */
 export async function getPodcastIndex(): Promise<PodcastIndex> {
   const url = `${R2_PUBLIC_URL}/index.json`;
   const res = await fetch(url);
 
   if (!res.ok) {
+    if (res.status === 404) {
+      console.warn("Podcast index not found, using default empty index");
+      return getDefaultPodcastIndex();
+    }
     throw new Error(`Failed to fetch podcast index: ${res.status}`);
   }
 
@@ -141,13 +166,32 @@ export function stripHtml(html: string): string {
 }
 
 /**
+ * R2が空の場合の最小限のRSSフィード
+ */
+function getDefaultFeed(): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+  <channel>
+    <title>Podcast</title>
+    <description></description>
+    <language>ja</language>
+  </channel>
+</rss>`;
+}
+
+/**
  * R2 から RSS フィードを取得
+ * R2が空（404）の場合はデフォルトの空フィードを返す
  */
 export async function getFeed(): Promise<string> {
   const url = `${R2_PUBLIC_URL}/feed.xml`;
   const res = await fetch(url);
 
   if (!res.ok) {
+    if (res.status === 404) {
+      console.warn("Feed not found, using default empty feed");
+      return getDefaultFeed();
+    }
     throw new Error(`Failed to fetch feed: ${res.status}`);
   }
 
