@@ -29,6 +29,7 @@ export interface PodcastInfo {
   language: string;
   category: string;
   artworkUrl: string;
+  ogImageUrl: string;
   websiteUrl: string;
   explicit: boolean;
   // 購読リンク

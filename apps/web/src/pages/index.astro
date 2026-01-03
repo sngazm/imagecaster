@@ -16,7 +16,7 @@ const totalPages = Math.ceil(allEpisodes.length / EPISODES_PER_PAGE);
 const episodes = allEpisodes.slice(0, EPISODES_PER_PAGE);
 ---
 
-<Layout title={podcast.title} description={podcast.description}>
+<Layout title={podcast.title} description={podcast.description} ogImage={podcast.ogImageUrl || podcast.artworkUrl}>
   <div class="mx-auto max-w-4xl px-4 py-12">
     <!-- ヒーローセクション -->
     <section class="mb-12">
