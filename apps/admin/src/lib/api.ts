@@ -78,6 +78,9 @@ export interface PodcastSettings {
   websiteUrl: string;
   explicit: boolean;
   applePodcastsId: string | null;
+  // 購読リンク
+  applePodcastsUrl?: string;
+  spotifyUrl?: string;
 }
 
 export interface DescriptionTemplate {

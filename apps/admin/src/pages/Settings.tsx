@@ -901,6 +901,43 @@ export default function Settings() {
               />
             </div>
 
+            <div className="border-t border-zinc-800 pt-4 mt-4">
+              <h3 className="text-sm font-medium text-zinc-300 mb-3">購読リンク</h3>
+              <p className="text-xs text-zinc-500 mb-4">
+                ポッドキャストプラットフォームのURLを設定すると、公開サイトに購読ボタンが表示されます。
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-400 mb-1">
+                    Apple Podcasts URL
+                  </label>
+                  <input
+                    type="url"
+                    value={settings.applePodcastsUrl || ""}
+                    onChange={(e) =>
+                      setSettings({ ...settings, applePodcastsUrl: e.target.value || undefined })
+                    }
+                    placeholder="https://podcasts.apple.com/..."
+                    className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-400 mb-1">
+                    Spotify URL
+                  </label>
+                  <input
+                    type="url"
+                    value={settings.spotifyUrl || ""}
+                    onChange={(e) =>
+                      setSettings({ ...settings, spotifyUrl: e.target.value || undefined })
+                    }
+                    placeholder="https://open.spotify.com/show/..."
+                    className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-colors"
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="flex items-center gap-3">
               <input
                 type="checkbox"

@@ -41,6 +41,9 @@ export interface PodcastIndex {
     websiteUrl: string;
     explicit: boolean;
     applePodcastsId: string | null; // Apple Podcasts ID (collectionId)
+    // 購読リンク
+    applePodcastsUrl?: string;
+    spotifyUrl?: string;
   };
   episodes: Array<{
     id: string;
@@ -233,6 +236,9 @@ export interface UpdatePodcastSettingsRequest {
   websiteUrl?: string;
   explicit?: boolean;
   applePodcastsId?: string | null;
+  // 購読リンク
+  applePodcastsUrl?: string;
+  spotifyUrl?: string;
 }
 
 /**

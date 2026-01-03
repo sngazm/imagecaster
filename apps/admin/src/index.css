@@ -8,8 +8,11 @@
   margin-bottom: 0;
 }
 
-/* URLが突き抜けないように折り返す */
+/* URLが突き抜けないように折り返す + 下線でリンクを明示 */
 .prose a {
   overflow-wrap: break-word;
   word-break: break-all;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  opacity: 0.7;
 }

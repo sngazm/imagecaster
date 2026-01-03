@@ -11,6 +11,7 @@ export interface Episode {
   duration: number;
   fileSize: number;
   audioUrl: string;
+  sourceAudioUrl: string | null; // 外部参照の音声URL（RSSインポート時）
   transcriptUrl: string | null;
   ogImageUrl: string | null;
   status: string;
@@ -29,8 +30,12 @@ export interface PodcastInfo {
   language: string;
   category: string;
   artworkUrl: string;
+  ogImageUrl: string;
   websiteUrl: string;
   explicit: boolean;
+  // 購読リンク
+  applePodcastsUrl?: string;
+  spotifyUrl?: string;
 }
 
 export interface PodcastIndex {
