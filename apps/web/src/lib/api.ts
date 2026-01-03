@@ -39,6 +39,10 @@ export async function getTranscriptText(transcriptUrl: string): Promise<string> 
 
 const R2_PUBLIC_URL = import.meta.env.R2_PUBLIC_URL || "";
 
+// ビルド時キャッシュ（同じデータを何度も取得しないようにする）
+let cachedPodcastIndex: PodcastIndex | null = null;
+let cachedPublishedEpisodes: Episode[] | null = null;
+
 /**
  * R2が空の場合のデフォルトインデックス
  */
@@ -62,20 +66,27 @@ function getDefaultPodcastIndex(): PodcastIndex {
 /**
  * R2 から Podcast インデックスを取得
  * R2が空（404）の場合はデフォルト値を返す
+ * ビルド時は結果をキャッシュして429エラーを防ぐ
  */
 export async function getPodcastIndex(): Promise<PodcastIndex> {
+  if (cachedPodcastIndex) {
+    return cachedPodcastIndex;
+  }
+
   const url = `${R2_PUBLIC_URL}/index.json`;
   const res = await fetch(url);
 
   if (!res.ok) {
     if (res.status === 404) {
       console.warn("Podcast index not found, using default empty index");
-      return getDefaultPodcastIndex();
+      cachedPodcastIndex = getDefaultPodcastIndex();
+      return cachedPodcastIndex;
     }
     throw new Error(`Failed to fetch podcast index: ${res.status}`);
   }
 
-  return res.json();
+  cachedPodcastIndex = await res.json();
+  return cachedPodcastIndex;
 }
 
 /**
@@ -94,8 +105,13 @@ export async function getEpisode(id: string): Promise<Episode> {
 
 /**
  * 公開済みエピソードを全て取得（新しい順）
+ * ビルド時は結果をキャッシュして429エラーを防ぐ
  */
 export async function getPublishedEpisodes(): Promise<Episode[]> {
+  if (cachedPublishedEpisodes) {
+    return cachedPublishedEpisodes;
+  }
+
   const index = await getPodcastIndex();
 
   const episodes = await Promise.all(
@@ -108,9 +124,11 @@ export async function getPublishedEpisodes(): Promise<Episode[]> {
     })
   );
 
-  return episodes
+  cachedPublishedEpisodes = episodes
     .filter((ep): ep is Episode => ep !== null && ep.status === "published")
     .sort((a, b) => new Date(b.publishAt).getTime() - new Date(a.publishAt).getTime());
+
+  return cachedPublishedEpisodes;
 }
 
 /**
