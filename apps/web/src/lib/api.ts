@@ -1,5 +1,42 @@
 import type { Episode, PodcastIndex } from "./types";
 
+/**
+ * VTT形式の文字起こしをパースしてプレーンテキストを抽出
+ */
+export function parseVttToText(vtt: string): string {
+  const lines = vtt.split("\n");
+  const textLines: string[] = [];
+
+  for (const line of lines) {
+    // WEBVTT ヘッダー、タイムスタンプ、空行をスキップ
+    if (
+      line.startsWith("WEBVTT") ||
+      line.includes("-->") ||
+      line.trim() === "" ||
+      /^\d+$/.test(line.trim())
+    ) {
+      continue;
+    }
+    textLines.push(line.trim());
+  }
+
+  return textLines.join(" ");
+}
+
+/**
+ * 文字起こしテキストを取得
+ */
+export async function getTranscriptText(transcriptUrl: string): Promise<string> {
+  try {
+    const res = await fetch(transcriptUrl);
+    if (!res.ok) return "";
+    const vtt = await res.text();
+    return parseVttToText(vtt);
+  } catch {
+    return "";
+  }
+}
+
 const R2_PUBLIC_URL = import.meta.env.R2_PUBLIC_URL || "";
 
 /**

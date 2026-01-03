@@ -1,6 +1,6 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import { getPublishedEpisodes, getEpisode, formatDuration, formatDate, formatFileSize, processDescription, getPodcastIndex } from "../../lib/api";
+import { getPublishedEpisodes, getEpisode, formatDuration, formatDate, formatFileSize, processDescription, getPodcastIndex, getTranscriptText } from "../../lib/api";
 import type { Episode } from "../../lib/types";
 
 // SSGモード用: ビルド時にパスを生成
@@ -11,21 +11,30 @@ export async function getStaticPaths() {
   ]);
   const websiteUrl = index.podcast.websiteUrl;
 
-  return episodes.map((episode) => ({
-    params: { id: episode.id },
-    props: { episode, websiteUrl },
-  }));
+  return Promise.all(
+    episodes.map(async (episode) => {
+      const transcriptText = episode.transcriptUrl
+        ? await getTranscriptText(episode.transcriptUrl)
+        : "";
+      return {
+        params: { id: episode.id },
+        props: { episode, websiteUrl, transcriptText },
+      };
+    })
+  );
 }
 
 // SSRモード（開発時）はpropsが空なので、paramsから取得
 const { id } = Astro.params;
 let episode: Episode;
 let websiteUrl: string;
+let transcriptText: string;
 
 if (Astro.props.episode) {
   // SSGモード: getStaticPathsからpropsが渡される
   episode = Astro.props.episode;
   websiteUrl = Astro.props.websiteUrl;
+  transcriptText = Astro.props.transcriptText || "";
 } else {
   // SSRモード: paramsから取得してfetch
   const [fetchedEpisode, index] = await Promise.all([
@@ -34,13 +43,16 @@ if (Astro.props.episode) {
   ]);
   episode = fetchedEpisode;
   websiteUrl = index.podcast.websiteUrl;
+  transcriptText = episode.transcriptUrl
+    ? await getTranscriptText(episode.transcriptUrl)
+    : "";
 }
 
 const description = processDescription(episode.description, episode, websiteUrl);
 ---
 
 <Layout title={episode.title} description={description}>
-  <article class="mx-auto max-w-4xl px-4 py-12">
+  <article class="mx-auto max-w-4xl px-4 py-12" data-pagefind-body>
     <!-- ヘッダー -->
     <header class="mb-8">
       <div class="mb-4 flex items-center gap-3">
@@ -148,5 +160,12 @@ const description = processDescription(episode.description, episode, websiteUrl)
         </svg>
       </button>
     </div>
+
+    <!-- 文字起こしテキスト（検索用、非表示） -->
+    {transcriptText && (
+      <div class="sr-only" data-pagefind-index-attrs="data-transcript" data-transcript={transcriptText}>
+        {transcriptText}
+      </div>
+    )}
   </article>
 </Layout>

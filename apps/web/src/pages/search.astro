@@ -1,0 +1,159 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="検索" description="エピソードを検索">
+  <div class="mx-auto max-w-4xl px-4 py-12">
+    <h1 class="mb-8 text-3xl font-bold text-zinc-900 dark:text-zinc-100">
+      エピソード検索
+    </h1>
+
+    <!-- 検索フォーム -->
+    <div class="mb-8">
+      <div class="relative">
+        <input
+          type="text"
+          id="search-input"
+          placeholder="キーワードを入力..."
+          class="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 pl-12 text-zinc-900 placeholder-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-500"
+        />
+        <svg
+          class="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          />
+        </svg>
+      </div>
+      <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+        エピソードのタイトル、概要、文字起こしから検索できます
+      </p>
+    </div>
+
+    <!-- 検索結果 -->
+    <div id="search-results" class="space-y-4">
+      <p class="text-zinc-500 dark:text-zinc-400">
+        検索キーワードを入力してください
+      </p>
+    </div>
+  </div>
+</Layout>
+
+<script is:inline>
+  async function initPagefind() {
+    const input = document.getElementById("search-input");
+    const resultsContainer = document.getElementById("search-results");
+
+    if (!input || !resultsContainer) return;
+
+    // Pagefindを動的にロード
+    let pagefind;
+    try {
+      pagefind = await import("/pagefind/pagefind.js");
+      await pagefind.init();
+    } catch (e) {
+      console.error("Pagefind not available:", e);
+      resultsContainer.innerHTML = `
+        <p class="text-zinc-500 dark:text-zinc-400">
+          検索機能は現在利用できません
+        </p>
+      `;
+      return;
+    }
+
+    let debounceTimer;
+
+    input.addEventListener("input", () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(async () => {
+        const query = input.value.trim();
+
+        if (!query) {
+          resultsContainer.innerHTML = `
+            <p class="text-zinc-500 dark:text-zinc-400">
+              検索キーワードを入力してください
+            </p>
+          `;
+          return;
+        }
+
+        resultsContainer.innerHTML = `
+          <p class="text-zinc-500 dark:text-zinc-400">
+            検索中...
+          </p>
+        `;
+
+        try {
+          const search = await pagefind.search(query);
+          const results = await Promise.all(
+            search.results.slice(0, 20).map((r) => r.data())
+          );
+
+          if (results.length === 0) {
+            resultsContainer.innerHTML = `
+              <p class="text-zinc-500 dark:text-zinc-400">
+                「${escapeHtml(query)}」に一致する結果が見つかりませんでした
+              </p>
+            `;
+            return;
+          }
+
+          resultsContainer.innerHTML = `
+            <p class="mb-4 text-sm text-zinc-500 dark:text-zinc-400">
+              ${search.results.length}件の結果
+            </p>
+            <div class="space-y-4">
+              ${results.map((r) => `
+                <a
+                  href="${r.url}"
+                  class="block rounded-xl border border-zinc-200 bg-white p-4 transition-colors hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:border-zinc-600 dark:hover:bg-zinc-700/50"
+                >
+                  <h2 class="mb-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                    ${escapeHtml(r.meta?.title || "無題")}
+                  </h2>
+                  <p class="text-sm text-zinc-600 dark:text-zinc-400">
+                    ${r.excerpt || ""}
+                  </p>
+                </a>
+              `).join("")}
+            </div>
+          `;
+        } catch (error) {
+          console.error("Search error:", error);
+          resultsContainer.innerHTML = `
+            <p class="text-red-500">
+              検索中にエラーが発生しました
+            </p>
+          `;
+        }
+      }, 300);
+    });
+
+    // URLパラメータから初期検索
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get("q");
+    if (q) {
+      input.value = q;
+      input.dispatchEvent(new Event("input"));
+    }
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // DOMContentLoaded後に初期化
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initPagefind);
+  } else {
+    initPagefind();
+  }
+</script>
