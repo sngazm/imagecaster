@@ -232,6 +232,7 @@ export interface ImportRssRequest {
   rssUrl: string;
   importAudio?: boolean; // trueの場合は音声もダウンロード
   importPodcastSettings?: boolean; // trueの場合はPodcast設定も上書き
+  customSlugs?: Record<string, string>; // インデックス(0始まり) → カスタムslug のマッピング
 }
 
 /**

@@ -243,6 +243,7 @@ importRoutes.post("/rss", async (c) => {
 
   const importAudio = body.importAudio ?? false;
   const importPodcastSettings = body.importPodcastSettings ?? false;
+  const customSlugs = body.customSlugs ?? {};
 
   // RSSフィードを取得
   let rssXml: string;
@@ -283,7 +284,8 @@ importRoutes.post("/rss", async (c) => {
     audioUrl: string;
   }> = [];
 
-  for (const rssEp of sortedEpisodes) {
+  for (let idx = 0; idx < sortedEpisodes.length; idx++) {
+    const rssEp = sortedEpisodes[idx];
     // 既にインポート済みの場合はスキップ
     if (isAlreadyImported(rssEp, existingGuids, existingAudioUrls)) {
       results.push({
@@ -296,8 +298,8 @@ importRoutes.post("/rss", async (c) => {
       continue;
     }
 
-    // slugを生成
-    let slug = generateSlug(rssEp.title);
+    // カスタムslugが指定されている場合はそれを使用、なければ自動生成
+    let slug = customSlugs[String(idx)] ?? generateSlug(rssEp.title);
 
     // 重複を避けるためにサフィックスを追加
     const originalSlug = slug;
@@ -449,7 +451,7 @@ importRoutes.post("/rss/preview", async (c) => {
 
   // 各エピソードのslugを生成し、重複・インポート済みをチェック
   const slugSet = new Set<string>();
-  const episodesWithSlug = episodes.map((ep) => {
+  const episodesWithSlug = episodes.map((ep, index) => {
     // インポート済みかチェック
     const alreadyImported = isAlreadyImported(ep, existingGuids, existingAudioUrls);
 
@@ -478,6 +480,7 @@ importRoutes.post("/rss/preview", async (c) => {
     }
 
     return {
+      index,
       title: ep.title,
       pubDate: ep.pubDate,
       duration: ep.duration,
