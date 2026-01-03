@@ -19,20 +19,24 @@ const episodes = allEpisodes.slice(0, EPISODES_PER_PAGE);
 <Layout title={podcast.title} description={podcast.description}>
   <div class="mx-auto max-w-4xl px-4 py-12">
     <!-- ヒーローセクション -->
-    <section class="mb-12 text-center">
-      {podcast.artworkUrl && (
-        <img
-          src={podcast.artworkUrl}
-          alt={podcast.title}
-          class="mx-auto mb-6 h-48 w-48 rounded-2xl shadow-xl"
-        />
-      )}
-      <h1 class="mb-4 text-4xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-        {podcast.title}
-      </h1>
-      <p class="mx-auto max-w-2xl text-lg text-zinc-600 dark:text-zinc-400">
-        {podcast.description}
-      </p>
+    <section class="mb-12">
+      <div class="flex flex-col items-center gap-6 sm:flex-row sm:items-start">
+        {podcast.artworkUrl && (
+          <img
+            src={podcast.artworkUrl}
+            alt={podcast.title}
+            class="h-52 w-52 shrink-0 rounded-2xl shadow-xl sm:h-48 sm:w-48"
+          />
+        )}
+        <div class="text-left">
+          <h1 class="mb-3 text-xl text-center font-bold tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-2xl sm:text-left">
+            {podcast.title}
+          </h1>
+          <p class="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400 sm:text-base">
+            {podcast.description}
+          </p>
+        </div>
+      </div>
     </section>
 
     <div class="grid gap-8 lg:grid-cols-3">
