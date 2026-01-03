@@ -352,6 +352,8 @@ importRoutes.post("/rss", async (c) => {
       referenceLinks: [],
       applePodcastsUrl: null,
       applePodcastsCheckedAt: null,
+      applePodcastsCheckCount: 0,
+      applePodcastsSkipped: false,
     };
 
     episodesToSave.push({ meta, audioUrl: rssEp.audioUrl });

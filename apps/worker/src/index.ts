@@ -170,7 +170,16 @@ app.onError((err, c) => {
 
 /**
  * Cron 処理: Apple Podcasts の URL をチェックして更新
+ *
+ * - 未取得かつスキップフラグが立っていないエピソードのみ処理
+ * - publishedAt 降順（新しい順）で最大300件まで処理
+ * - 公開から1日以上経過している場合のみリトライカウントを増加
+ * - 30回チェックしても見つからない場合は自動でスキップ
  */
+const APPLE_PODCASTS_MAX_BATCH = 300;
+const APPLE_PODCASTS_MAX_RETRIES = 30;
+const APPLE_PODCASTS_GRACE_PERIOD_MS = 24 * 60 * 60 * 1000; // 1日
+
 async function handleApplePodcastsCheck(env: Env): Promise<void> {
   const index = await getIndex(env);
 
@@ -180,6 +189,43 @@ async function handleApplePodcastsCheck(env: Env): Promise<void> {
   }
 
   const now = new Date();
+
+  // 処理対象のエピソードを抽出
+  const targetEpisodes: EpisodeMeta[] = [];
+  for (const epRef of index.episodes) {
+    let meta;
+    try {
+      meta = await getEpisodeMeta(env, epRef.id);
+    } catch {
+      continue;
+    }
+
+    // 条件: 公開済み、URL未取得、スキップフラグなし
+    if (
+      meta.status === "published" &&
+      !meta.applePodcastsUrl &&
+      !meta.applePodcastsSkipped
+    ) {
+      targetEpisodes.push(meta);
+    }
+  }
+
+  // 処理対象がない場合は終了
+  if (targetEpisodes.length === 0) {
+    console.log("No episodes to check for Apple Podcasts URLs");
+    return;
+  }
+
+  // publishedAt 降順でソート（新しい順）
+  targetEpisodes.sort((a, b) => {
+    const dateA = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+    const dateB = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+    return dateB - dateA;
+  });
+
+  // 最大300件に制限
+  const batch = targetEpisodes.slice(0, APPLE_PODCASTS_MAX_BATCH);
+  console.log(`Processing ${batch.length} episodes for Apple Podcasts URLs (${targetEpisodes.length} total pending)`);
 
   // iTunes API からエピソード情報を取得
   let episodeMap: Map<string, string>;
@@ -191,45 +237,50 @@ async function handleApplePodcastsCheck(env: Env): Promise<void> {
     return;
   }
 
-  let updated = false;
+  let foundCount = 0;
+  let skippedCount = 0;
 
-  for (const epRef of index.episodes) {
-    let meta;
-    try {
-      meta = await getEpisodeMeta(env, epRef.id);
-    } catch {
-      continue;
-    }
-
-    // 公開済みエピソードで、Apple Podcasts URL が未設定のもののみ処理
-    if (meta.status !== "published") {
-      continue;
-    }
-
-    // すでに URL が設定されている場合はスキップ
-    if (meta.applePodcastsUrl) {
-      continue;
-    }
-
+  for (const meta of batch) {
     // GUID で Apple Podcasts URL を検索
     // sourceGuid（インポート時の元GUID）を優先し、なければ slug を使用
     const guid = meta.sourceGuid || meta.slug;
     const applePodcastsUrl = episodeMap.get(guid);
 
     if (applePodcastsUrl) {
+      // URL が見つかった
       meta.applePodcastsUrl = applePodcastsUrl;
       meta.applePodcastsCheckedAt = now.toISOString();
       await saveEpisodeMeta(env, meta);
-      updated = true;
+      foundCount++;
       console.log(`Found Apple Podcasts URL for episode ${meta.id}: ${applePodcastsUrl}`);
     } else {
-      // URL が見つからない場合でもチェック日時を更新（次回のチェックで再試行）
+      // URL が見つからなかった
       meta.applePodcastsCheckedAt = now.toISOString();
+
+      // 公開から1日以上経過している場合のみリトライカウントを増加
+      // （公開直後はApple Podcastsへの反映に時間がかかるため）
+      const publishedAt = meta.publishedAt ? new Date(meta.publishedAt).getTime() : 0;
+      const gracePeriodPassed = now.getTime() - publishedAt >= APPLE_PODCASTS_GRACE_PERIOD_MS;
+
+      if (gracePeriodPassed) {
+        const checkCount = (meta.applePodcastsCheckCount || 0) + 1;
+        meta.applePodcastsCheckCount = checkCount;
+
+        // 規定回数を超えたら自動でスキップ
+        if (checkCount >= APPLE_PODCASTS_MAX_RETRIES) {
+          meta.applePodcastsSkipped = true;
+          skippedCount++;
+          console.log(`Giving up on episode ${meta.id} after ${checkCount} attempts`);
+        }
+      }
+
       await saveEpisodeMeta(env, meta);
     }
   }
 
-  if (updated) {
+  console.log(`Apple Podcasts check complete: ${foundCount} found, ${skippedCount} gave up`);
+
+  if (foundCount > 0) {
     // Web サイトのリビルドをトリガー
     await triggerWebRebuild(env);
     console.log("Triggered web rebuild for Apple Podcasts URL updates");
