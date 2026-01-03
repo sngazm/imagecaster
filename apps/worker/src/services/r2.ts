@@ -66,6 +66,7 @@ export async function getEpisodeMeta(
   return {
     ...data,
     referenceLinks: data.referenceLinks ?? [],
+    sourceGuid: data.sourceGuid ?? null,
   } as EpisodeMeta;
 }
 

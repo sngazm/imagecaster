@@ -83,21 +83,31 @@ export interface DescriptionTemplate {
   updatedAt: string;
 }
 
+export interface RssPodcastMeta {
+  title: string;
+  description: string;
+  author: string;
+  artworkUrl: string;
+  language: string;
+  category: string;
+}
+
 export interface RssPreviewResponse {
-  podcast: {
-    title: string;
-    description: string;
-    author: string;
-    artworkUrl: string;
-    language: string;
-    category: string;
-  };
+  podcast: RssPodcastMeta;
+  existingPodcast: RssPodcastMeta;
   episodeCount: number;
+  newEpisodeCount: number;
+  totalFileSize: number;
   episodes: Array<{
     title: string;
     pubDate: string;
     duration: number;
+    fileSize: number;
     hasAudio: boolean;
+    slug: string;
+    originalSlug: string;
+    hasConflict: boolean;
+    alreadyImported: boolean;
   }>;
 }
 
@@ -379,10 +389,10 @@ export const api = {
       body: JSON.stringify({ rssUrl }),
     }),
 
-  importRss: (rssUrl: string) =>
+  importRss: (rssUrl: string, importAudio: boolean = false, importPodcastSettings: boolean = false) =>
     request<RssImportResponse>("/api/import/rss", {
       method: "POST",
-      body: JSON.stringify({ rssUrl }),
+      body: JSON.stringify({ rssUrl, importAudio, importPodcastSettings }),
     }),
 
   // Deployments
