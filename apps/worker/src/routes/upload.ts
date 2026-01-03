@@ -71,13 +71,14 @@ upload.post("/:id/upload-url", async (c) => {
     const url = new URL(
       `https://${c.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${c.env.R2_BUCKET_NAME}/${key}`
     );
+    url.searchParams.set("X-Amz-Expires", "3600");
 
     const signed = await r2.sign(
       new Request(url, {
         method: "PUT",
         headers: { "Content-Type": body.contentType },
       }),
-      { aws: { signQuery: true }, expiresIn: 3600 }
+      { aws: { signQuery: true } }
     );
 
     // ステータス更新
