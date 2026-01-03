@@ -11,6 +11,7 @@ export interface Episode {
   duration: number;
   fileSize: number;
   audioUrl: string;
+  sourceAudioUrl: string | null; // 外部参照の音声URL（RSSインポート時）
   transcriptUrl: string | null;
   ogImageUrl: string | null;
   status: string;
