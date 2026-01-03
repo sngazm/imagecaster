@@ -115,13 +115,16 @@ function parsePodcastMeta(xml: string): {
   const langMatch = channelContent.match(/<language[^>]*>([\s\S]*?)<\/language>/i);
   const categoryMatch = channelContent.match(/<itunes:category[^>]*text=["']([^"']+)["']/i);
 
+  // CDATAタグを除去するヘルパー関数
+  const stripCdata = (str: string) => str.replace(/<!\[CDATA\[|\]\]>/g, "").trim();
+
   return {
-    title: titleMatch ? titleMatch[1].trim() : "",
-    description: descMatch ? descMatch[1].trim() : "",
-    author: authorMatch ? authorMatch[1].trim() : "",
-    artworkUrl: imageMatch ? imageMatch[1].trim() : "",
-    language: langMatch ? langMatch[1].trim() : "ja",
-    category: categoryMatch ? categoryMatch[1].trim() : "Technology",
+    title: titleMatch ? stripCdata(titleMatch[1]) : "",
+    description: descMatch ? stripCdata(descMatch[1]) : "",
+    author: authorMatch ? stripCdata(authorMatch[1]) : "",
+    artworkUrl: imageMatch ? stripCdata(imageMatch[1]) : "",
+    language: langMatch ? stripCdata(langMatch[1]) : "ja",
+    category: categoryMatch ? stripCdata(categoryMatch[1]) : "Technology",
   };
 }
 
