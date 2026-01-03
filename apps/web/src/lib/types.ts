@@ -12,6 +12,7 @@ export interface Episode {
   fileSize: number;
   audioUrl: string;
   transcriptUrl: string | null;
+  ogImageUrl: string | null;
   status: string;
   createdAt: string;
   publishAt: string;
