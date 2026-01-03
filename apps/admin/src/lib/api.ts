@@ -99,6 +99,7 @@ export interface RssPreviewResponse {
   newEpisodeCount: number;
   totalFileSize: number;
   episodes: Array<{
+    index: number;
     title: string;
     pubDate: string;
     duration: number;
@@ -389,10 +390,10 @@ export const api = {
       body: JSON.stringify({ rssUrl }),
     }),
 
-  importRss: (rssUrl: string, importAudio: boolean = false, importPodcastSettings: boolean = false) =>
+  importRss: (rssUrl: string, importAudio: boolean = false, importPodcastSettings: boolean = false, customSlugs?: Record<string, string>) =>
     request<RssImportResponse>("/api/import/rss", {
       method: "POST",
-      body: JSON.stringify({ rssUrl, importAudio, importPodcastSettings }),
+      body: JSON.stringify({ rssUrl, importAudio, importPodcastSettings, customSlugs }),
     }),
 
   // Deployments

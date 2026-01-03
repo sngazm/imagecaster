@@ -69,6 +69,7 @@ export default function Settings() {
   const [importResult, setImportResult] = useState<Awaited<
     ReturnType<typeof api.importRss>
   > | null>(null);
+  const [customSlugs, setCustomSlugs] = useState<Record<string, string>>({});
 
   // Danger zone
   const [resetting, setResetting] = useState(false);
@@ -264,6 +265,7 @@ export default function Settings() {
     setError(null);
     setImportPreview(null);
     setImportResult(null);
+    setCustomSlugs({});
 
     try {
       const preview = await api.previewRssImport(rssUrl);
@@ -291,9 +293,10 @@ export default function Settings() {
     setError(null);
 
     try {
-      const result = await api.importRss(rssUrl, importAudio, importPodcastSettings);
+      const result = await api.importRss(rssUrl, importAudio, importPodcastSettings, Object.keys(customSlugs).length > 0 ? customSlugs : undefined);
       setImportResult(result);
       setImportPreview(null);
+      setCustomSlugs({});
       let successMsg = `${result.imported}件のエピソードをインポートしました`;
       if (importPodcastSettings) {
         successMsg += "（Podcast設定も更新）";
@@ -1255,7 +1258,7 @@ export default function Settings() {
                     <thead className="text-zinc-500 text-left">
                       <tr>
                         <th className="pb-2 pr-4">タイトル</th>
-                        <th className="pb-2 pr-4 w-24">Slug</th>
+                        <th className="pb-2 pr-4 w-32">Slug</th>
                         <th className="pb-2 pr-4 w-20 text-right">サイズ</th>
                         <th className="pb-2 w-24 text-right">公開日</th>
                       </tr>
@@ -1285,13 +1288,30 @@ export default function Settings() {
                           <td className="py-2 pr-4 font-mono text-xs">
                             {ep.alreadyImported ? (
                               <span className="text-zinc-600">-</span>
-                            ) : ep.hasConflict ? (
-                              <span>
-                                <del className="text-red-400/50">{ep.originalSlug}</del>
-                                <br />→ {ep.slug}
-                              </span>
                             ) : (
-                              ep.slug
+                              <input
+                                type="text"
+                                value={customSlugs[String(ep.index)] ?? ep.slug}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setCustomSlugs((prev) => {
+                                    if (value === ep.slug) {
+                                      // デフォルト値と同じ場合は削除
+                                      const { [String(ep.index)]: _, ...rest } = prev;
+                                      return rest;
+                                    }
+                                    return { ...prev, [String(ep.index)]: value };
+                                  });
+                                }}
+                                className={`w-full px-2 py-1 bg-zinc-800 border rounded text-xs ${
+                                  customSlugs[String(ep.index)]
+                                    ? "border-violet-500"
+                                    : ep.hasConflict
+                                    ? "border-red-500"
+                                    : "border-zinc-700"
+                                }`}
+                                placeholder={ep.slug}
+                              />
                             )}
                           </td>
                           <td className="py-2 pr-4 text-right text-zinc-500">

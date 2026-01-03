@@ -48,6 +48,26 @@ describe("Import API", () => {
       const json = await response.json();
       expect(json.error).toContain("Failed to fetch RSS");
     });
+
+    it("accepts customSlugs option", async () => {
+      const response = await SELF.fetch("http://localhost/api/import/rss", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rssUrl: "https://invalid-rss-url.example.com/feed.xml",
+          customSlugs: {
+            "0": "custom-slug-1",
+            "1": "custom-slug-2",
+          },
+        }),
+      });
+
+      // fetchが失敗するので400エラー（リクエスト自体は受け入れられる）
+      expect(response.status).toBe(400);
+
+      const json = await response.json();
+      expect(json.error).toContain("Failed to fetch RSS");
+    });
   });
 
   describe("POST /api/import/rss/preview", () => {
