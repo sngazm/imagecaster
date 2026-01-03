@@ -130,8 +130,9 @@ pnpm dev:web       # 公開サイト（localhost:4321）
 
 | Method | Path | 説明 |
 |--------|------|------|
-| GET | /feed.xml | RSS フィード |
-| GET | /health | ヘルスチェック |
+| GET | /api/health | ヘルスチェック |
+
+※ RSSフィード (`/feed.xml`) は Pages で静的配信
 
 ### 認証必要エンドポイント
 

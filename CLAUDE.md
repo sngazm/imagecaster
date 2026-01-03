@@ -138,8 +138,9 @@ await jwtVerify(jwt, JWKS, { audience: ACCESS_AUD });
 | POST | /api/import/rss | RSSインポート |
 | POST | /api/import/rss/preview | RSSプレビュー |
 | GET | /api/deployments | デプロイ状況 |
-| GET | /feed.xml | RSSフィード（認証不要） |
-| GET | /health | ヘルスチェック（認証不要） |
+| GET | /api/health | ヘルスチェック（認証不要） |
+
+※ RSSフィード (`/feed.xml`) は Pages で静的配信（R2 から取得してビルド時に生成）
 
 ## エピソードのステータス遷移
 
