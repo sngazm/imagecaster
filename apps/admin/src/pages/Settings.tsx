@@ -917,6 +917,31 @@ export default function Settings() {
             </div>
           </div>
 
+          {/* Apple Podcasts Integration */}
+          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 space-y-4">
+            <h2 className="text-lg font-semibold mb-4">Apple Podcasts 連携</h2>
+
+            <div>
+              <label className="block text-sm font-medium text-zinc-400 mb-1">
+                Apple Podcasts ID
+              </label>
+              <input
+                type="text"
+                value={settings.applePodcastsId || ""}
+                onChange={(e) =>
+                  setSettings({ ...settings, applePodcastsId: e.target.value || null })
+                }
+                placeholder="1234567890"
+                className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-colors"
+              />
+              <p className="text-xs text-zinc-500 mt-2">
+                Apple Podcasts のURLに含まれる ID を入力してください。<br />
+                例: https://podcasts.apple.com/jp/podcast/id<strong>1234567890</strong><br />
+                設定すると、Cron で定期的にエピソードごとの Apple Podcasts リンクを取得します。
+              </p>
+            </div>
+          </div>
+
           <div className="flex justify-end">
             <button
               type="submit"

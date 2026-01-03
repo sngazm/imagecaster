@@ -350,6 +350,8 @@ importRoutes.post("/rss", async (c) => {
       blueskyPostEnabled: false,
       blueskyPostedAt: null,
       referenceLinks: [],
+      applePodcastsUrl: null,
+      applePodcastsCheckedAt: null,
     };
 
     episodesToSave.push({ meta, audioUrl: rssEp.audioUrl });

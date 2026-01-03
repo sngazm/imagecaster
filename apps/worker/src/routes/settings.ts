@@ -29,6 +29,7 @@ settings.put("/", async (c) => {
   if (body.category !== undefined) index.podcast.category = body.category;
   if (body.websiteUrl !== undefined) index.podcast.websiteUrl = body.websiteUrl;
   if (body.explicit !== undefined) index.podcast.explicit = body.explicit;
+  if (body.applePodcastsId !== undefined) index.podcast.applePodcastsId = body.applePodcastsId;
 
   await saveIndex(c.env, index);
 

@@ -40,6 +40,7 @@ export interface PodcastIndex {
     ogImageUrl: string; // OGP画像URL
     websiteUrl: string;
     explicit: boolean;
+    applePodcastsId: string | null; // Apple Podcasts ID (collectionId)
   };
   episodes: Array<{
     id: string;
@@ -92,6 +93,9 @@ export interface EpisodeMeta {
   blueskyPostedAt: string | null; // 投稿済みの場合の日時
   // 参考リンク
   referenceLinks: ReferenceLink[];
+  // Apple Podcasts
+  applePodcastsUrl: string | null; // エピソード個別URL
+  applePodcastsCheckedAt: string | null; // 最終チェック日時
 }
 
 /**
@@ -223,6 +227,7 @@ export interface UpdatePodcastSettingsRequest {
   category?: string;
   websiteUrl?: string;
   explicit?: boolean;
+  applePodcastsId?: string | null;
 }
 
 /**

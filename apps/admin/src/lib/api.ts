@@ -72,6 +72,7 @@ export interface PodcastSettings {
   ogImageUrl: string;
   websiteUrl: string;
   explicit: boolean;
+  applePodcastsId: string | null;
 }
 
 export interface DescriptionTemplate {

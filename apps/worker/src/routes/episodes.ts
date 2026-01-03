@@ -139,6 +139,8 @@ episodes.post("/", async (c) => {
     blueskyPostEnabled: body.blueskyPostEnabled ?? false,
     blueskyPostedAt: null,
     referenceLinks: body.referenceLinks ?? [],
+    applePodcastsUrl: null,
+    applePodcastsCheckedAt: null,
   };
 
   // メタデータを保存

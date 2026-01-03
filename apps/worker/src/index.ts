@@ -14,6 +14,7 @@ import { getIndex, getEpisodeMeta, saveEpisodeMeta } from "./services/r2";
 import { regenerateFeed } from "./services/feed";
 import { postEpisodeToBluesky } from "./services/bluesky";
 import { triggerWebRebuild } from "./services/deploy";
+import { fetchApplePodcastsEpisodes } from "./services/itunes";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -168,6 +169,74 @@ app.onError((err, c) => {
 });
 
 /**
+ * Cron 処理: Apple Podcasts の URL をチェックして更新
+ */
+async function handleApplePodcastsCheck(env: Env): Promise<void> {
+  const index = await getIndex(env);
+
+  // Apple Podcasts ID が設定されていない場合はスキップ
+  if (!index.podcast.applePodcastsId) {
+    return;
+  }
+
+  const now = new Date();
+
+  // iTunes API からエピソード情報を取得
+  let episodeMap: Map<string, string>;
+  try {
+    episodeMap = await fetchApplePodcastsEpisodes(index.podcast.applePodcastsId);
+    console.log(`Fetched ${episodeMap.size} episodes from Apple Podcasts`);
+  } catch (err) {
+    console.error("Failed to fetch Apple Podcasts episodes:", err);
+    return;
+  }
+
+  let updated = false;
+
+  for (const epRef of index.episodes) {
+    let meta;
+    try {
+      meta = await getEpisodeMeta(env, epRef.id);
+    } catch {
+      continue;
+    }
+
+    // 公開済みエピソードで、Apple Podcasts URL が未設定のもののみ処理
+    if (meta.status !== "published") {
+      continue;
+    }
+
+    // すでに URL が設定されている場合はスキップ
+    if (meta.applePodcastsUrl) {
+      continue;
+    }
+
+    // GUID で Apple Podcasts URL を検索
+    // sourceGuid（インポート時の元GUID）を優先し、なければ slug を使用
+    const guid = meta.sourceGuid || meta.slug;
+    const applePodcastsUrl = episodeMap.get(guid);
+
+    if (applePodcastsUrl) {
+      meta.applePodcastsUrl = applePodcastsUrl;
+      meta.applePodcastsCheckedAt = now.toISOString();
+      await saveEpisodeMeta(env, meta);
+      updated = true;
+      console.log(`Found Apple Podcasts URL for episode ${meta.id}: ${applePodcastsUrl}`);
+    } else {
+      // URL が見つからない場合でもチェック日時を更新（次回のチェックで再試行）
+      meta.applePodcastsCheckedAt = now.toISOString();
+      await saveEpisodeMeta(env, meta);
+    }
+  }
+
+  if (updated) {
+    // Web サイトのリビルドをトリガー
+    await triggerWebRebuild(env);
+    console.log("Triggered web rebuild for Apple Podcasts URL updates");
+  }
+}
+
+/**
  * Cron 処理: 予約投稿をチェックして公開
  */
 async function handleScheduledPublish(env: Env): Promise<void> {
@@ -222,5 +291,6 @@ export default {
   ): Promise<void> {
     console.log("Running scheduled task...");
     await handleScheduledPublish(env);
+    await handleApplePodcastsCheck(env);
   },
 };
