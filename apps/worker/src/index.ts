@@ -11,7 +11,7 @@ import { deployments } from "./routes/deployments";
 import { podcast } from "./routes/podcast";
 import { backup } from "./routes/backup";
 import { getIndex, getEpisodeMeta, saveEpisodeMeta } from "./services/r2";
-import { getFeed, regenerateFeed } from "./services/feed";
+import { regenerateFeed } from "./services/feed";
 import { postEpisodeToBluesky } from "./services/bluesky";
 import { triggerWebRebuild } from "./services/deploy";
 
@@ -49,16 +49,8 @@ app.use(
   })
 );
 
-// RSS フィード（認証不要）
-app.get("/feed.xml", async (c) => {
-  const feed = await getFeed(c.env);
-  return c.text(feed, 200, {
-    "Content-Type": "application/xml; charset=utf-8",
-  });
-});
-
 // ヘルスチェック（認証不要）
-app.get("/health", (c) => {
+app.get("/api/health", (c) => {
   return c.json({ status: "ok" });
 });
 

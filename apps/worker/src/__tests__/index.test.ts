@@ -3,8 +3,8 @@ import { SELF } from "cloudflare:test";
 
 describe("Worker API", () => {
   describe("Health Check", () => {
-    it("GET /health returns 200", async () => {
-      const response = await SELF.fetch("http://localhost/health");
+    it("GET /api/health returns 200", async () => {
+      const response = await SELF.fetch("http://localhost/api/health");
       expect(response.status).toBe(200);
 
       const json = await response.json();
@@ -19,16 +19,6 @@ describe("Worker API", () => {
 
       const json = await response.json();
       expect(json).toEqual({ error: "Not Found" });
-    });
-  });
-
-  describe("RSS Feed", () => {
-    it("GET /feed.xml returns XML content type", async () => {
-      const response = await SELF.fetch("http://localhost/feed.xml");
-      // feed.xml はR2からデータを取得するので、R2がモックされていない場合はエラーになる可能性がある
-      // ここではContent-Typeのチェックのみ
-      const contentType = response.headers.get("Content-Type");
-      expect(contentType).toContain("xml");
     });
   });
 });
