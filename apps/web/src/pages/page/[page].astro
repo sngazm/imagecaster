@@ -4,32 +4,47 @@ import EpisodeCard from "../../components/EpisodeCard.astro";
 import SubscribeSection from "../../components/SubscribeSection.astro";
 import Pagination from "../../components/Pagination.astro";
 import { getPublishedEpisodes, getPodcastIndex } from "../../lib/api";
+import type { Episode, PodcastInfo } from "../../lib/types";
+
+const EPISODES_PER_PAGE = 10;
 
 export async function getStaticPaths() {
   const EPISODES_PER_PAGE = 10;
-  const allEpisodes = await getPublishedEpisodes();
+  const [allEpisodes, index] = await Promise.all([
+    getPublishedEpisodes(),
+    getPodcastIndex(),
+  ]);
   const totalPages = Math.ceil(allEpisodes.length / EPISODES_PER_PAGE);
 
   // 2ページ目以降のみ生成（1ページ目は index.astro）
   const paths = [];
   for (let page = 2; page <= totalPages; page++) {
-    paths.push({ params: { page: String(page) } });
+    const startIndex = (page - 1) * EPISODES_PER_PAGE;
+    const episodes = allEpisodes.slice(startIndex, startIndex + EPISODES_PER_PAGE);
+    paths.push({
+      params: { page: String(page) },
+      props: {
+        episodes,
+        allEpisodesCount: allEpisodes.length,
+        totalPages,
+        podcast: index.podcast,
+      },
+    });
   }
 
   return paths;
 }
 
-const EPISODES_PER_PAGE = 10;
+interface Props {
+  episodes: Episode[];
+  allEpisodesCount: number;
+  totalPages: number;
+  podcast: PodcastInfo;
+}
+
 const { page } = Astro.params;
 const currentPage = Number(page);
-
-const allEpisodes = await getPublishedEpisodes();
-const index = await getPodcastIndex();
-const podcast = index.podcast;
-
-const totalPages = Math.ceil(allEpisodes.length / EPISODES_PER_PAGE);
-const startIndex = (currentPage - 1) * EPISODES_PER_PAGE;
-const episodes = allEpisodes.slice(startIndex, startIndex + EPISODES_PER_PAGE);
+const { episodes, allEpisodesCount, totalPages, podcast } = Astro.props;
 ---
 
 <Layout title={`${podcast.title} - ページ ${currentPage}`} description={podcast.description}>
@@ -58,7 +73,7 @@ const episodes = allEpisodes.slice(startIndex, startIndex + EPISODES_PER_PAGE);
       <div class="lg:col-span-2">
         <h2 class="mb-6 text-2xl font-bold text-zinc-900 dark:text-zinc-100">
           エピソード
-          <span class="ml-2 text-base font-normal text-zinc-500 dark:text-zinc-400">({allEpisodes.length})</span>
+          <span class="ml-2 text-base font-normal text-zinc-500 dark:text-zinc-400">({allEpisodesCount})</span>
         </h2>
 
         <div class="space-y-4">
