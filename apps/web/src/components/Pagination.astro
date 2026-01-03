@@ -13,6 +13,26 @@ function getPageUrl(page: number): string {
   }
   return `${basePath}/page/${page}`;
 }
+
+// ページ番号の配列を生成（省略記号を含む）
+function getPageNumbers(): (number | "ellipsis")[] {
+  const pages: (number | "ellipsis")[] = [];
+
+  for (let page = 1; page <= totalPages; page++) {
+    const showPage = page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1;
+    const showEllipsis = !showPage && (page === 2 || page === totalPages - 1);
+
+    if (showPage) {
+      pages.push(page);
+    } else if (showEllipsis) {
+      pages.push("ellipsis");
+    }
+  }
+
+  return pages;
+}
+
+const pageNumbers = getPageNumbers();
 ---
 
 {totalPages > 1 && (
@@ -31,22 +51,15 @@ function getPageUrl(page: number): string {
     )}
 
     <div class="flex items-center gap-1">
-      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-        const isCurrentPage = page === currentPage;
-        const showPage = page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1;
-        const showEllipsis = !showPage && (page === 2 || page === totalPages - 1);
-
-        if (showEllipsis) {
+      {pageNumbers.map((item, index) => {
+        if (item === "ellipsis") {
           return <span class="px-2 text-zinc-400">...</span>;
         }
 
-        if (!showPage) {
-          return null;
-        }
-
+        const isCurrentPage = item === currentPage;
         return (
           <a
-            href={getPageUrl(page)}
+            href={getPageUrl(item)}
             class={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-sm font-medium transition-colors ${
               isCurrentPage
                 ? "bg-blue-600 text-white"
@@ -54,7 +67,7 @@ function getPageUrl(page: number): string {
             }`}
             aria-current={isCurrentPage ? "page" : undefined}
           >
-            {page}
+            {item}
           </a>
         );
       })}
