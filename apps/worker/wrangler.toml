@@ -7,6 +7,8 @@ routes = [
   { pattern = "caster.image.club/api/*", zone_name = "image.club" },
 ]
 
+workers_dev = true
+
 [vars]
 PODCAST_TITLE = "番組名"
 WEBSITE_URL = "https://cast.image.club"
@@ -31,6 +33,3 @@ crons = ["*/5 * * * *"]
 # - WEB_DEPLOY_HOOK_URL (optional: Cloudflare Pages Deploy Hook URL)
 # - BLUESKY_IDENTIFIER (optional: Bluesky handle or DID for auto-posting)
 # - BLUESKY_PASSWORD (optional: Bluesky app password for auto-posting)
-
-[dev]
-persist = false  # 常に R2 dev バケットを使用（ローカルとの不整合を防ぐ）
