@@ -127,6 +127,7 @@ episodes.post("/", async (c) => {
     fileSize: 0,
     audioUrl: "",
     sourceAudioUrl: null,
+    sourceGuid: null,
     transcriptUrl: null,
     ogImageUrl: null,
     skipTranscription: body.skipTranscription ?? false,

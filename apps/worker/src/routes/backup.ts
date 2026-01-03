@@ -111,10 +111,11 @@ async function generateDownloadUrl(
   const url = new URL(
     `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${env.R2_BUCKET_NAME}/${key}`
   );
+  url.searchParams.set("X-Amz-Expires", "3600");
 
   const signed = await r2.sign(
     new Request(url, { method: "GET" }),
-    { aws: { signQuery: true }, expiresIn: 3600 }
+    { aws: { signQuery: true } }
   );
 
   return signed.url;
@@ -136,13 +137,14 @@ async function generateUploadUrl(
   const url = new URL(
     `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${env.R2_BUCKET_NAME}/${key}`
   );
+  url.searchParams.set("X-Amz-Expires", "3600");
 
   const signed = await r2.sign(
     new Request(url, {
       method: "PUT",
       headers: { "Content-Type": contentType },
     }),
-    { aws: { signQuery: true }, expiresIn: 3600 }
+    { aws: { signQuery: true } }
   );
 
   return signed.url;
@@ -282,6 +284,7 @@ backup.post("/import", async (c) => {
       fileSize: ep.meta.fileSize,
       audioUrl: "",
       sourceAudioUrl: ep.meta.sourceAudioUrl,
+      sourceGuid: ep.meta.sourceGuid ?? null,
       transcriptUrl: null,
       ogImageUrl: null,
       skipTranscription: ep.meta.skipTranscription,

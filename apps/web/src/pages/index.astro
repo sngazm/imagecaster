@@ -2,11 +2,18 @@
 import Layout from "../layouts/Layout.astro";
 import EpisodeCard from "../components/EpisodeCard.astro";
 import SubscribeSection from "../components/SubscribeSection.astro";
+import Pagination from "../components/Pagination.astro";
 import { getPublishedEpisodes, getPodcastIndex } from "../lib/api";
 
-const episodes = await getPublishedEpisodes();
+const EPISODES_PER_PAGE = 10;
+const currentPage = 1;
+
+const allEpisodes = await getPublishedEpisodes();
 const index = await getPodcastIndex();
 const podcast = index.podcast;
+
+const totalPages = Math.ceil(allEpisodes.length / EPISODES_PER_PAGE);
+const episodes = allEpisodes.slice(0, EPISODES_PER_PAGE);
 ---
 
 <Layout title={podcast.title} description={podcast.description}>
@@ -33,7 +40,7 @@ const podcast = index.podcast;
       <div class="lg:col-span-2">
         <h2 class="mb-6 text-2xl font-bold text-zinc-900 dark:text-zinc-100">
           エピソード
-          <span class="ml-2 text-base font-normal text-zinc-500 dark:text-zinc-400">({episodes.length})</span>
+          <span class="ml-2 text-base font-normal text-zinc-500 dark:text-zinc-400">({allEpisodes.length})</span>
         </h2>
 
         {episodes.length === 0 ? (
@@ -49,6 +56,8 @@ const podcast = index.podcast;
             ))}
           </div>
         )}
+
+        <Pagination currentPage={currentPage} totalPages={totalPages} />
       </div>
 
       <!-- サイドバー -->

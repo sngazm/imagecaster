@@ -1,0 +1,105 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import EpisodeCard from "../../components/EpisodeCard.astro";
+import SubscribeSection from "../../components/SubscribeSection.astro";
+import Pagination from "../../components/Pagination.astro";
+import { getPublishedEpisodes, getPodcastIndex } from "../../lib/api";
+import type { Episode, PodcastInfo } from "../../lib/types";
+
+const EPISODES_PER_PAGE = 10;
+
+export async function getStaticPaths() {
+  const EPISODES_PER_PAGE = 10;
+  const [allEpisodes, index] = await Promise.all([
+    getPublishedEpisodes(),
+    getPodcastIndex(),
+  ]);
+  const totalPages = Math.ceil(allEpisodes.length / EPISODES_PER_PAGE);
+
+  // 2ページ目以降のみ生成（1ページ目は index.astro）
+  const paths = [];
+  for (let page = 2; page <= totalPages; page++) {
+    const startIndex = (page - 1) * EPISODES_PER_PAGE;
+    const episodes = allEpisodes.slice(startIndex, startIndex + EPISODES_PER_PAGE);
+    paths.push({
+      params: { page: String(page) },
+      props: {
+        episodes,
+        allEpisodesCount: allEpisodes.length,
+        totalPages,
+        podcast: index.podcast,
+      },
+    });
+  }
+
+  return paths;
+}
+
+interface Props {
+  episodes: Episode[];
+  allEpisodesCount: number;
+  totalPages: number;
+  podcast: PodcastInfo;
+}
+
+const { page } = Astro.params;
+const currentPage = Number(page);
+const { episodes, allEpisodesCount, totalPages, podcast } = Astro.props;
+---
+
+<Layout title={`${podcast.title} - ページ ${currentPage}`} description={podcast.description}>
+  <div class="mx-auto max-w-4xl px-4 py-12">
+    <!-- ヒーローセクション -->
+    <section class="mb-12 text-center">
+      {podcast.artworkUrl && (
+        <a href="/">
+          <img
+            src={podcast.artworkUrl}
+            alt={podcast.title}
+            class="mx-auto mb-6 h-48 w-48 rounded-2xl shadow-xl"
+          />
+        </a>
+      )}
+      <h1 class="mb-4 text-4xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+        <a href="/" class="hover:text-blue-600 dark:hover:text-blue-400">{podcast.title}</a>
+      </h1>
+      <p class="mx-auto max-w-2xl text-lg text-zinc-600 dark:text-zinc-400">
+        {podcast.description}
+      </p>
+    </section>
+
+    <div class="grid gap-8 lg:grid-cols-3">
+      <!-- エピソード一覧 -->
+      <div class="lg:col-span-2">
+        <h2 class="mb-6 text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+          エピソード
+          <span class="ml-2 text-base font-normal text-zinc-500 dark:text-zinc-400">({allEpisodesCount})</span>
+        </h2>
+
+        <div class="space-y-4">
+          {episodes.map((episode) => (
+            <EpisodeCard episode={episode} websiteUrl={podcast.websiteUrl} />
+          ))}
+        </div>
+
+        <Pagination currentPage={currentPage} totalPages={totalPages} />
+      </div>
+
+      <!-- サイドバー -->
+      <aside class="space-y-6">
+        <SubscribeSection />
+
+        {podcast.author && (
+          <section class="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-800">
+            <h2 class="mb-3 text-lg font-bold text-zinc-900 dark:text-zinc-100">
+              ホスト
+            </h2>
+            <p class="text-sm text-zinc-600 dark:text-zinc-400">
+              {podcast.author}
+            </p>
+          </section>
+        )}
+      </aside>
+    </div>
+  </div>
+</Layout>
