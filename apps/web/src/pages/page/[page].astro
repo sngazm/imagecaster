@@ -47,7 +47,7 @@ const currentPage = Number(page);
 const { episodes, allEpisodesCount, totalPages, podcast } = Astro.props;
 ---
 
-<Layout title={`${podcast.title} - ページ ${currentPage}`} description={podcast.description}>
+<Layout title={`${podcast.title} - ページ ${currentPage}`} description={podcast.description} ogImage={podcast.ogImageUrl || podcast.artworkUrl}>
   <div class="mx-auto max-w-4xl px-4 py-12">
     <!-- ヒーローセクション -->
     <section class="mb-12">

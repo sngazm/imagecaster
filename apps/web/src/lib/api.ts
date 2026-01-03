@@ -56,6 +56,7 @@ function getDefaultPodcastIndex(): PodcastIndex {
       language: "ja",
       category: "Technology",
       artworkUrl: "",
+      ogImageUrl: "",
       websiteUrl: "",
       explicit: false,
     },
@@ -85,8 +86,9 @@ export async function getPodcastIndex(): Promise<PodcastIndex> {
     throw new Error(`Failed to fetch podcast index: ${res.status}`);
   }
 
-  cachedPodcastIndex = await res.json();
-  return cachedPodcastIndex;
+  const data: PodcastIndex = await res.json();
+  cachedPodcastIndex = data;
+  return data;
 }
 
 /**
