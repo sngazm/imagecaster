@@ -6,12 +6,14 @@ interface Props {
   title: string;
   description?: string;
   ogImage?: string;
+  ogType?: "website" | "article";
 }
 
-const { title, description = "ポッドキャスト配信サイト", ogImage } = Astro.props;
+const { title, description = "ポッドキャスト配信サイト", ogImage, ogType = "website" } = Astro.props;
 const siteTitle = import.meta.env.SITE_TITLE || "Podcast";
 const fullTitle = title === siteTitle ? title : `${title} | ${siteTitle}`;
 const plainDescription = stripHtml(description);
+const canonicalUrl = Astro.url.href;
 ---
 
 <!doctype html>
@@ -22,6 +24,9 @@ const plainDescription = stripHtml(description);
     <meta name="description" content={plainDescription} />
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={plainDescription} />
+    <meta property="og:type" content={ogType} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:site_name" content={siteTitle} />
     {ogImage && <meta property="og:image" content={ogImage} />}
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="alternate" type="application/rss+xml" title={siteTitle} href="/feed.xml" />
