@@ -148,21 +148,14 @@ Presigned URL の生成に必要です。
 - JWT 検証が失敗する
 - CORS エラーや 401 エラーが発生する
 
-### ⚠️ 推奨: 同一ドメインのサブドメインを使用
+### 同一ドメインで運用（サブディレクトリ構成）
 
-**Admin と Worker は同一ドメインのサブドメインで運用することを強く推奨します。**
+Worker の `wrangler.toml` で `routes` を設定し、Admin Pages のサブディレクトリとして API を配置します：
 
 ```
-admin.yourdomain.com  → Admin (Cloudflare Pages)
-api.yourdomain.com    → Worker
+admin.yourdomain.com      → Admin (Cloudflare Pages)
+admin.yourdomain.com/api  → Worker（routes 設定で同一ドメインにマウント）
 ```
-
-異なるドメイン（例: `xxx.pages.dev` と `xxx.workers.dev`）で運用すると、サードパーティ Cookie の問題が発生する可能性があります:
-- Chrome シークレットモード、Safari などでサードパーティ Cookie がブロックされる
-- Admin から Worker への API リクエストで認証 Cookie が送信されず CORS エラーになる
-- ブラウザのプライバシー設定強化により、今後さらに問題が発生する可能性がある
-
-同一ドメインのサブドメインを使用すれば、Cookie はファーストパーティとして扱われ、この問題を回避できます。
 
 ### 1. Zero Trust ダッシュボードにアクセス
 
@@ -379,10 +372,6 @@ pnpm deploy:worker
 ### 2. Admin をデプロイ
 
 ```bash
-# 環境変数を設定（.env.production を作成）
-echo "VITE_API_BASE=https://podcast-worker.your-domain.workers.dev" > apps/admin/.env.production
-
-# デプロイ
 pnpm deploy:admin
 ```
 
@@ -401,22 +390,6 @@ pnpm deploy:admin
 **解決策**:
 1. R2 バケットの CORS 設定を確認（`wrangler r2 bucket cors list podcast-bucket`）
 2. Cloudflare Access で「オリジンへのオプション リクエストをバイパスする」が ON か確認
-3. Worker の CORS 設定で対象オリジンが許可されているか確認
-
-### サードパーティ Cookie ブロックによる CORS エラー
-
-**症状**:
-- Chrome シークレットモードや Safari で `Access to fetch has been blocked by CORS policy` が発生
-- Cloudflare Access のログインページへリダイレクトされる
-- 通常の Chrome では動作するが、シークレットモードでは動作しない
-- ブラウザの DevTools で Cookie を確認すると `CF_AppSession` に「ユーザー設定によりブロックされました」と表示される
-
-**原因**:
-Admin (`*.pages.dev`) と Worker (`*.workers.dev`) が異なるドメインの場合、Worker への Cookie はサードパーティ Cookie として扱われます。Chrome シークレットモードや Safari はデフォルトでサードパーティ Cookie をブロックするため、認証が失敗します。
-
-**解決策**:
-1. **推奨**: Admin と Worker を同一ドメインのサブドメインに移行する（例: `admin.yourdomain.com` と `api.yourdomain.com`）
-2. **暫定対応**: Worker の URL（`https://xxx.workers.dev/health`）に直接アクセスして Cloudflare Access でログインし、Worker ドメインにもファーストパーティ Cookie を設定する（ただし Safari の ITP では 7 日で Cookie が削除される可能性あり）
 
 ### 401 Unauthorized: Missing Access token
 

@@ -97,55 +97,13 @@ export function getWebsiteUrl(baseWebUrl: string, slug?: string): string {
 }
 
 /**
- * 対応するWorker APIのURLを生成
+ * Worker APIのベースURLを取得
  *
- * 本番環境: 空文字列（相対パス）を返す
- *   → Worker が caster.image.club/api/* にルーティングされているため
- * プレビュー環境: Worker URLを自動生成
- * ローカル開発: localhost:8787 を返す
+ * 全環境で空文字列（相対パス）を返す。
+ * - 本番: Worker が /api/* にルーティングされている
+ * - 開発: Vite のプロキシが /api/* を Worker に転送
  */
 export function getApiBaseUrl(): string {
-  const configuredBase = import.meta.env.VITE_API_BASE;
-  const previewBase = import.meta.env.VITE_PREVIEW_API_BASE;
-
-  const env = getEnvironment();
-
-  if (env === "local") {
-    return configuredBase || "http://localhost:8787";
-  }
-
-  if (env === "preview") {
-    // 明示的にプレビュー用URLが設定されていればそれを使う
-    if (previewBase) {
-      return previewBase;
-    }
-
-    // 本番URLからプレビューURLを自動生成
-    const previewInfo = getPreviewInfo();
-    if (previewInfo && configuredBase) {
-      try {
-        const url = new URL(configuredBase);
-        const hostParts = url.hostname.split(".");
-        // hostParts: ['podcast-worker', 'imagecast', 'workers', 'dev']
-        if (hostParts.length >= 4 && hostParts[2] === "workers" && hostParts[3] === "dev") {
-          const workerName = hostParts[0];
-          const subdomain = hostParts[1];
-          // <branch>-<worker-name>.<subdomain>.workers.dev
-          const previewHost = `${previewInfo.identifier}-${workerName}.${subdomain}.workers.dev`;
-          return `${url.protocol}//${previewHost}`;
-        }
-      } catch {
-        // URLパースに失敗した場合はフォールバック
-      }
-    }
-
-    // プレビュー環境でもフォールバックがなければconfiguredBaseを使用
-    return configuredBase || "http://localhost:8787";
-  }
-
-  // 本番環境: 空文字列（相対パス）を返す
-  // Worker が同一ドメインの /api/* にルーティングされているため
-  // 例: fetch("/api/episodes") → caster.image.club/api/episodes
   return "";
 }
 

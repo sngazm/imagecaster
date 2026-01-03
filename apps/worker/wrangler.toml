@@ -3,13 +3,8 @@ main = "src/index.ts"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 
-# 本番環境ルート設定
-# Admin Pages (caster.image.club) のサブディレクトリとしてAPIを配置
-# これにより caster.image.club/api/* へのリクエストはこのWorkerが処理
 routes = [
   { pattern = "caster.image.club/api/*", zone_name = "image.club" },
-  { pattern = "caster.image.club/feed.xml", zone_name = "image.club" },
-  { pattern = "caster.image.club/health", zone_name = "image.club" },
 ]
 
 [vars]
