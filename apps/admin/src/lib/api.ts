@@ -46,6 +46,7 @@ export interface EpisodeDetail {
   fileSize: number;
   audioUrl: string;
   sourceAudioUrl: string | null;
+  sourceGuid: string | null;
   transcriptUrl: string | null;
   ogImageUrl: string | null;
   skipTranscription: boolean;

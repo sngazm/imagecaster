@@ -18,6 +18,10 @@ R2_PUBLIC_URL = "https://cast-bucket.image.club"
 CF_ACCESS_TEAM_DOMAIN = "sngazm.cloudflareaccess.com"
 CF_ACCESS_AUD = "5269d12ad25457e6c5f25a6c8565eafab46cc4817164401abe12982c405263a9"
 
+[observability]
+enabled = true
+head_sampling_rate = 1 # optional. default = 1.
+
 [[r2_buckets]]
 binding = "R2_BUCKET"
 bucket_name = "podcast-bucket"

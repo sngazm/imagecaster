@@ -39,18 +39,27 @@ export async function fetchApplePodcastsEpisodes(
   limit: number = 300
 ): Promise<Map<string, string>> {
   const url = `https://itunes.apple.com/lookup?id=${podcastId}&media=podcast&entity=podcastEpisode&limit=${limit}`;
+  const userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+  console.log(`[iTunes API] Requesting: ${url}`);
+  console.log(`[iTunes API] User-Agent: ${userAgent}`);
 
   const response = await fetch(url, {
     headers: {
-      "User-Agent": "ImageCaster/1.0",
+      "User-Agent": userAgent,
+      "Accept": "application/json",
     },
   });
 
+  console.log(`[iTunes API] Response status: ${response.status}`);
+
   if (!response.ok) {
+    const errorBody = await response.text();
+    console.log(`[iTunes API] Error body: ${errorBody.substring(0, 500)}`);
     throw new Error(`iTunes API error: ${response.status}`);
   }
 
   const data = (await response.json()) as iTunesLookupResponse;
+  console.log(`[iTunes API] resultCount: ${data.resultCount}`);
 
   // GUID → trackViewUrl のマップを作成
   const episodeMap = new Map<string, string>();
@@ -63,9 +72,11 @@ export async function fetchApplePodcastsEpisodes(
       // → https://podcasts.apple.com/us/podcast/episode-title/id1234567890?i=1000123456789
       const cleanUrl = result.trackViewUrl.replace(/&uo=\d+$/, "");
       episodeMap.set(result.episodeGuid, cleanUrl);
+      console.log(`[iTunes API] Episode: guid="${result.episodeGuid}" -> ${cleanUrl.substring(0, 80)}...`);
     }
   }
 
+  console.log(`[iTunes API] Total episodes mapped: ${episodeMap.size}`);
   return episodeMap;
 }
 
