@@ -296,6 +296,10 @@ backup.post("/import", async (c) => {
       blueskyPostEnabled: ep.meta.blueskyPostEnabled,
       blueskyPostedAt: null, // インポート時はリセット
       referenceLinks: ep.meta.referenceLinks || [],
+      applePodcastsUrl: null,
+      applePodcastsCheckedAt: null,
+      applePodcastsCheckCount: 0,
+      applePodcastsSkipped: false,
     };
 
     // インデックスに追加（重複チェック）

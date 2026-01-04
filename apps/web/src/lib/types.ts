@@ -19,6 +19,7 @@ export interface Episode {
   publishAt: string;
   publishedAt: string | null;
   referenceLinks?: ReferenceLink[];
+  applePodcastsUrl?: string | null;
 }
 
 export interface PodcastInfo {

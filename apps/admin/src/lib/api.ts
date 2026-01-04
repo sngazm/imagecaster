@@ -59,6 +59,11 @@ export interface EpisodeDetail {
   blueskyPostedAt: string | null;
   // 参考リンク
   referenceLinks: ReferenceLink[];
+  // Apple Podcasts
+  applePodcastsUrl: string | null;
+  applePodcastsCheckedAt: string | null;
+  applePodcastsCheckCount: number;
+  applePodcastsSkipped: boolean;
 }
 
 export interface PodcastSettings {
@@ -72,6 +77,7 @@ export interface PodcastSettings {
   ogImageUrl: string;
   websiteUrl: string;
   explicit: boolean;
+  applePodcastsId: string | null;
   // 購読リンク
   applePodcastsUrl?: string;
   spotifyUrl?: string;
@@ -289,6 +295,8 @@ export const api = {
     blueskyPostText?: string | null;
     blueskyPostEnabled?: boolean;
     referenceLinks?: ReferenceLink[];
+    applePodcastsUrl?: string | null;
+    applePodcastsSkipped?: boolean;
   }) =>
     request<EpisodeDetail>(`/api/episodes/${id}`, {
       method: "PUT",

@@ -29,6 +29,7 @@ settings.put("/", async (c) => {
   if (body.category !== undefined) index.podcast.category = body.category;
   if (body.websiteUrl !== undefined) index.podcast.websiteUrl = body.websiteUrl;
   if (body.explicit !== undefined) index.podcast.explicit = body.explicit;
+  if (body.applePodcastsId !== undefined) index.podcast.applePodcastsId = body.applePodcastsId;
   // 購読リンク
   if (body.applePodcastsUrl !== undefined) index.podcast.applePodcastsUrl = body.applePodcastsUrl;
   if (body.spotifyUrl !== undefined) index.podcast.spotifyUrl = body.spotifyUrl;

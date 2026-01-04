@@ -139,6 +139,10 @@ episodes.post("/", async (c) => {
     blueskyPostEnabled: body.blueskyPostEnabled ?? false,
     blueskyPostedAt: null,
     referenceLinks: body.referenceLinks ?? [],
+    applePodcastsUrl: null,
+    applePodcastsCheckedAt: null,
+    applePodcastsCheckCount: 0,
+    applePodcastsSkipped: false,
   };
 
   // メタデータを保存
@@ -212,6 +216,22 @@ episodes.put("/:id", async (c) => {
     // 参考リンク
     if (body.referenceLinks !== undefined) {
       meta.referenceLinks = body.referenceLinks;
+    }
+    // Apple Podcasts
+    if (body.applePodcastsUrl !== undefined) {
+      meta.applePodcastsUrl = body.applePodcastsUrl;
+      // URL を手動設定した場合はチェックカウントをリセット
+      if (body.applePodcastsUrl) {
+        meta.applePodcastsCheckCount = 0;
+        meta.applePodcastsSkipped = false;
+      }
+    }
+    if (body.applePodcastsSkipped !== undefined) {
+      meta.applePodcastsSkipped = body.applePodcastsSkipped;
+      // スキップを解除した場合はチェックカウントをリセット
+      if (!body.applePodcastsSkipped) {
+        meta.applePodcastsCheckCount = 0;
+      }
     }
 
     // slugが変わる場合はファイルを移動

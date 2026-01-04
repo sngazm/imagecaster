@@ -40,6 +40,7 @@ export interface PodcastIndex {
     ogImageUrl: string; // OGP画像URL
     websiteUrl: string;
     explicit: boolean;
+    applePodcastsId: string | null; // Apple Podcasts ID (collectionId)
     // 購読リンク
     applePodcastsUrl?: string;
     spotifyUrl?: string;
@@ -95,6 +96,11 @@ export interface EpisodeMeta {
   blueskyPostedAt: string | null; // 投稿済みの場合の日時
   // 参考リンク
   referenceLinks: ReferenceLink[];
+  // Apple Podcasts
+  applePodcastsUrl: string | null; // エピソード個別URL
+  applePodcastsCheckedAt: string | null; // 最終チェック日時
+  applePodcastsCheckCount: number; // チェック試行回数
+  applePodcastsSkipped: boolean; // 今後のチェックをスキップするか
 }
 
 /**
@@ -123,6 +129,9 @@ export interface UpdateEpisodeRequest {
   blueskyPostText?: string | null;
   blueskyPostEnabled?: boolean;
   referenceLinks?: ReferenceLink[];
+  // Apple Podcasts（管理画面から編集可能）
+  applePodcastsUrl?: string | null;
+  applePodcastsSkipped?: boolean;
 }
 
 /**
@@ -226,6 +235,7 @@ export interface UpdatePodcastSettingsRequest {
   category?: string;
   websiteUrl?: string;
   explicit?: boolean;
+  applePodcastsId?: string | null;
   // 購読リンク
   applePodcastsUrl?: string;
   spotifyUrl?: string;
