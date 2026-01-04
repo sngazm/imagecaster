@@ -7,10 +7,9 @@ interface Props {
 
 const { podcast } = Astro.props;
 
-// サイトの絶対URLを構築（Podcast アプリ登録用）
-const siteUrl = import.meta.env.SITE_URL || Astro.site?.origin || "";
+// RSS フィードの絶対URLを構築
 const feedPath = "/feed.xml";
-const absoluteFeedUrl = siteUrl ? `${siteUrl}${feedPath}` : feedPath;
+const absoluteFeedUrl = podcast.websiteUrl ? `${podcast.websiteUrl}${feedPath}` : feedPath;
 
 // 購読リンクがどれか設定されているか
 const hasSubscribeLinks = podcast.applePodcastsUrl || podcast.spotifyUrl;
