@@ -28,6 +28,7 @@ type Listener = () => void;
 class TaskStore {
   private tasks: Map<string, Task> = new Map();
   private listeners: Set<Listener> = new Set();
+  private snapshot: Task[] = []; // キャッシュされたスナップショット
 
   subscribe(listener: Listener): () => void {
     this.listeners.add(listener);
@@ -35,6 +36,8 @@ class TaskStore {
   }
 
   private notify(): void {
+    // スナップショットを更新（新しい参照を作成）
+    this.snapshot = Array.from(this.tasks.values());
     this.listeners.forEach((listener) => listener());
   }
 
@@ -105,10 +108,10 @@ class TaskStore {
   }
 
   /**
-   * 全タスクを取得する
+   * 全タスクを取得する（キャッシュされたスナップショットを返す）
    */
-  getAll(): Task[] {
-    return Array.from(this.tasks.values());
+  getSnapshot(): Task[] {
+    return this.snapshot;
   }
 
   /**
@@ -128,6 +131,6 @@ export const taskStore = new TaskStore();
 export function useTasks(): Task[] {
   return useSyncExternalStore(
     (listener) => taskStore.subscribe(listener),
-    () => taskStore.getAll()
+    () => taskStore.getSnapshot()
   );
 }

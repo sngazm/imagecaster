@@ -34,13 +34,24 @@ export async function fetchApplePodcastsEpisodes(
 ): Promise<Map<string, string>> {
   const url = `https://itunes.apple.com/lookup?id=${podcastId}&media=podcast&entity=podcastEpisode&limit=${limit}`;
 
-  const response = await fetch(url);
+  let response: Response;
+  try {
+    response = await fetch(url);
+  } catch (err) {
+    // CORS エラーや ネットワークエラーの場合
+    throw new Error("Apple APIに接続できません（CORS/ネットワークエラー）");
+  }
 
   if (!response.ok) {
     throw new Error(`iTunes API error: ${response.status}`);
   }
 
-  const data = (await response.json()) as iTunesLookupResponse;
+  let data: iTunesLookupResponse;
+  try {
+    data = (await response.json()) as iTunesLookupResponse;
+  } catch {
+    throw new Error("APIレスポンスの解析に失敗しました");
+  }
 
   // GUID → trackViewUrl のマップを作成
   const episodeMap = new Map<string, string>();
