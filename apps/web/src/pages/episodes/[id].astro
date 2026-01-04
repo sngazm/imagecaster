@@ -17,6 +17,7 @@ export async function getStaticPaths() {
   ]);
   const websiteUrl = index.podcast.websiteUrl;
   const podcastArtworkUrl = index.podcast.artworkUrl;
+  const spotifyUrl = index.podcast.spotifyUrl || null;
 
   return Promise.all(
     episodes.map(async (episode, idx) => {
@@ -34,7 +35,7 @@ export async function getStaticPaths() {
         : null;
       return {
         params: { id: episode.id },
-        props: { episode, websiteUrl, transcriptText, podcastArtworkUrl, prevEpisode, nextEpisode },
+        props: { episode, websiteUrl, transcriptText, podcastArtworkUrl, prevEpisode, nextEpisode, spotifyUrl },
       };
     })
   );
@@ -48,6 +49,7 @@ let transcriptText: string;
 let podcastArtworkUrl: string;
 let prevEpisode: EpisodeNav | null = null;
 let nextEpisode: EpisodeNav | null = null;
+let spotifyUrl: string | null = null;
 
 if (Astro.props.episode) {
   // SSGモード: getStaticPathsからpropsが渡される
@@ -57,6 +59,7 @@ if (Astro.props.episode) {
   podcastArtworkUrl = Astro.props.podcastArtworkUrl || "";
   prevEpisode = Astro.props.prevEpisode || null;
   nextEpisode = Astro.props.nextEpisode || null;
+  spotifyUrl = Astro.props.spotifyUrl || null;
 } else {
   // SSRモード: paramsから取得してfetch
   const [fetchedEpisode, allEpisodes, index] = await Promise.all([
@@ -67,6 +70,7 @@ if (Astro.props.episode) {
   episode = fetchedEpisode;
   websiteUrl = index.podcast.websiteUrl;
   podcastArtworkUrl = index.podcast.artworkUrl;
+  spotifyUrl = index.podcast.spotifyUrl || null;
   transcriptText = episode.transcriptUrl
     ? await getTranscriptText(episode.transcriptUrl)
     : "";
@@ -164,6 +168,19 @@ const description = processDescription(episode.description, episode, websiteUrl)
               <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm0 3.6c4.636 0 8.4 3.764 8.4 8.4 0 2.812-1.38 5.298-3.502 6.822-.164-.58-.41-1.35-.706-2.175.805-.858 1.308-2.143 1.308-3.447 0-3.037-2.463-5.5-5.5-5.5S6.5 10.163 6.5 13.2c0 1.304.503 2.589 1.308 3.447-.296.825-.542 1.595-.706 2.175C4.98 17.298 3.6 14.812 3.6 12c0-4.636 3.764-8.4 8.4-8.4zm0 4.8c1.988 0 3.6 1.612 3.6 3.6 0 .752-.28 1.433-.7 1.988-.178-.495-.377-.997-.583-1.478a1.8 1.8 0 10-2.634 0c-.206.481-.405.983-.583 1.478-.42-.555-.7-1.236-.7-1.988 0-1.988 1.612-3.6 3.6-3.6zm0 6c.259 0 .458.147.573.382.567 1.153 1.227 2.897 1.227 3.618 0 .994-.806 1.8-1.8 1.8s-1.8-.806-1.8-1.8c0-.721.66-2.465 1.227-3.618.115-.235.314-.382.573-.382z"/>
             </svg>
             Apple Podcasts
+          </a>
+        )}
+        {spotifyUrl && (
+          <a
+            href={spotifyUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="flex items-center gap-1.5 rounded-full bg-[#1DB954] px-3 py-1 text-white transition-opacity hover:opacity-90"
+          >
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+            </svg>
+            Spotify
           </a>
         )}
       </div>
