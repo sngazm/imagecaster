@@ -40,6 +40,8 @@ episodes.get("/", async (c) => {
         status: meta.status,
         publishAt: meta.publishAt,
         publishedAt: meta.publishedAt,
+        sourceGuid: meta.sourceGuid || null,
+        applePodcastsUrl: meta.applePodcastsUrl || null,
       };
     })
   );

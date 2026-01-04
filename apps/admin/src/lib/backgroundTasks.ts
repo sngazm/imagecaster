@@ -6,7 +6,7 @@
  */
 
 import { api, Episode, PodcastSettings } from "./api";
-import { fetchApplePodcastsEpisodes } from "./itunes";
+import { searchApplePodcastsEpisodeByTitle } from "./itunes";
 import { taskStore } from "./taskStore";
 
 // タスク実行済みフラグ（セッション内で1回だけ実行）
@@ -53,15 +53,17 @@ export async function runApplePodcastsAutoFetch(
   taskStore.updateProgress(taskId, `0/${targetEpisodes.length}件`);
 
   try {
-    // iTunes API からエピソード情報を取得
-    const episodeMap = await fetchApplePodcastsEpisodes(settings.applePodcastsId);
-
     let foundCount = 0;
     let processedCount = 0;
 
+    // 各エピソードをタイトル検索で取得（5秒間隔でレート制限対応）
     for (const ep of targetEpisodes) {
       const guid = ep.sourceGuid || ep.slug || ep.id;
-      const applePodcastsUrl = episodeMap.get(guid);
+      const applePodcastsUrl = await searchApplePodcastsEpisodeByTitle(
+        ep.title,
+        guid,
+        settings.applePodcastsId
+      );
 
       if (applePodcastsUrl) {
         await api.updateEpisode(ep.id, { applePodcastsUrl });
