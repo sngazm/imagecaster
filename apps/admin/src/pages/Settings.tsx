@@ -329,27 +329,42 @@ export default function Settings() {
     setApplePodcastsProgress(null);
 
     try {
-      // iTunes API からエピソード情報を取得
-      const itunesUrl = `https://itunes.apple.com/lookup?id=${settings.applePodcastsId}&media=podcast&entity=podcastEpisode&limit=100`;
-      const itunesResponse = await fetch(itunesUrl);
-      if (!itunesResponse.ok) {
-        throw new Error(`iTunes API error: ${itunesResponse.status}`);
-      }
-      const itunesData = await itunesResponse.json() as {
-        resultCount: number;
-        results: Array<{
-          wrapperType: string;
-          trackId: number;
-          episodeGuid: string;
-          collectionId: number;
-        }>;
-      };
-
-      // GUID → trackId のマップを作成
+      // iTunes API からエピソード情報を取得（ページネーション対応）
       const guidToTrackId = new Map<string, number>();
-      for (const result of itunesData.results) {
-        if (result.wrapperType === "podcastEpisode" && result.episodeGuid) {
-          guidToTrackId.set(result.episodeGuid, result.trackId);
+      const LIMIT = 100;
+      let offset = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const itunesUrl = `https://itunes.apple.com/lookup?id=${settings.applePodcastsId}&media=podcast&entity=podcastEpisode&limit=${LIMIT}&offset=${offset}`;
+        const itunesResponse = await fetch(itunesUrl);
+        if (!itunesResponse.ok) {
+          throw new Error(`iTunes API error: ${itunesResponse.status}`);
+        }
+        const itunesData = await itunesResponse.json() as {
+          resultCount: number;
+          results: Array<{
+            wrapperType: string;
+            trackId: number;
+            episodeGuid: string;
+            collectionId: number;
+          }>;
+        };
+
+        // エピソードを追加
+        let episodeCount = 0;
+        for (const result of itunesData.results) {
+          if (result.wrapperType === "podcastEpisode" && result.episodeGuid) {
+            guidToTrackId.set(result.episodeGuid, result.trackId);
+            episodeCount++;
+          }
+        }
+
+        // 次のページがあるかチェック（エピソードが100件未満なら終了）
+        if (episodeCount < LIMIT) {
+          hasMore = false;
+        } else {
+          offset += LIMIT;
         }
       }
 
