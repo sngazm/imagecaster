@@ -7,10 +7,9 @@ interface Props {
 
 const { podcast } = Astro.props;
 
-// サイトの絶対URLを構築（Podcast アプリ登録用）
-const siteUrl = import.meta.env.SITE_URL || Astro.site?.origin || "";
+// RSS フィードの絶対URLを構築
 const feedPath = "/feed.xml";
-const absoluteFeedUrl = siteUrl ? `${siteUrl}${feedPath}` : feedPath;
+const absoluteFeedUrl = podcast.websiteUrl ? `${podcast.websiteUrl}${feedPath}` : feedPath;
 
 // 購読リンクがどれか設定されているか
 const hasSubscribeLinks = podcast.applePodcastsUrl || podcast.spotifyUrl;
@@ -65,26 +64,36 @@ const hasSubscribeLinks = podcast.applePodcastsUrl || podcast.spotifyUrl;
       </svg>
       RSS フィード
     </a>
-  </div>
 
-  <div class="mt-4">
-    <label class="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
-      RSS URL
-    </label>
-    <div class="flex rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
-      <input
-        type="text"
-        readonly
-        value={absoluteFeedUrl}
-        class="flex-1 bg-transparent px-3 py-2 text-sm text-zinc-700 outline-none dark:text-zinc-300"
-      />
-      <button
-        type="button"
-        onclick={`navigator.clipboard.writeText('${absoluteFeedUrl}'); this.textContent = 'コピーしました！'; setTimeout(() => this.textContent = 'コピー', 2000);`}
-        class="border-l border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-700"
-      >
-        コピー
-      </button>
-    </div>
+    <button
+      type="button"
+      id="copy-rss-btn"
+      data-feed-url={absoluteFeedUrl}
+      class="inline-flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600"
+    >
+      <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+      </svg>
+      <span id="copy-rss-text">URLをコピー</span>
+    </button>
   </div>
 </section>
+
+<script>
+  const copyBtn = document.getElementById('copy-rss-btn');
+  const copyText = document.getElementById('copy-rss-text');
+
+  copyBtn?.addEventListener('click', async () => {
+    const feedUrl = copyBtn.getAttribute('data-feed-url');
+    if (feedUrl) {
+      await navigator.clipboard.writeText(feedUrl);
+      if (copyText) {
+        copyText.textContent = 'コピーしました！';
+        setTimeout(() => {
+          copyText.textContent = 'URLをコピー';
+        }, 2000);
+      }
+    }
+  });
+</script>
