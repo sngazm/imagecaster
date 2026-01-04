@@ -8,6 +8,8 @@
  * など
  */
 
+import { useSyncExternalStore } from "react";
+
 export type TaskStatus = "running" | "success" | "error";
 
 export interface Task {
@@ -123,8 +125,6 @@ class TaskStore {
 export const taskStore = new TaskStore();
 
 // React用フック
-import { useSyncExternalStore } from "react";
-
 export function useTasks(): Task[] {
   return useSyncExternalStore(
     (listener) => taskStore.subscribe(listener),
