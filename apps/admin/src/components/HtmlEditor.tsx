@@ -119,6 +119,9 @@ export function HtmlEditor({
       StarterKit,
       Link.configure({
         openOnClick: false,
+        autolink: true,
+        linkOnPaste: true,
+        defaultProtocol: "https",
         HTMLAttributes: {
           class: "text-violet-400 underline",
         },
