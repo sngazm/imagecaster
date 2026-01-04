@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api, Episode } from "../lib/api";
 import { BuildStatus } from "../components/BuildStatus";
 
@@ -27,10 +27,13 @@ function formatDate(dateString: string | null): string {
 const ITEMS_PER_PAGE = 10;
 
 export default function EpisodeList() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
+
+  // URLクエリパラメータからページ番号を取得
+  const currentPage = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
 
   // ページネーション計算
   const totalPages = Math.ceil(episodes.length / ITEMS_PER_PAGE);
@@ -40,7 +43,8 @@ export default function EpisodeList() {
 
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
-      setCurrentPage(page);
+      // URLクエリパラメータを更新（ブラウザ履歴に追加）
+      setSearchParams(page === 1 ? {} : { page: String(page) });
       // ページトップにスクロール
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -52,7 +56,6 @@ export default function EpisodeList() {
       setIsLoading(true);
       const data = await api.getEpisodes();
       setEpisodes(data.episodes);
-      setCurrentPage(1); // ページをリセット
     } catch (err) {
       setError(err instanceof Error ? err.message : "一覧の取得に失敗しました");
     } finally {
