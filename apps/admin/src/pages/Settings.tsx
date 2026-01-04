@@ -75,6 +75,10 @@ export default function Settings() {
   const [resetting, setResetting] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState("");
 
+  // Apple Podcasts URL fetch
+  const [fetchingApplePodcasts, setFetchingApplePodcasts] = useState(false);
+  const [applePodcastsProgress, setApplePodcastsProgress] = useState<{ current: number; total: number; found: number } | null>(null);
+
   // Backup
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState<{ current: number; total: number } | null>(null);
@@ -311,6 +315,80 @@ export default function Settings() {
       setError(err instanceof Error ? err.message : "Failed to import RSS");
     } finally {
       setImporting(false);
+    }
+  }
+
+  async function handleFetchApplePodcastsUrls() {
+    if (!settings?.applePodcastsId) {
+      setError("Apple Podcasts ID が設定されていません");
+      return;
+    }
+
+    setFetchingApplePodcasts(true);
+    setError(null);
+    setApplePodcastsProgress(null);
+
+    try {
+      // iTunes API からエピソード情報を取得
+      const itunesUrl = `https://itunes.apple.com/lookup?id=${settings.applePodcastsId}&media=podcast&entity=podcastEpisode&limit=300`;
+      const itunesResponse = await fetch(itunesUrl);
+      if (!itunesResponse.ok) {
+        throw new Error(`iTunes API error: ${itunesResponse.status}`);
+      }
+      const itunesData = await itunesResponse.json() as {
+        resultCount: number;
+        results: Array<{
+          wrapperType: string;
+          trackId: number;
+          episodeGuid: string;
+          collectionId: number;
+        }>;
+      };
+
+      // GUID → trackId のマップを作成
+      const guidToTrackId = new Map<string, number>();
+      for (const result of itunesData.results) {
+        if (result.wrapperType === "podcastEpisode" && result.episodeGuid) {
+          guidToTrackId.set(result.episodeGuid, result.trackId);
+        }
+      }
+
+      // 全エピソードを取得
+      const episodesResponse = await api.getEpisodes();
+      const episodes = episodesResponse.episodes;
+
+      setApplePodcastsProgress({ current: 0, total: episodes.length, found: 0 });
+
+      let foundCount = 0;
+      let updatedCount = 0;
+
+      for (let i = 0; i < episodes.length; i++) {
+        const ep = episodes[i];
+        // エピソードの詳細を取得してsourceGuidを確認
+        const detail = await api.getEpisode(ep.id);
+        const guid = detail.sourceGuid || detail.slug;
+        const trackId = guidToTrackId.get(guid);
+
+        if (trackId && !detail.applePodcastsUrl) {
+          // Apple Podcasts URL を構築
+          const applePodcastsUrl = `https://podcasts.apple.com/jp/podcast/_/id${settings.applePodcastsId}?i=${trackId}`;
+          await api.updateEpisode(ep.id, { applePodcastsUrl });
+          foundCount++;
+          updatedCount++;
+        } else if (trackId && detail.applePodcastsUrl) {
+          foundCount++;
+        }
+
+        setApplePodcastsProgress({ current: i + 1, total: episodes.length, found: foundCount });
+      }
+
+      setSuccess(`${updatedCount}件のエピソードにApple Podcasts URLを設定しました（マッチ: ${foundCount}/${episodes.length}）`);
+      setTimeout(() => setSuccess(null), 5000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch Apple Podcasts URLs");
+    } finally {
+      setFetchingApplePodcasts(false);
+      setApplePodcastsProgress(null);
     }
   }
 
@@ -973,9 +1051,51 @@ export default function Settings() {
               />
               <p className="text-xs text-zinc-500 mt-2">
                 Apple Podcasts のURLに含まれる ID を入力してください。<br />
-                例: https://podcasts.apple.com/jp/podcast/id<strong>1234567890</strong><br />
-                設定すると、Cron で定期的にエピソードごとの Apple Podcasts リンクを取得します。
+                例: https://podcasts.apple.com/jp/podcast/id<strong>1234567890</strong>
               </p>
+            </div>
+
+            <div className="border-t border-zinc-800 pt-4">
+              <h3 className="text-sm font-medium text-zinc-300 mb-2">エピソードURLの一括取得</h3>
+              <p className="text-xs text-zinc-500 mb-3">
+                iTunes API からエピソードごとの Apple Podcasts リンクを取得し、各エピソードに設定します。
+              </p>
+
+              {applePodcastsProgress && (
+                <div className="mb-3">
+                  <div className="flex justify-between text-sm text-zinc-400 mb-1">
+                    <span>処理中... (マッチ: {applePodcastsProgress.found}件)</span>
+                    <span>{applePodcastsProgress.current} / {applePodcastsProgress.total}</span>
+                  </div>
+                  <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-violet-500 transition-all duration-300"
+                      style={{ width: `${(applePodcastsProgress.current / applePodcastsProgress.total) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleFetchApplePodcastsUrls}
+                disabled={fetchingApplePodcasts || !settings.applePodcastsId}
+                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {fetchingApplePodcasts ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    取得中...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Apple Podcasts URLを一括取得
+                  </>
+                )}
+              </button>
             </div>
           </div>
 

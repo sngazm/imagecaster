@@ -181,12 +181,15 @@ const APPLE_PODCASTS_MAX_RETRIES = 30;
 const APPLE_PODCASTS_GRACE_PERIOD_MS = 24 * 60 * 60 * 1000; // 1日
 
 async function handleApplePodcastsCheck(env: Env): Promise<void> {
+  console.log("[Apple Podcasts Check] Starting...");
   const index = await getIndex(env);
 
   // Apple Podcasts ID が設定されていない場合はスキップ
   if (!index.podcast.applePodcastsId) {
+    console.log("[Apple Podcasts Check] No applePodcastsId configured, skipping");
     return;
   }
+  console.log(`[Apple Podcasts Check] Using podcastId: ${index.podcast.applePodcastsId}`);
 
   const now = new Date();
 
@@ -207,6 +210,7 @@ async function handleApplePodcastsCheck(env: Env): Promise<void> {
       !meta.applePodcastsSkipped
     ) {
       targetEpisodes.push(meta);
+      console.log(`[Apple Podcasts Check] Target episode: id="${meta.id}", slug="${meta.slug}", sourceGuid="${meta.sourceGuid || 'none'}"`);
     }
   }
 
@@ -244,7 +248,9 @@ async function handleApplePodcastsCheck(env: Env): Promise<void> {
     // GUID で Apple Podcasts URL を検索
     // sourceGuid（インポート時の元GUID）を優先し、なければ slug を使用
     const guid = meta.sourceGuid || meta.slug;
+    console.log(`[Apple Podcasts Check] Looking up: id="${meta.id}", using guid="${guid}" (sourceGuid=${meta.sourceGuid ? 'yes' : 'no'})`);
     const applePodcastsUrl = episodeMap.get(guid);
+    console.log(`[Apple Podcasts Check] Match result: ${applePodcastsUrl ? 'FOUND' : 'NOT FOUND'}`);
 
     if (applePodcastsUrl) {
       // URL が見つかった
@@ -291,8 +297,11 @@ async function handleApplePodcastsCheck(env: Env): Promise<void> {
  * Cron 処理: 予約投稿をチェックして公開
  */
 async function handleScheduledPublish(env: Env): Promise<void> {
+  console.log("[Scheduled Publish] Starting...");
   const now = new Date();
+  console.log("[Scheduled Publish] Fetching index from R2...");
   const index = await getIndex(env);
+  console.log(`[Scheduled Publish] Got index with ${index.episodes.length} episodes`);
 
   let updated = false;
 
@@ -341,7 +350,17 @@ export default {
     _ctx: ExecutionContext
   ): Promise<void> {
     console.log("Running scheduled task...");
-    await handleScheduledPublish(env);
-    await handleApplePodcastsCheck(env);
+    try {
+      console.log("[Cron] Starting handleScheduledPublish...");
+      await handleScheduledPublish(env);
+      console.log("[Cron] handleScheduledPublish done");
+
+      console.log("[Cron] Starting handleApplePodcastsCheck...");
+      await handleApplePodcastsCheck(env);
+      console.log("[Cron] handleApplePodcastsCheck done");
+    } catch (err) {
+      console.error("[Cron] Error:", err);
+    }
+    console.log("[Cron] Scheduled task complete");
   },
 };
