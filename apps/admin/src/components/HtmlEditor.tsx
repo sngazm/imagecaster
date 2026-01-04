@@ -116,7 +116,11 @@ export function HtmlEditor({
 
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        // Tiptap v3ではStarterKitにLinkが含まれているため、
+        // 別途設定するために無効化
+        link: false,
+      }),
       Link.configure({
         openOnClick: false,
         autolink: true,
