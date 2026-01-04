@@ -329,52 +329,40 @@ export default function Settings() {
     setApplePodcastsProgress(null);
 
     try {
-      // iTunes API からエピソード情報を取得（ページネーション対応）
+      // iTunes API からエピソード情報を取得
+      // 注意: iTunes APIはoffsetパラメータをサポートしていないため、最大200件まで
       const guidToTrackId = new Map<string, number>();
-      const LIMIT = 100;
-      let offset = 0;
-      let hasMore = true;
+      const LIMIT = 200; // iTunes APIの最大値
 
-      while (hasMore) {
-        const itunesUrl = `https://itunes.apple.com/lookup?id=${settings.applePodcastsId}&media=podcast&entity=podcastEpisode&limit=${LIMIT}&offset=${offset}`;
-        let itunesResponse: Response;
-        try {
-          itunesResponse = await fetch(itunesUrl);
-        } catch (fetchError) {
-          // ネットワークエラーまたはCORSエラー
-          throw new Error(
-            "iTunes APIへの接続に失敗しました。\n" +
-            "このドメインからはApple APIへのアクセスがブロックされている可能性があります。\n" +
-            "本番環境（カスタムドメイン）からお試しください。"
-          );
-        }
-        if (!itunesResponse.ok) {
-          throw new Error(`iTunes API error: ${itunesResponse.status}`);
-        }
-        const itunesData = await itunesResponse.json() as {
-          resultCount: number;
-          results: Array<{
-            wrapperType: string;
-            trackId: number;
-            episodeGuid: string;
-            collectionId: number;
-          }>;
-        };
+      const itunesUrl = `https://itunes.apple.com/lookup?id=${settings.applePodcastsId}&media=podcast&entity=podcastEpisode&limit=${LIMIT}`;
+      let itunesResponse: Response;
+      try {
+        itunesResponse = await fetch(itunesUrl);
+      } catch (fetchError) {
+        // ネットワークエラーまたはCORSエラー
+        throw new Error(
+          "iTunes APIへの接続に失敗しました。\n" +
+          "このドメインからはApple APIへのアクセスがブロックされている可能性があります。\n" +
+          "本番環境（カスタムドメイン）からお試しください。"
+        );
+      }
+      if (!itunesResponse.ok) {
+        throw new Error(`iTunes API error: ${itunesResponse.status}`);
+      }
+      const itunesData = await itunesResponse.json() as {
+        resultCount: number;
+        results: Array<{
+          wrapperType: string;
+          trackId: number;
+          episodeGuid: string;
+          collectionId: number;
+        }>;
+      };
 
-        // エピソードを追加
-        let episodeCount = 0;
-        for (const result of itunesData.results) {
-          if (result.wrapperType === "podcastEpisode" && result.episodeGuid) {
-            guidToTrackId.set(result.episodeGuid, result.trackId);
-            episodeCount++;
-          }
-        }
-
-        // 次のページがあるかチェック（エピソードが100件未満なら終了）
-        if (episodeCount < LIMIT) {
-          hasMore = false;
-        } else {
-          offset += LIMIT;
+      // エピソードをマップに追加
+      for (const result of itunesData.results) {
+        if (result.wrapperType === "podcastEpisode" && result.episodeGuid) {
+          guidToTrackId.set(result.episodeGuid, result.trackId);
         }
       }
 
@@ -386,13 +374,44 @@ export default function Settings() {
 
       let foundCount = 0;
       let updatedCount = 0;
+      let searchFallbackCount = 0;
+
+      // タイトル検索でtrackIdを取得するヘルパー関数
+      async function searchByTitle(title: string, guid: string): Promise<number | null> {
+        try {
+          const searchUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(title)}&media=podcast&entity=podcastEpisode&limit=10`;
+          const response = await fetch(searchUrl);
+          if (!response.ok) return null;
+          const data = await response.json() as {
+            resultCount: number;
+            results: Array<{
+              trackId: number;
+              episodeGuid: string;
+              collectionId: number;
+            }>;
+          };
+          // GUIDが一致するエピソードを探す
+          const match = data.results.find(r => r.episodeGuid === guid);
+          return match ? match.trackId : null;
+        } catch {
+          return null;
+        }
+      }
 
       for (let i = 0; i < episodes.length; i++) {
         const ep = episodes[i];
         // エピソードの詳細を取得してsourceGuidを確認
         const detail = await api.getEpisode(ep.id);
         const guid = detail.sourceGuid || detail.slug;
-        const trackId = guidToTrackId.get(guid);
+        let trackId = guidToTrackId.get(guid);
+
+        // GUIDでマッチしなかった場合、タイトル検索でフォールバック
+        if (!trackId && !detail.applePodcastsUrl) {
+          trackId = await searchByTitle(detail.title, guid) ?? undefined;
+          if (trackId) {
+            searchFallbackCount++;
+          }
+        }
 
         if (trackId && !detail.applePodcastsUrl) {
           // Apple Podcasts URL を構築
@@ -407,7 +426,8 @@ export default function Settings() {
         setApplePodcastsProgress({ current: i + 1, total: episodes.length, found: foundCount });
       }
 
-      setSuccess(`${updatedCount}件のエピソードにApple Podcasts URLを設定しました（マッチ: ${foundCount}/${episodes.length}）`);
+      const fallbackNote = searchFallbackCount > 0 ? `（うち${searchFallbackCount}件はタイトル検索で取得）` : '';
+      setSuccess(`${updatedCount}件のエピソードにApple Podcasts URLを設定しました${fallbackNote}（マッチ: ${foundCount}/${episodes.length}）`);
       setTimeout(() => setSuccess(null), 5000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch Apple Podcasts URLs");
