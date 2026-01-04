@@ -1,6 +1,5 @@
 import { useEditor, EditorContent, Extension } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
@@ -117,17 +116,14 @@ export function HtmlEditor({
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        // Tiptap v3ではStarterKitにLinkが含まれているため、
-        // 別途設定するために無効化
-        link: false,
-      }),
-      Link.configure({
-        openOnClick: false,
-        autolink: true,
-        linkOnPaste: true,
-        defaultProtocol: "https",
-        HTMLAttributes: {
-          class: "text-violet-400 underline",
+        link: {
+          openOnClick: false,
+          autolink: true,
+          linkOnPaste: true,
+          defaultProtocol: "https",
+          HTMLAttributes: {
+            class: "text-violet-400 underline",
+          },
         },
       }),
       Placeholder.configure({
