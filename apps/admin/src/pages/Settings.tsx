@@ -337,7 +337,17 @@ export default function Settings() {
 
       while (hasMore) {
         const itunesUrl = `https://itunes.apple.com/lookup?id=${settings.applePodcastsId}&media=podcast&entity=podcastEpisode&limit=${LIMIT}&offset=${offset}`;
-        const itunesResponse = await fetch(itunesUrl);
+        let itunesResponse: Response;
+        try {
+          itunesResponse = await fetch(itunesUrl);
+        } catch (fetchError) {
+          // ネットワークエラーまたはCORSエラー
+          throw new Error(
+            "iTunes APIへの接続に失敗しました。\n" +
+            "このドメインからはApple APIへのアクセスがブロックされている可能性があります。\n" +
+            "本番環境（カスタムドメイン）からお試しください。"
+          );
+        }
         if (!itunesResponse.ok) {
           throw new Error(`iTunes API error: ${itunesResponse.status}`);
         }
