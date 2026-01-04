@@ -330,7 +330,7 @@ export default function Settings() {
 
     try {
       // iTunes API からエピソード情報を取得
-      const itunesUrl = `https://itunes.apple.com/lookup?id=${settings.applePodcastsId}&media=podcast&entity=podcastEpisode&limit=300`;
+      const itunesUrl = `https://itunes.apple.com/lookup?id=${settings.applePodcastsId}&media=podcast&entity=podcastEpisode&limit=100`;
       const itunesResponse = await fetch(itunesUrl);
       if (!itunesResponse.ok) {
         throw new Error(`iTunes API error: ${itunesResponse.status}`);
