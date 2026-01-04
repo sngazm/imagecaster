@@ -1,6 +1,5 @@
 import { useEditor, EditorContent, Extension } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
@@ -116,11 +115,15 @@ export function HtmlEditor({
 
   const editor = useEditor({
     extensions: [
-      StarterKit,
-      Link.configure({
-        openOnClick: false,
-        HTMLAttributes: {
-          class: "text-violet-400 underline",
+      StarterKit.configure({
+        link: {
+          openOnClick: false,
+          autolink: true,
+          linkOnPaste: true,
+          defaultProtocol: "https",
+          HTMLAttributes: {
+            class: "text-violet-400 underline",
+          },
         },
       }),
       Placeholder.configure({
@@ -353,7 +356,7 @@ export function HtmlEditor({
       </div>
 
       {/* Editor content */}
-      <div className="bg-zinc-950">
+      <div className="bg-zinc-950 max-h-[calc(100vh-200px)] overflow-y-auto">
         {mode === "visual" && (
           <EditorContent
             editor={editor}
@@ -364,7 +367,7 @@ export function HtmlEditor({
           <textarea
             value={htmlSource}
             onChange={(e) => handleHtmlChange(e.target.value)}
-            className="w-full min-h-[200px] p-4 bg-transparent text-zinc-100 font-mono text-sm resize-y focus:outline-none"
+            className="w-full min-h-[200px] max-h-none p-4 bg-transparent text-zinc-100 font-mono text-sm resize-none focus:outline-none"
             spellCheck={false}
           />
         )}
