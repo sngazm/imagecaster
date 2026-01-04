@@ -24,10 +24,27 @@ function formatDate(dateString: string | null): string {
   });
 }
 
+const ITEMS_PER_PAGE = 10;
+
 export default function EpisodeList() {
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // ページネーション計算
+  const totalPages = Math.ceil(episodes.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const currentEpisodes = episodes.slice(startIndex, endIndex);
+
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+      // ページトップにスクロール
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
   const fetchEpisodes = async () => {
     try {
@@ -35,6 +52,7 @@ export default function EpisodeList() {
       setIsLoading(true);
       const data = await api.getEpisodes();
       setEpisodes(data.episodes);
+      setCurrentPage(1); // ページをリセット
     } catch (err) {
       setError(err instanceof Error ? err.message : "一覧の取得に失敗しました");
     } finally {
@@ -107,7 +125,7 @@ export default function EpisodeList() {
 
       {!isLoading && !error && episodes.length > 0 && (
         <div className="space-y-3">
-          {episodes.map((ep) => {
+          {currentEpisodes.map((ep) => {
             const status = STATUS_CONFIG[ep.status] || { label: ep.status, color: "bg-zinc-800 text-zinc-400" };
             return (
               <Link
@@ -136,6 +154,77 @@ export default function EpisodeList() {
               </Link>
             );
           })}
+
+          {/* ページネーション */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-6 mt-4 border-t border-zinc-800">
+              <button
+                onClick={() => goToPage(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                aria-label="前のページ"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                  // 表示するページボタンを制限（現在ページ周辺のみ）
+                  const showPage =
+                    page === 1 ||
+                    page === totalPages ||
+                    Math.abs(page - currentPage) <= 1;
+
+                  const showEllipsisBefore = page === currentPage - 2 && currentPage > 3;
+                  const showEllipsisAfter = page === currentPage + 2 && currentPage < totalPages - 2;
+
+                  if (showEllipsisBefore || showEllipsisAfter) {
+                    return (
+                      <span key={page} className="px-2 text-zinc-600">
+                        ...
+                      </span>
+                    );
+                  }
+
+                  if (!showPage) return null;
+
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => goToPage(page)}
+                      className={`min-w-[36px] h-9 px-3 rounded-lg text-sm font-medium transition-all ${
+                        page === currentPage
+                          ? "bg-violet-600 text-white"
+                          : "text-zinc-400 hover:text-white hover:bg-zinc-800"
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={() => goToPage(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                aria-label="次のページ"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          )}
+
+          {/* ページ情報 */}
+          {episodes.length > 0 && (
+            <p className="text-center text-sm text-zinc-500 mt-4">
+              {episodes.length}件中 {startIndex + 1}〜{Math.min(endIndex, episodes.length)}件を表示
+            </p>
+          )}
         </div>
       )}
 
