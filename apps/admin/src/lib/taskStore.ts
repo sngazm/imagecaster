@@ -8,7 +8,7 @@
  * など
  */
 
-import { useSyncExternalStore } from "react";
+import { useState, useEffect } from "react";
 
 export type TaskStatus = "running" | "success" | "error";
 
@@ -129,8 +129,19 @@ export const taskStore = new TaskStore();
 
 // React用フック
 export function useTasks(): Task[] {
-  return useSyncExternalStore(
-    (listener) => taskStore.subscribe(listener),
-    () => taskStore.getSnapshot()
-  );
+  const [tasks, setTasks] = useState<Task[]>(() => taskStore.getSnapshot());
+
+  useEffect(() => {
+    // 初期値を設定
+    setTasks(taskStore.getSnapshot());
+
+    // ストアの変更を購読
+    const unsubscribe = taskStore.subscribe(() => {
+      setTasks(taskStore.getSnapshot());
+    });
+
+    return unsubscribe;
+  }, []);
+
+  return tasks;
 }
