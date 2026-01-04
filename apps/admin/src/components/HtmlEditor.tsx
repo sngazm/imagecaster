@@ -356,7 +356,7 @@ export function HtmlEditor({
       </div>
 
       {/* Editor content */}
-      <div className="bg-zinc-950">
+      <div className="bg-zinc-950 max-h-[calc(100vh-200px)] overflow-y-auto">
         {mode === "visual" && (
           <EditorContent
             editor={editor}
@@ -367,7 +367,7 @@ export function HtmlEditor({
           <textarea
             value={htmlSource}
             onChange={(e) => handleHtmlChange(e.target.value)}
-            className="w-full min-h-[200px] p-4 bg-transparent text-zinc-100 font-mono text-sm resize-y focus:outline-none"
+            className="w-full min-h-[200px] max-h-none p-4 bg-transparent text-zinc-100 font-mono text-sm resize-none focus:outline-none"
             spellCheck={false}
           />
         )}
