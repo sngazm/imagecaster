@@ -17,6 +17,7 @@ function createDefaultIndex(env: Env): PodcastIndex {
       websiteUrl: env.WEBSITE_URL || "",
       explicit: false,
       applePodcastsId: null,
+      applePodcastsAutoFetch: false,
     },
     episodes: [],
   };

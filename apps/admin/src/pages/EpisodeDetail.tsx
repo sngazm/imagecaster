@@ -44,7 +44,6 @@ export default function EpisodeDetail() {
   const [editBlueskyPostEnabled, setEditBlueskyPostEnabled] = useState(false);
   const [editReferenceLinks, setEditReferenceLinks] = useState<ReferenceLink[]>([]);
   const [editApplePodcastsUrl, setEditApplePodcastsUrl] = useState("");
-  const [editApplePodcastsSkipped, setEditApplePodcastsSkipped] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [templates, setTemplates] = useState<DescriptionTemplate[]>([]);
@@ -82,7 +81,6 @@ export default function EpisodeDetail() {
         setEditBlueskyPostEnabled(data.blueskyPostEnabled);
         setEditReferenceLinks(data.referenceLinks || []);
         setEditApplePodcastsUrl(data.applePodcastsUrl || "");
-        setEditApplePodcastsSkipped(data.applePodcastsSkipped || false);
         setTemplates(templatesData);
         if (deploymentsData.websiteUrl) {
           setBaseWebsiteUrl(deploymentsData.websiteUrl);
@@ -110,7 +108,6 @@ export default function EpisodeDetail() {
         blueskyPostEnabled: editBlueskyPostEnabled,
         referenceLinks: editReferenceLinks,
         applePodcastsUrl: editApplePodcastsUrl.trim() || null,
-        applePodcastsSkipped: editApplePodcastsSkipped,
       };
 
       // slugの変更はdraft状態のみ
@@ -227,7 +224,6 @@ export default function EpisodeDetail() {
     setEditBlueskyPostEnabled(episode.blueskyPostEnabled);
     setEditReferenceLinks(episode.referenceLinks || []);
     setEditApplePodcastsUrl(episode.applePodcastsUrl || "");
-    setEditApplePodcastsSkipped(episode.applePodcastsSkipped || false);
     setError(null);
   };
 
@@ -691,85 +687,37 @@ export default function EpisodeDetail() {
             </div>
 
             {isEditing ? (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-2">
-                    エピソードURL（手動設定）
-                  </label>
-                  <input
-                    type="url"
-                    value={editApplePodcastsUrl}
-                    onChange={(e) => setEditApplePodcastsUrl(e.target.value)}
-                    placeholder="https://podcasts.apple.com/..."
-                    className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-violet-500"
-                  />
-                  <p className="text-xs text-zinc-600 mt-1">
-                    通常は自動取得されます。手動設定も可能です。
-                  </p>
-                </div>
-
-                <label className="flex items-start gap-3 p-4 bg-zinc-900 border border-zinc-800 rounded-lg cursor-pointer hover:border-zinc-700 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={editApplePodcastsSkipped}
-                    onChange={(e) => setEditApplePodcastsSkipped(e.target.checked)}
-                    className="mt-0.5 w-5 h-5 rounded border-zinc-700 bg-zinc-900 text-pink-600 focus:ring-pink-500 focus:ring-offset-0"
-                  />
-                  <div>
-                    <span className="block text-sm font-medium text-zinc-200">
-                      自動取得をスキップ
-                    </span>
-                    <span className="block text-xs text-zinc-500 mt-1">
-                      Apple Podcastsに存在しないエピソードの場合にチェック
-                    </span>
-                  </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">
+                  エピソードURL
                 </label>
+                <input
+                  type="url"
+                  value={editApplePodcastsUrl}
+                  onChange={(e) => setEditApplePodcastsUrl(e.target.value)}
+                  placeholder="https://podcasts.apple.com/..."
+                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-violet-500"
+                />
+                <p className="text-xs text-zinc-600 mt-1">
+                  管理画面起動時に自動取得されます
+                </p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {episode.applePodcastsUrl ? (
-                  <div className="flex items-center gap-2 text-sm text-emerald-400">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <a
-                      href={episode.applePodcastsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:underline truncate"
-                    >
-                      取得済み
-                    </a>
-                  </div>
-                ) : episode.applePodcastsSkipped ? (
-                  <div className="flex items-center gap-2 text-sm text-zinc-500">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                    </svg>
-                    スキップ済み
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 text-sm text-amber-400">
-                    <svg className="w-4 h-4 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    取得待ち
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="bg-zinc-900 rounded p-2">
-                    <div className="text-zinc-500">チェック回数</div>
-                    <div className="text-zinc-300 font-medium">{episode.applePodcastsCheckCount || 0}</div>
-                  </div>
-                  <div className="bg-zinc-900 rounded p-2">
-                    <div className="text-zinc-500">最終チェック</div>
-                    <div className="text-zinc-300 font-medium">
-                      {episode.applePodcastsCheckedAt ? formatDate(episode.applePodcastsCheckedAt) : "-"}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              episode.applePodcastsUrl ? (
+                <a
+                  href={episode.applePodcastsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-sm text-pink-400 hover:text-pink-300"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  Apple Podcasts で開く
+                </a>
+              ) : (
+                <p className="text-zinc-500 text-sm">未設定</p>
+              )
             )}
           </div>
 

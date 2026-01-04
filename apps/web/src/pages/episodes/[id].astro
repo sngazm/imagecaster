@@ -153,6 +153,19 @@ const description = processDescription(episode.description, episode, websiteUrl)
           </svg>
           ダウンロード
         </a>
+        {episode.applePodcastsUrl && (
+          <a
+            href={episode.applePodcastsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 px-3 py-1 text-white transition-opacity hover:opacity-90"
+          >
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12.001 2C6.477 2 2 6.477 2 12c0 4.544 3.047 8.368 7.197 9.58-.07-.51-.13-1.29.025-1.845.14-.495.9-3.17.9-3.17s-.23-.46-.23-1.14c0-1.066.62-1.863 1.39-1.863.656 0 .972.493.972 1.084 0 .66-.42 1.647-.637 2.562-.18.764.383 1.388 1.136 1.388 1.364 0 2.413-1.438 2.413-3.516 0-1.838-1.32-3.123-3.206-3.123-2.182 0-3.464 1.637-3.464 3.33 0 .66.254 1.367.572 1.75.063.077.072.144.053.222-.058.243-.188.764-.214.87-.034.141-.11.17-.256.103-.956-.445-1.553-1.842-1.553-2.965 0-2.413 1.753-4.63 5.055-4.63 2.654 0 4.717 1.89 4.717 4.416 0 2.636-1.662 4.76-3.968 4.76-.775 0-1.503-.403-1.752-.878l-.477 1.818c-.173.664-.639 1.496-.951 2.004A9.97 9.97 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/>
+            </svg>
+            Apple Podcasts
+          </a>
+        )}
       </div>
     </div>
 
@@ -204,24 +217,6 @@ const description = processDescription(episode.description, episode, websiteUrl)
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
         </svg>
       </button>
-
-      {episode.applePodcastsUrl && (
-        <>
-          <span class="text-zinc-300 dark:text-zinc-600">|</span>
-          <a
-            href={episode.applePodcastsUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
-            aria-label="Apple Podcasts で聴く"
-          >
-            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12.001 2C6.477 2 2 6.477 2 12c0 4.544 3.047 8.368 7.197 9.58-.07-.51-.13-1.29.025-1.845.14-.495.9-3.17.9-3.17s-.23-.46-.23-1.14c0-1.066.62-1.863 1.39-1.863.656 0 .972.493.972 1.084 0 .66-.42 1.647-.637 2.562-.18.764.383 1.388 1.136 1.388 1.364 0 2.413-1.438 2.413-3.516 0-1.838-1.32-3.123-3.206-3.123-2.182 0-3.464 1.637-3.464 3.33 0 .66.254 1.367.572 1.75.063.077.072.144.053.222-.058.243-.188.764-.214.87-.034.141-.11.17-.256.103-.956-.445-1.553-1.842-1.553-2.965 0-2.413 1.753-4.63 5.055-4.63 2.654 0 4.717 1.89 4.717 4.416 0 2.636-1.662 4.76-3.968 4.76-.775 0-1.503-.403-1.752-.878l-.477 1.818c-.173.664-.639 1.496-.951 2.004A9.97 9.97 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/>
-            </svg>
-            Apple Podcasts
-          </a>
-        </>
-      )}
     </div>
 
     <!-- 前後のエピソードナビゲーション -->

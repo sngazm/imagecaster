@@ -1112,6 +1112,28 @@ export default function Settings() {
                 )}
               </button>
             </div>
+
+            <div className="border-t border-zinc-800 pt-4">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.applePodcastsAutoFetch ?? false}
+                  onChange={(e) =>
+                    setSettings({ ...settings, applePodcastsAutoFetch: e.target.checked })
+                  }
+                  disabled={!settings.applePodcastsId}
+                  className="mt-0.5 w-5 h-5 rounded border-zinc-700 bg-zinc-900 text-violet-600 focus:ring-violet-500 focus:ring-offset-0 disabled:opacity-50"
+                />
+                <div>
+                  <span className={`block text-sm font-medium ${settings.applePodcastsId ? 'text-zinc-200' : 'text-zinc-500'}`}>
+                    管理画面起動時に自動取得
+                  </span>
+                  <span className="block text-xs text-zinc-500 mt-1">
+                    公開から1日以上経ったエピソードのApple Podcasts URLを自動取得します
+                  </span>
+                </div>
+              </label>
+            </div>
           </div>
 
           <div className="flex justify-end">

@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api, Episode } from "../lib/api";
 import { BuildStatus } from "../components/BuildStatus";
+import { fetchApplePodcastsEpisodes } from "../lib/itunes";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   draft: { label: "下書き", color: "bg-zinc-800 text-zinc-400" },
@@ -31,6 +32,8 @@ export default function EpisodeList() {
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [autoFetchStatus, setAutoFetchStatus] = useState<string | null>(null);
+  const autoFetchRan = useRef(false);
 
   // URLクエリパラメータからページ番号を取得
   const currentPage = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
@@ -66,6 +69,63 @@ export default function EpisodeList() {
   useEffect(() => {
     fetchEpisodes();
   }, []);
+
+  // Apple Podcasts URL 自動取得
+  useEffect(() => {
+    if (autoFetchRan.current || isLoading || episodes.length === 0) return;
+    autoFetchRan.current = true;
+
+    const autoFetch = async () => {
+      try {
+        const settings = await api.getSettings();
+
+        // 自動取得が無効または ID が未設定
+        if (!settings.applePodcastsAutoFetch || !settings.applePodcastsId) {
+          return;
+        }
+
+        // 公開から1日以上経過 & applePodcastsUrl が未設定のエピソードを抽出
+        const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+        const targetEpisodes = episodes.filter((ep) => {
+          if (ep.status !== "published" || ep.applePodcastsUrl) return false;
+          const publishedAt = ep.publishedAt ? new Date(ep.publishedAt).getTime() : 0;
+          return publishedAt > 0 && publishedAt < oneDayAgo;
+        });
+
+        if (targetEpisodes.length === 0) return;
+
+        setAutoFetchStatus(`Apple Podcasts URL を確認中... (${targetEpisodes.length}件)`);
+
+        // iTunes API からエピソード情報を取得
+        const episodeMap = await fetchApplePodcastsEpisodes(settings.applePodcastsId);
+
+        let foundCount = 0;
+        for (const ep of targetEpisodes) {
+          const guid = ep.sourceGuid || ep.slug || ep.id;
+          const applePodcastsUrl = episodeMap.get(guid);
+
+          if (applePodcastsUrl) {
+            await api.updateEpisode(ep.id, { applePodcastsUrl });
+            foundCount++;
+          }
+        }
+
+        if (foundCount > 0) {
+          setAutoFetchStatus(`${foundCount}件のApple Podcasts URLを設定しました`);
+          // エピソード一覧を再取得
+          await fetchEpisodes();
+          setTimeout(() => setAutoFetchStatus(null), 3000);
+        } else {
+          setAutoFetchStatus(null);
+        }
+      } catch (err) {
+        console.error("Auto-fetch Apple Podcasts failed:", err);
+        setAutoFetchStatus(null);
+      }
+    };
+
+    autoFetch();
+  }, [isLoading, episodes]);
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-10 pt-14">
@@ -105,6 +165,15 @@ export default function EpisodeList() {
       {error && (
         <div className="p-4 bg-red-500/10 border border-red-500/50 rounded-lg text-red-400">
           {error}
+        </div>
+      )}
+
+      {autoFetchStatus && (
+        <div className="mb-4 p-3 bg-pink-500/10 border border-pink-500/30 rounded-lg text-pink-400 text-sm flex items-center gap-2">
+          <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12.001 2C6.477 2 2 6.477 2 12c0 4.544 3.047 8.368 7.197 9.58-.07-.51-.13-1.29.025-1.845.14-.495.9-3.17.9-3.17s-.23-.46-.23-1.14c0-1.066.62-1.863 1.39-1.863.656 0 .972.493.972 1.084 0 .66-.42 1.647-.637 2.562-.18.764.383 1.388 1.136 1.388 1.364 0 2.413-1.438 2.413-3.516 0-1.838-1.32-3.123-3.206-3.123-2.182 0-3.464 1.637-3.464 3.33 0 .66.254 1.367.572 1.75.063.077.072.144.053.222-.058.243-.188.764-.214.87-.034.141-.11.17-.256.103-.956-.445-1.553-1.842-1.553-2.965 0-2.413 1.753-4.63 5.055-4.63 2.654 0 4.717 1.89 4.717 4.416 0 2.636-1.662 4.76-3.968 4.76-.775 0-1.503-.403-1.752-.878l-.477 1.818c-.173.664-.639 1.496-.951 2.004A9.97 9.97 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/>
+          </svg>
+          {autoFetchStatus}
         </div>
       )}
 
