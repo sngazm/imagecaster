@@ -75,7 +75,13 @@ export async function runApplePodcastsAutoFetch(
     }
 
     if (foundCount > 0) {
-      taskStore.complete(taskId, `${foundCount}件のURLを設定しました`);
+      // URLが設定されたらデプロイをトリガー
+      try {
+        await api.triggerDeploy();
+        taskStore.complete(taskId, `${foundCount}件のURLを設定しました（デプロイ開始）`);
+      } catch {
+        taskStore.complete(taskId, `${foundCount}件のURLを設定しました（デプロイ失敗）`);
+      }
       onComplete?.();
     } else {
       taskStore.complete(taskId, "該当するエピソードが見つかりませんでした");
