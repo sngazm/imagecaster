@@ -1,4 +1,4 @@
-# Podcast Platform
+# Imagecaster
 
 セルフホスト型 Podcast 配信システム。Cloudflare のエコシステムを活用したフルスタック構成。
 
