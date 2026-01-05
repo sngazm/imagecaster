@@ -61,11 +61,11 @@ const { episodes, allEpisodesCount, totalPages, podcast } = Astro.props;
             />
           </a>
         )}
-        <div class="text-center sm:text-left">
-          <h1 class="mb-3 text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-4xl">
+        <div class="text-left">
+          <h1 class="mb-3 text-xl text-center font-bold tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-2xl sm:text-left">
             <a href="/" class="hover:text-blue-600 dark:hover:text-blue-400">{podcast.title}</a>
           </h1>
-          <p class="text-base leading-relaxed text-zinc-600 dark:text-zinc-400 sm:text-lg">
+          <p class="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400 sm:text-base">
             {podcast.description}
           </p>
         </div>
