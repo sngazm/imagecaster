@@ -44,7 +44,6 @@ export default function EpisodeDetail() {
   const [editBlueskyPostEnabled, setEditBlueskyPostEnabled] = useState(false);
   const [editReferenceLinks, setEditReferenceLinks] = useState<ReferenceLink[]>([]);
   const [editApplePodcastsUrl, setEditApplePodcastsUrl] = useState("");
-  const [editApplePodcastsSkipped, setEditApplePodcastsSkipped] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [templates, setTemplates] = useState<DescriptionTemplate[]>([]);
@@ -82,7 +81,6 @@ export default function EpisodeDetail() {
         setEditBlueskyPostEnabled(data.blueskyPostEnabled);
         setEditReferenceLinks(data.referenceLinks || []);
         setEditApplePodcastsUrl(data.applePodcastsUrl || "");
-        setEditApplePodcastsSkipped(data.applePodcastsSkipped || false);
         setTemplates(templatesData);
         if (deploymentsData.websiteUrl) {
           setBaseWebsiteUrl(deploymentsData.websiteUrl);
@@ -110,7 +108,6 @@ export default function EpisodeDetail() {
         blueskyPostEnabled: editBlueskyPostEnabled,
         referenceLinks: editReferenceLinks,
         applePodcastsUrl: editApplePodcastsUrl.trim() || null,
-        applePodcastsSkipped: editApplePodcastsSkipped,
       };
 
       // slugの変更はdraft状態のみ
@@ -227,7 +224,6 @@ export default function EpisodeDetail() {
     setEditBlueskyPostEnabled(episode.blueskyPostEnabled);
     setEditReferenceLinks(episode.referenceLinks || []);
     setEditApplePodcastsUrl(episode.applePodcastsUrl || "");
-    setEditApplePodcastsSkipped(episode.applePodcastsSkipped || false);
     setError(null);
   };
 
@@ -685,91 +681,43 @@ export default function EpisodeDetail() {
           <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
             <div className="flex items-center gap-2 mb-4">
               <svg className="w-5 h-5 text-pink-500" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12.001 2C6.477 2 2 6.477 2 12c0 4.544 3.047 8.368 7.197 9.58-.07-.51-.13-1.29.025-1.845.14-.495.9-3.17.9-3.17s-.23-.46-.23-1.14c0-1.066.62-1.863 1.39-1.863.656 0 .972.493.972 1.084 0 .66-.42 1.647-.637 2.562-.18.764.383 1.388 1.136 1.388 1.364 0 2.413-1.438 2.413-3.516 0-1.838-1.32-3.123-3.206-3.123-2.182 0-3.464 1.637-3.464 3.33 0 .66.254 1.367.572 1.75.063.077.072.144.053.222-.058.243-.188.764-.214.87-.034.141-.11.17-.256.103-.956-.445-1.553-1.842-1.553-2.965 0-2.413 1.753-4.63 5.055-4.63 2.654 0 4.717 1.89 4.717 4.416 0 2.636-1.662 4.76-3.968 4.76-.775 0-1.503-.403-1.752-.878l-.477 1.818c-.173.664-.639 1.496-.951 2.004A9.97 9.97 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/>
+                <path d="M5.34 0A5.328 5.328 0 000 5.34v13.32A5.328 5.328 0 005.34 24h13.32A5.328 5.328 0 0024 18.66V5.34A5.328 5.328 0 0018.66 0zm6.525 2.568c2.336 0 4.448.902 6.056 2.587 1.224 1.272 1.912 2.619 2.264 4.392.12.59.12 2.2.007 2.864a8.506 8.506 0 01-3.24 5.296c-.608.46-2.096 1.261-2.336 1.261-.088 0-.096-.091-.056-.46.072-.592.144-.715.48-.856.536-.224 1.448-.874 2.008-1.435a7.644 7.644 0 002.008-3.536c.208-.824.184-2.656-.048-3.504-.728-2.696-2.928-4.792-5.624-5.352-.784-.16-2.208-.16-3 0-2.728.56-4.984 2.76-5.672 5.528-.184.752-.184 2.584 0 3.336.456 1.832 1.64 3.512 3.192 4.512.304.2.672.408.824.472.336.144.408.264.472.856.04.36.03.464-.056.464-.056 0-.464-.176-.896-.384l-.04-.03c-2.472-1.216-4.056-3.274-4.632-6.012-.144-.706-.168-2.392-.03-3.04.36-1.74 1.048-3.1 2.192-4.304 1.648-1.737 3.768-2.656 6.128-2.656zm.134 2.81c.409.004.803.04 1.106.106 2.784.62 4.76 3.408 4.376 6.174-.152 1.114-.536 2.03-1.216 2.88-.336.43-1.152 1.15-1.296 1.15-.023 0-.048-.272-.048-.603v-.605l.416-.496c1.568-1.878 1.456-4.502-.256-6.224-.664-.67-1.432-1.064-2.424-1.246-.64-.118-.776-.118-1.448-.008-1.02.167-1.81.562-2.512 1.256-1.72 1.704-1.832 4.342-.264 6.222l.413.496v.608c0 .336-.027.608-.06.608-.03 0-.264-.16-.512-.36l-.034-.011c-.832-.664-1.568-1.842-1.872-2.997-.184-.698-.184-2.024.008-2.72.504-1.878 1.888-3.335 3.808-4.019.41-.145 1.133-.22 1.814-.211zm-.13 2.99c.31 0 .62.06.844.178.488.253.888.745 1.04 1.259.464 1.578-1.208 2.96-2.72 2.254h-.015c-.712-.331-1.096-.956-1.104-1.77 0-.733.408-1.371 1.112-1.745.224-.117.534-.176.844-.176zm-.011 4.728c.988-.004 1.706.349 1.97.97.198.464.124 1.932-.218 4.302-.232 1.656-.36 2.074-.68 2.356-.44.39-1.064.498-1.656.288h-.003c-.716-.257-.87-.605-1.164-2.644-.341-2.37-.416-3.838-.218-4.302.262-.616.974-.966 1.97-.97z"/>
               </svg>
               <h2 className="text-sm font-medium text-zinc-400">Apple Podcasts</h2>
             </div>
 
             {isEditing ? (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-2">
-                    エピソードURL（手動設定）
-                  </label>
-                  <input
-                    type="url"
-                    value={editApplePodcastsUrl}
-                    onChange={(e) => setEditApplePodcastsUrl(e.target.value)}
-                    placeholder="https://podcasts.apple.com/..."
-                    className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-violet-500"
-                  />
-                  <p className="text-xs text-zinc-600 mt-1">
-                    通常は自動取得されます。手動設定も可能です。
-                  </p>
-                </div>
-
-                <label className="flex items-start gap-3 p-4 bg-zinc-900 border border-zinc-800 rounded-lg cursor-pointer hover:border-zinc-700 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={editApplePodcastsSkipped}
-                    onChange={(e) => setEditApplePodcastsSkipped(e.target.checked)}
-                    className="mt-0.5 w-5 h-5 rounded border-zinc-700 bg-zinc-900 text-pink-600 focus:ring-pink-500 focus:ring-offset-0"
-                  />
-                  <div>
-                    <span className="block text-sm font-medium text-zinc-200">
-                      自動取得をスキップ
-                    </span>
-                    <span className="block text-xs text-zinc-500 mt-1">
-                      Apple Podcastsに存在しないエピソードの場合にチェック
-                    </span>
-                  </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">
+                  エピソードURL
                 </label>
+                <input
+                  type="url"
+                  value={editApplePodcastsUrl}
+                  onChange={(e) => setEditApplePodcastsUrl(e.target.value)}
+                  placeholder="https://podcasts.apple.com/..."
+                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-violet-500"
+                />
+                <p className="text-xs text-zinc-600 mt-1">
+                  管理画面起動時に自動取得されます
+                </p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {episode.applePodcastsUrl ? (
-                  <div className="flex items-center gap-2 text-sm text-emerald-400">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <a
-                      href={episode.applePodcastsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:underline truncate"
-                    >
-                      取得済み
-                    </a>
-                  </div>
-                ) : episode.applePodcastsSkipped ? (
-                  <div className="flex items-center gap-2 text-sm text-zinc-500">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                    </svg>
-                    スキップ済み
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 text-sm text-amber-400">
-                    <svg className="w-4 h-4 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    取得待ち
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="bg-zinc-900 rounded p-2">
-                    <div className="text-zinc-500">チェック回数</div>
-                    <div className="text-zinc-300 font-medium">{episode.applePodcastsCheckCount || 0}</div>
-                  </div>
-                  <div className="bg-zinc-900 rounded p-2">
-                    <div className="text-zinc-500">最終チェック</div>
-                    <div className="text-zinc-300 font-medium">
-                      {episode.applePodcastsCheckedAt ? formatDate(episode.applePodcastsCheckedAt) : "-"}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              episode.applePodcastsUrl ? (
+                <a
+                  href={episode.applePodcastsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-sm text-pink-400 hover:text-pink-300"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  Apple Podcasts で開く
+                </a>
+              ) : (
+                <p className="text-zinc-500 text-sm">未設定</p>
+              )
             )}
           </div>
 

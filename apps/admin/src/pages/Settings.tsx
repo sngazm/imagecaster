@@ -4,6 +4,7 @@ import JSZip from "jszip";
 import { api, uploadToR2 } from "../lib/api";
 import type { PodcastSettings, DescriptionTemplate, ExportManifest } from "../lib/api";
 import { HtmlEditor } from "../components/HtmlEditor";
+import { fetchApplePodcastsEpisodes, searchApplePodcastsEpisodeByTitle } from "../lib/itunes";
 
 const CATEGORIES = [
   "Arts",
@@ -329,44 +330,8 @@ export default function Settings() {
     setApplePodcastsProgress(null);
 
     try {
-      // iTunes API からエピソード情報を取得（ページネーション対応）
-      const guidToTrackId = new Map<string, number>();
-      const LIMIT = 100;
-      let offset = 0;
-      let hasMore = true;
-
-      while (hasMore) {
-        const itunesUrl = `https://itunes.apple.com/lookup?id=${settings.applePodcastsId}&media=podcast&entity=podcastEpisode&limit=${LIMIT}&offset=${offset}`;
-        const itunesResponse = await fetch(itunesUrl);
-        if (!itunesResponse.ok) {
-          throw new Error(`iTunes API error: ${itunesResponse.status}`);
-        }
-        const itunesData = await itunesResponse.json() as {
-          resultCount: number;
-          results: Array<{
-            wrapperType: string;
-            trackId: number;
-            episodeGuid: string;
-            collectionId: number;
-          }>;
-        };
-
-        // エピソードを追加
-        let episodeCount = 0;
-        for (const result of itunesData.results) {
-          if (result.wrapperType === "podcastEpisode" && result.episodeGuid) {
-            guidToTrackId.set(result.episodeGuid, result.trackId);
-            episodeCount++;
-          }
-        }
-
-        // 次のページがあるかチェック（エピソードが100件未満なら終了）
-        if (episodeCount < LIMIT) {
-          hasMore = false;
-        } else {
-          offset += LIMIT;
-        }
-      }
+      // iTunes Lookup API からエピソード情報を取得（最大200件、5秒間隔）
+      const guidToUrl = await fetchApplePodcastsEpisodes(settings.applePodcastsId);
 
       // 全エピソードを取得
       const episodesResponse = await api.getEpisodes();
@@ -376,28 +341,46 @@ export default function Settings() {
 
       let foundCount = 0;
       let updatedCount = 0;
+      let searchFallbackCount = 0;
 
       for (let i = 0; i < episodes.length; i++) {
         const ep = episodes[i];
+
+        // 既にApple Podcasts URLがある場合はスキップ
+        if (ep.applePodcastsUrl) {
+          foundCount++;
+          setApplePodcastsProgress({ current: i + 1, total: episodes.length, found: foundCount });
+          continue;
+        }
+
         // エピソードの詳細を取得してsourceGuidを確認
         const detail = await api.getEpisode(ep.id);
         const guid = detail.sourceGuid || detail.slug;
-        const trackId = guidToTrackId.get(guid);
+        let applePodcastsUrl = guidToUrl.get(guid);
 
-        if (trackId && !detail.applePodcastsUrl) {
-          // Apple Podcasts URL を構築
-          const applePodcastsUrl = `https://podcasts.apple.com/jp/podcast/_/id${settings.applePodcastsId}?i=${trackId}`;
+        // GUIDでマッチしなかった場合、タイトル検索でフォールバック（5秒間隔）
+        if (!applePodcastsUrl) {
+          applePodcastsUrl = await searchApplePodcastsEpisodeByTitle(
+            detail.title,
+            guid,
+            settings.applePodcastsId
+          ) ?? undefined;
+          if (applePodcastsUrl) {
+            searchFallbackCount++;
+          }
+        }
+
+        if (applePodcastsUrl) {
           await api.updateEpisode(ep.id, { applePodcastsUrl });
           foundCount++;
           updatedCount++;
-        } else if (trackId && detail.applePodcastsUrl) {
-          foundCount++;
         }
 
         setApplePodcastsProgress({ current: i + 1, total: episodes.length, found: foundCount });
       }
 
-      setSuccess(`${updatedCount}件のエピソードにApple Podcasts URLを設定しました（マッチ: ${foundCount}/${episodes.length}）`);
+      const fallbackNote = searchFallbackCount > 0 ? `（うち${searchFallbackCount}件はタイトル検索で取得）` : '';
+      setSuccess(`${updatedCount}件のエピソードにApple Podcasts URLを設定しました${fallbackNote}（マッチ: ${foundCount}/${episodes.length}）`);
       setTimeout(() => setSuccess(null), 5000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch Apple Podcasts URLs");
@@ -1111,6 +1094,28 @@ export default function Settings() {
                   </>
                 )}
               </button>
+            </div>
+
+            <div className="border-t border-zinc-800 pt-4">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.applePodcastsAutoFetch ?? false}
+                  onChange={(e) =>
+                    setSettings({ ...settings, applePodcastsAutoFetch: e.target.checked })
+                  }
+                  disabled={!settings.applePodcastsId}
+                  className="mt-0.5 w-5 h-5 rounded border-zinc-700 bg-zinc-900 text-violet-600 focus:ring-violet-500 focus:ring-offset-0 disabled:opacity-50"
+                />
+                <div>
+                  <span className={`block text-sm font-medium ${settings.applePodcastsId ? 'text-zinc-200' : 'text-zinc-500'}`}>
+                    管理画面起動時に自動取得
+                  </span>
+                  <span className="block text-xs text-zinc-500 mt-1">
+                    公開から1日以上経ったエピソードのApple Podcasts URLを自動取得します
+                  </span>
+                </div>
+              </label>
             </div>
           </div>
 

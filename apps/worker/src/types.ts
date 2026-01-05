@@ -41,6 +41,7 @@ export interface PodcastIndex {
     websiteUrl: string;
     explicit: boolean;
     applePodcastsId: string | null; // Apple Podcasts ID (collectionId)
+    applePodcastsAutoFetch: boolean; // 管理画面起動時に自動取得するか
     // 購読リンク
     applePodcastsUrl?: string;
     spotifyUrl?: string;
@@ -98,9 +99,6 @@ export interface EpisodeMeta {
   referenceLinks: ReferenceLink[];
   // Apple Podcasts
   applePodcastsUrl: string | null; // エピソード個別URL
-  applePodcastsCheckedAt: string | null; // 最終チェック日時
-  applePodcastsCheckCount: number; // チェック試行回数
-  applePodcastsSkipped: boolean; // 今後のチェックをスキップするか
 }
 
 /**
@@ -131,7 +129,6 @@ export interface UpdateEpisodeRequest {
   referenceLinks?: ReferenceLink[];
   // Apple Podcasts（管理画面から編集可能）
   applePodcastsUrl?: string | null;
-  applePodcastsSkipped?: boolean;
 }
 
 /**
@@ -236,6 +233,7 @@ export interface UpdatePodcastSettingsRequest {
   websiteUrl?: string;
   explicit?: boolean;
   applePodcastsId?: string | null;
+  applePodcastsAutoFetch?: boolean;
   // 購読リンク
   applePodcastsUrl?: string;
   spotifyUrl?: string;
