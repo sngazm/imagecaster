@@ -54,18 +54,18 @@ const canonicalUrl = Astro.url.href;
       });
     </script>
   </head>
-  <body class="min-h-screen bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
+  <body class="min-h-screen bg-bg text-text dark:bg-bg-dark dark:text-text-dark">
     <div class="flex min-h-screen flex-col">
-      <header class="sticky top-0 z-50 border-b border-zinc-200 bg-white/90 backdrop-blur-lg dark:border-zinc-800 dark:bg-zinc-900/90">
-        <div class="mx-auto flex h-16 max-w-4xl items-center justify-between px-4">
-          <a href="/" class="text-xl font-bold tracking-tight text-zinc-900 transition-colors hover:text-zinc-600 dark:text-zinc-100 dark:hover:text-zinc-300">
+      <header class="sticky top-0 z-50 border-b border-border bg-bg-elevated/95 backdrop-blur-md dark:border-border-dark dark:bg-bg-elevated-dark/95">
+        <div class="mx-auto flex h-14 max-w-4xl items-center justify-between px-4">
+          <a href="/" class="text-lg font-semibold tracking-tight text-text transition-colors hover:text-text-secondary dark:text-text-dark dark:hover:text-text-secondary-dark">
             {siteTitle}
           </a>
-          <nav class="flex items-center gap-2 md:gap-4">
-            <a href="/" class="hidden text-sm font-medium text-zinc-600 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 sm:block">
+          <nav class="flex items-center gap-1 md:gap-2">
+            <a href="/" class="hidden rounded-md px-3 py-1.5 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-subtle hover:text-text dark:text-text-secondary-dark dark:hover:bg-bg-subtle-dark dark:hover:text-text-dark sm:block">
               エピソード
             </a>
-            <a href="/about" class="hidden text-sm font-medium text-zinc-600 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 sm:block">
+            <a href="/about" class="hidden rounded-md px-3 py-1.5 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-subtle hover:text-text dark:text-text-secondary-dark dark:hover:bg-bg-subtle-dark dark:hover:text-text-dark sm:block">
               番組について
             </a>
 
@@ -75,10 +75,10 @@ const canonicalUrl = Astro.url.href;
                 type="text"
                 name="q"
                 placeholder="検索..."
-                class="h-9 w-32 rounded-full border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-base text-zinc-900 placeholder-zinc-400 transition-all focus:w-48 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-500 md:w-40 md:text-sm md:focus:w-56"
+                class="h-8 w-28 rounded-lg border border-border bg-bg-subtle pl-8 pr-3 text-sm text-text placeholder-text-muted transition-all focus:w-44 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 dark:border-border-dark dark:bg-bg-subtle-dark dark:text-text-dark dark:placeholder-text-muted-dark md:w-36 md:focus:w-52"
               />
               <svg
-                class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"
+                class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-muted dark:text-text-muted-dark"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -96,28 +96,33 @@ const canonicalUrl = Astro.url.href;
               href="/feed.xml"
               target="_blank"
               rel="noopener noreferrer"
-              class="flex h-9 w-9 items-center justify-center rounded-full bg-orange-500 text-white transition-colors hover:bg-orange-600 sm:w-auto sm:px-3"
+              class="flex h-8 w-8 items-center justify-center rounded-lg bg-rss text-white transition-opacity hover:opacity-90 sm:w-auto sm:gap-1.5 sm:px-3"
             >
               <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M6.18 15.64a2.18 2.18 0 1 1 0 4.36 2.18 2.18 0 0 1 0-4.36m0-12a14.18 14.18 0 0 1 14.18 14.18h-3.27A10.91 10.91 0 0 0 6.18 6.91V3.64m0 6.55a7.64 7.64 0 0 1 7.64 7.63H10.5a4.36 4.36 0 0 0-4.32-4.36v-3.27Z"/>
               </svg>
-              <span class="ml-1.5 hidden text-sm font-medium sm:inline">RSS</span>
+              <span class="hidden text-sm font-medium sm:inline">RSS</span>
             </a>
 
             <!-- テーマ切り替えボタン -->
             <button
               id="theme-toggle"
               type="button"
-              class="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-100 text-zinc-600 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
+              class="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-bg-subtle hover:text-text dark:text-text-muted-dark dark:hover:bg-bg-subtle-dark dark:hover:text-text-dark"
               aria-label="テーマ切り替え"
+              title="テーマ切り替え"
             >
-              <!-- ライトモード時: 月アイコン（ダークに切り替え） -->
-              <svg class="h-5 w-5 dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+              <!-- ライト固定: 太陽アイコン -->
+              <svg id="theme-icon-light" class="hidden h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
               </svg>
-              <!-- ダークモード時: 太陽アイコン（ライトに切り替え） -->
-              <svg class="hidden h-5 w-5 dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+              <!-- ダーク固定: 月アイコン -->
+              <svg id="theme-icon-dark" class="hidden h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+              </svg>
+              <!-- システム: モニターアイコン -->
+              <svg id="theme-icon-system" class="hidden h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
             </button>
           </nav>
@@ -128,29 +133,89 @@ const canonicalUrl = Astro.url.href;
         <slot />
       </main>
 
-      <footer class="border-t border-zinc-200 py-8 dark:border-zinc-800">
-        <div class="mx-auto max-w-4xl px-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
-          <p>© {new Date().getFullYear()} {siteTitle}. All rights reserved.</p>
+      <footer class="border-t border-border py-6 dark:border-border-dark">
+        <div class="mx-auto max-w-4xl px-4 text-center text-sm text-text-muted dark:text-text-muted-dark">
+          <p>© {new Date().getFullYear()} {siteTitle}</p>
         </div>
       </footer>
     </div>
 
     <script>
+      // テーマ: 'light' | 'dark' | null (system)
+      function getThemeSetting() {
+        return localStorage.getItem('theme'); // 'light', 'dark', or null
+      }
+
+      function applyTheme(setting: string | null) {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const isDark = setting === 'dark' || (setting === null && prefersDark);
+        document.documentElement.classList.toggle('dark', isDark);
+      }
+
+      function updateThemeIcon(setting: string | null) {
+        const lightIcon = document.getElementById('theme-icon-light');
+        const darkIcon = document.getElementById('theme-icon-dark');
+        const systemIcon = document.getElementById('theme-icon-system');
+        const toggle = document.getElementById('theme-toggle');
+
+        lightIcon?.classList.add('hidden');
+        darkIcon?.classList.add('hidden');
+        systemIcon?.classList.add('hidden');
+
+        if (setting === 'light') {
+          lightIcon?.classList.remove('hidden');
+          toggle?.setAttribute('title', 'ライトモード（クリックでダークに）');
+        } else if (setting === 'dark') {
+          darkIcon?.classList.remove('hidden');
+          toggle?.setAttribute('title', 'ダークモード（クリックで自動に）');
+        } else {
+          systemIcon?.classList.remove('hidden');
+          toggle?.setAttribute('title', '自動（クリックでライトに）');
+        }
+      }
+
+      function cycleTheme() {
+        const current = getThemeSetting();
+        let next: string | null;
+
+        // ライト → ダーク → システム → ライト...
+        if (current === 'light') {
+          next = 'dark';
+        } else if (current === 'dark') {
+          next = null; // system
+        } else {
+          next = 'light';
+        }
+
+        if (next === null) {
+          localStorage.removeItem('theme');
+        } else {
+          localStorage.setItem('theme', next);
+        }
+
+        applyTheme(next);
+        updateThemeIcon(next);
+      }
+
       function setupThemeToggle() {
         const toggle = document.getElementById('theme-toggle');
-        toggle?.addEventListener('click', () => {
-          const isDark = document.documentElement.classList.toggle('dark');
-          localStorage.setItem('theme', isDark ? 'dark' : 'light');
-        });
+        // イベントリスナーの重複を防ぐ
+        toggle?.removeEventListener('click', cycleTheme);
+        toggle?.addEventListener('click', cycleTheme);
+
+        // 現在の設定でアイコンを更新
+        const setting = getThemeSetting();
+        updateThemeIcon(setting);
       }
 
       // 初回ロード時とView Transitionsでのページ遷移時に実行
       setupThemeToggle();
       document.addEventListener('astro:after-swap', setupThemeToggle);
 
-      // システム設定の変更を監視（手動設定がない場合のみ反映）
+      // システム設定の変更を監視（システムモード時のみ反映）
       window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-        if (!localStorage.getItem('theme')) {
+        const setting = getThemeSetting();
+        if (setting === null) {
           document.documentElement.classList.toggle('dark', e.matches);
         }
       });

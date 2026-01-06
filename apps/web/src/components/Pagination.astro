@@ -36,14 +36,14 @@ const pageNumbers = getPageNumbers();
 ---
 
 {totalPages > 1 && (
-  <nav class="mt-8 flex items-center justify-center gap-2" aria-label="ページネーション">
+  <nav class="mt-6 flex items-center justify-center gap-1.5" aria-label="ページネーション">
     {currentPage > 1 && (
       <a
         href={getPageUrl(currentPage - 1)}
-        class="inline-flex items-center gap-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+        class="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elevated px-2.5 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-bg-subtle dark:border-border-dark dark:bg-bg-elevated-dark dark:text-text-secondary-dark dark:hover:bg-bg-subtle-dark"
         aria-label="前のページ"
       >
-        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
         </svg>
         前へ
@@ -53,17 +53,17 @@ const pageNumbers = getPageNumbers();
     <div class="flex items-center gap-1">
       {pageNumbers.map((item, index) => {
         if (item === "ellipsis") {
-          return <span class="px-2 text-zinc-400">...</span>;
+          return <span class="px-1.5 text-xs text-text-faint dark:text-text-faint-dark">...</span>;
         }
 
         const isCurrentPage = item === currentPage;
         return (
           <a
             href={getPageUrl(item)}
-            class={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-sm font-medium transition-colors ${
+            class={`inline-flex h-7 w-7 items-center justify-center rounded-md text-xs font-medium transition-colors ${
               isCurrentPage
-                ? "bg-blue-600 text-white"
-                : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                ? "bg-accent text-white"
+                : "border border-border bg-bg-elevated text-text-secondary hover:bg-bg-subtle dark:border-border-dark dark:bg-bg-elevated-dark dark:text-text-secondary-dark dark:hover:bg-bg-subtle-dark"
             }`}
             aria-current={isCurrentPage ? "page" : undefined}
           >
@@ -76,11 +76,11 @@ const pageNumbers = getPageNumbers();
     {currentPage < totalPages && (
       <a
         href={getPageUrl(currentPage + 1)}
-        class="inline-flex items-center gap-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+        class="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elevated px-2.5 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-bg-subtle dark:border-border-dark dark:bg-bg-elevated-dark dark:text-text-secondary-dark dark:hover:bg-bg-subtle-dark"
         aria-label="次のページ"
       >
         次へ
-        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
         </svg>
       </a>
