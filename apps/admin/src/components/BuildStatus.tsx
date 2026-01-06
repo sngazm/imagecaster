@@ -3,15 +3,15 @@ import { api, type Deployment } from "../lib/api";
 import { getWebsiteUrl, getEnvironment } from "../lib/env";
 
 const STAGE_CONFIG: Record<string, { label: string; color: string }> = {
-  queued: { label: "待機中", color: "text-zinc-400 bg-zinc-800" },
+  queued: { label: "待機中", color: "text-[var(--color-text-secondary)] bg-[var(--color-bg-elevated)]" },
   initialize: { label: "初期化中", color: "text-amber-400 bg-amber-500/10" },
   clone_repo: { label: "クローン中", color: "text-amber-400 bg-amber-500/10" },
   build: { label: "ビルド中", color: "text-blue-400 bg-blue-500/10" },
-  deploy: { label: "反映済み", color: "text-emerald-400 bg-emerald-500/10" },
-  failure: { label: "失敗", color: "text-red-400 bg-red-500/10" },
+  deploy: { label: "反映済み", color: "text-[var(--color-success)] bg-[var(--color-success-muted)]" },
+  failure: { label: "失敗", color: "text-[var(--color-error)] bg-[var(--color-error-muted)]" },
 };
 
-const DEFAULT_STAGE = { label: "不明", color: "text-zinc-400 bg-zinc-800" };
+const DEFAULT_STAGE = { label: "不明", color: "text-[var(--color-text-secondary)] bg-[var(--color-bg-elevated)]" };
 
 function getStageConfig(stageName: string) {
   return STAGE_CONFIG[stageName] || DEFAULT_STAGE;
@@ -91,8 +91,8 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
 
   if (isLoading) {
     return (
-      <div className={`flex items-center gap-2 text-sm text-zinc-500 ${className}`}>
-        <div className="w-4 h-4 border-2 border-zinc-700 border-t-zinc-400 rounded-full animate-spin" />
+      <div className={`flex items-center gap-2 text-sm text-[var(--color-text-muted)] ${className}`}>
+        <div className="w-4 h-4 border-2 border-[var(--color-border)] border-t-[var(--color-text-secondary)] rounded-full animate-spin" />
       </div>
     );
   }
@@ -132,16 +132,16 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
             className="fixed inset-0 z-40"
             onClick={() => setIsExpanded(false)}
           />
-          <div className="absolute right-0 top-full mt-2 w-80 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl z-50">
-            <div className="p-3 border-b border-zinc-700">
-              <h3 className="font-medium text-zinc-100">Web サイトのビルド状況</h3>
+          <div className="absolute right-0 top-full mt-2 w-80 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg shadow-xl z-50">
+            <div className="p-3 border-b border-[var(--color-border)]">
+              <h3 className="font-medium text-[var(--color-text-primary)]">Web サイトのビルド状況</h3>
               <div className="flex gap-3 mt-2">
                 {displayWebsiteUrl && (
                   <a
                     href={displayWebsiteUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-violet-400 hover:underline"
+                    className="text-xs text-[var(--color-accent)] hover:underline"
                   >
                     サイトを開く{env === "preview" ? " (プレビュー)" : ""} →
                   </a>
@@ -151,7 +151,7 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
                     href={dashboardUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-zinc-400 hover:text-zinc-200"
+                    className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
                   >
                     デプロイ管理画面 →
                   </a>
@@ -166,7 +166,7 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
                 return (
                   <div
                     key={deployment.id}
-                    className="p-3 border-b border-zinc-800 last:border-b-0 hover:bg-zinc-800/50"
+                    className="p-3 border-b border-[var(--color-border)] last:border-b-0 hover:bg-[var(--color-bg-hover)]"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -179,7 +179,7 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
                           {depStage.label}
                         </span>
                       </div>
-                      <span className="text-xs text-zinc-500">
+                      <span className="text-xs text-[var(--color-text-muted)]">
                         {formatRelativeTime(deployment.createdOn)}
                       </span>
                     </div>
@@ -187,12 +187,12 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
                 );
               })}
             </div>
-            <div className="p-2 border-t border-zinc-700">
+            <div className="p-2 border-t border-[var(--color-border)]">
               <button
                 onClick={() => {
                   fetchDeployments();
                 }}
-                className="w-full text-center text-xs text-zinc-400 hover:text-zinc-200 py-1"
+                className="w-full text-center text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] py-1"
               >
                 更新
               </button>

@@ -149,38 +149,38 @@ export function DateTimePicker({
         type="button"
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
-        className={`w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-lg text-left focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-          value ? "text-zinc-100" : "text-zinc-600"
+        className={`w-full px-4 py-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg text-left focus:outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+          value ? "text-[var(--color-text-primary)]" : "text-[var(--color-text-faint)]"
         }`}
       >
         <div className="flex items-center justify-between">
           <span>{value ? formatDisplayDate(value) : placeholder}</span>
-          <svg className="w-5 h-5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
         </div>
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 mt-2 p-4 bg-zinc-900 border border-zinc-700 rounded-xl shadow-xl w-80">
+        <div className="absolute z-50 mt-2 p-4 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-xl shadow-xl w-80">
           {/* Month Navigation */}
           <div className="flex items-center justify-between mb-4">
             <button
               type="button"
               onClick={handlePrevMonth}
-              className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
+              className="p-2 hover:bg-[var(--color-bg-hover)] rounded-lg transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <span className="text-sm font-medium">
+            <span className="text-sm font-medium text-[var(--color-text-primary)]">
               {viewDate.getFullYear()}年 {viewDate.getMonth() + 1}月
             </span>
             <button
               type="button"
               onClick={handleNextMonth}
-              className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
+              className="p-2 hover:bg-[var(--color-bg-hover)] rounded-lg transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -194,7 +194,7 @@ export function DateTimePicker({
               <div
                 key={day}
                 className={`text-center text-xs font-medium py-1 ${
-                  i === 0 ? "text-red-400" : i === 6 ? "text-blue-400" : "text-zinc-500"
+                  i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : "text-[var(--color-text-muted)]"
                 }`}
               >
                 {day}
@@ -212,10 +212,10 @@ export function DateTimePicker({
                     onClick={() => handleDateSelect(day)}
                     className={`w-full h-full flex items-center justify-center text-sm rounded-lg transition-colors ${
                       isSelected(day)
-                        ? "bg-violet-600 text-white"
+                        ? "bg-[var(--color-accent)] text-white"
                         : isToday(day)
-                        ? "bg-zinc-800 text-violet-400 font-medium"
-                        : "hover:bg-zinc-800 text-zinc-300"
+                        ? "bg-[var(--color-bg-hover)] text-[var(--color-accent)] font-medium"
+                        : "hover:bg-[var(--color-bg-hover)] text-[var(--color-text-primary)]"
                     }`}
                   >
                     {day}
@@ -226,14 +226,14 @@ export function DateTimePicker({
           </div>
 
           {/* Time Selection */}
-          <div className="border-t border-zinc-800 pt-4">
+          <div className="border-t border-[var(--color-border)] pt-4">
             <div className="flex items-center gap-4">
               <div className="flex-1">
-                <label className="block text-xs text-zinc-500 mb-1">時</label>
+                <label className="block text-xs text-[var(--color-text-muted)] mb-1">時</label>
                 <select
                   value={selectedHour}
                   onChange={(e) => handleTimeChange(Number(e.target.value), selectedMinute)}
-                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-violet-500"
+                  className="w-full px-3 py-2 bg-[var(--color-bg-base)] border border-[var(--color-border)] rounded-lg text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
                 >
                   {hours.map((h) => (
                     <option key={h} value={h}>
@@ -242,13 +242,13 @@ export function DateTimePicker({
                   ))}
                 </select>
               </div>
-              <div className="text-zinc-500 pt-4">:</div>
+              <div className="text-[var(--color-text-muted)] pt-4">:</div>
               <div className="flex-1">
-                <label className="block text-xs text-zinc-500 mb-1">分（10分刻み）</label>
+                <label className="block text-xs text-[var(--color-text-muted)] mb-1">分（10分刻み）</label>
                 <select
                   value={selectedMinute}
                   onChange={(e) => handleTimeChange(selectedHour, Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-violet-500"
+                  className="w-full px-3 py-2 bg-[var(--color-bg-base)] border border-[var(--color-border)] rounded-lg text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
                 >
                   {minutes.map((m) => (
                     <option key={m} value={m}>
@@ -261,18 +261,18 @@ export function DateTimePicker({
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-between mt-4 pt-4 border-t border-zinc-800">
+          <div className="flex items-center justify-between mt-4 pt-4 border-t border-[var(--color-border)]">
             <button
               type="button"
               onClick={handleClear}
-              className="text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+              className="text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
             >
               クリア
             </button>
             <button
               type="button"
               onClick={() => setIsOpen(false)}
-              className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium rounded-lg transition-colors"
+              className="btn btn-primary"
             >
               完了
             </button>

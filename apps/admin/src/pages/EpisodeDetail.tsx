@@ -8,14 +8,14 @@ import { BlueskyPostEditor } from "../components/BlueskyPostEditor";
 import { ReferenceLinksEditor } from "../components/ReferenceLinksEditor";
 import { getWebsiteUrl } from "../lib/env";
 
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  draft: { label: "下書き", color: "bg-zinc-800 text-zinc-400" },
-  uploading: { label: "アップロード中", color: "bg-amber-500/10 text-amber-500" },
-  processing: { label: "処理中", color: "bg-amber-500/10 text-amber-500" },
-  transcribing: { label: "文字起こし中", color: "bg-amber-500/10 text-amber-500" },
-  scheduled: { label: "予約済み", color: "bg-blue-500/10 text-blue-500" },
-  published: { label: "公開済み", color: "bg-emerald-500/10 text-emerald-500" },
-  failed: { label: "エラー", color: "bg-red-500/10 text-red-500" },
+const STATUS_CONFIG: Record<string, { label: string; badgeClass: string }> = {
+  draft: { label: "下書き", badgeClass: "badge badge-default" },
+  uploading: { label: "アップロード中", badgeClass: "badge badge-warning" },
+  processing: { label: "処理中", badgeClass: "badge badge-warning" },
+  transcribing: { label: "文字起こし中", badgeClass: "badge badge-warning" },
+  scheduled: { label: "予約済み", badgeClass: "badge badge-info" },
+  published: { label: "公開済み", badgeClass: "badge badge-success" },
+  failed: { label: "エラー", badgeClass: "badge badge-error" },
 };
 
 function formatDate(dateString: string | null): string {
@@ -231,8 +231,8 @@ export default function EpisodeDetail() {
     return (
       <div className="max-w-6xl mx-auto px-6 py-10">
         <div className="flex flex-col items-center justify-center py-20">
-          <div className="w-8 h-8 border-3 border-zinc-700 border-t-violet-500 rounded-full animate-spin mb-4" />
-          <p className="text-zinc-500">読み込み中...</p>
+          <div className="w-8 h-8 border-3 border-[var(--color-border-strong)] border-t-[var(--color-accent)] rounded-full animate-spin mb-4" />
+          <p className="text-[var(--color-text-muted)]">読み込み中...</p>
         </div>
       </div>
     );
@@ -241,20 +241,20 @@ export default function EpisodeDetail() {
   if (!episode) {
     return (
       <div className="max-w-6xl mx-auto px-6 py-10">
-        <Link to="/" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-4">
+        <Link to="/" className="inline-flex items-center gap-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors mb-4">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
           戻る
         </Link>
-        <div className="p-4 bg-red-500/10 border border-red-500/50 rounded-lg text-red-400">
+        <div className="p-4 bg-[var(--color-error-muted)] border border-[var(--color-error)] rounded-lg text-[var(--color-error)]">
           {error || "エピソードが見つかりません"}
         </div>
       </div>
     );
   }
 
-  const status = STATUS_CONFIG[episode.status] || { label: episode.status, color: "bg-zinc-800 text-zinc-400" };
+  const status = STATUS_CONFIG[episode.status] || { label: episode.status, badgeClass: "badge badge-default" };
   const audioUrl = episode.audioUrl || episode.sourceAudioUrl;
   const canEditSlug = episode.status === "draft";
   const episodeWebUrl = baseWebsiteUrl ? getWebsiteUrl(baseWebsiteUrl, episode.slug || episode.id) : null;
@@ -263,7 +263,7 @@ export default function EpisodeDetail() {
   return (
     <div className="max-w-6xl mx-auto px-6 py-10">
       <header className="mb-8">
-        <Link to="/" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-4">
+        <Link to="/" className="inline-flex items-center gap-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors mb-4">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
@@ -276,31 +276,31 @@ export default function EpisodeDetail() {
                 type="text"
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
-                className="block w-full text-2xl font-bold bg-transparent border-b-2 border-violet-500 focus:outline-none"
+                className="block w-full text-2xl font-bold bg-transparent border-b-2 border-[var(--color-accent)] focus:outline-none text-[var(--color-text-primary)]"
               />
             ) : (
-              <h1 className="text-2xl font-bold tracking-tight">{episode.title}</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-[var(--color-text-primary)]">{episode.title}</h1>
             )}
             {isEditing && canEditSlug && (
               <div className="mt-2">
-                <label className="text-xs text-zinc-500">Slug:</label>
+                <label className="text-xs text-[var(--color-text-muted)]">Slug:</label>
                 <input
                   type="text"
                   value={editSlug}
                   onChange={(e) => setEditSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
-                  className="ml-2 text-sm font-mono text-zinc-400 bg-transparent border-b border-zinc-600 focus:outline-none focus:border-violet-500"
+                  className="ml-2 text-sm font-mono text-[var(--color-text-secondary)] bg-transparent border-b border-[var(--color-border)] focus:outline-none focus:border-[var(--color-accent)]"
                 />
               </div>
             )}
             {!isEditing && (
               <div className="flex items-center gap-3 mt-1">
-                <p className="text-xs text-zinc-500 font-mono">{episode.slug || episode.id}</p>
+                <p className="text-xs text-[var(--color-text-muted)] font-mono">{episode.slug || episode.id}</p>
                 {canShowWebLink && episodeWebUrl && (
                   <a
                     href={episodeWebUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                    className="inline-flex items-center gap-1 text-xs text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] transition-colors"
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -311,7 +311,7 @@ export default function EpisodeDetail() {
               </div>
             )}
           </div>
-          <span className={`px-3 py-1 rounded-full text-xs font-medium shrink-0 ${status.color}`}>
+          <span className={status.badgeClass}>
             {status.label}
           </span>
         </div>
@@ -319,7 +319,7 @@ export default function EpisodeDetail() {
 
       {/* Error */}
       {error && (
-        <div className="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-lg text-red-400">
+        <div className="mb-6 p-4 bg-[var(--color-error-muted)] border border-[var(--color-error)] rounded-lg text-[var(--color-error)]">
           {error}
           <button onClick={() => setError(null)} className="ml-2 underline">閉じる</button>
         </div>
@@ -330,39 +330,39 @@ export default function EpisodeDetail() {
         <div className="lg:col-span-2 space-y-6">
           {/* 音声プレイヤー */}
           {audioUrl ? (
-            <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4">
+            <div className="card p-4">
               <audio src={audioUrl} controls className="w-full" />
               {episode.sourceAudioUrl && !episode.audioUrl && (
-                <p className="text-xs text-zinc-500 mt-2">外部音声ファイルを参照しています</p>
+                <p className="text-xs text-[var(--color-text-muted)] mt-2">外部音声ファイルを参照しています</p>
               )}
             </div>
           ) : (
-            <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
-              <h2 className="text-sm font-medium text-zinc-400 mb-4 flex items-center gap-2">
+            <div className="card p-6">
+              <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-4 flex items-center gap-2">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
                 </svg>
                 音声ファイル
               </h2>
-              <p className="text-zinc-500 text-sm mb-4">音声ファイルがまだアップロードされていません。</p>
+              <p className="text-[var(--color-text-muted)] text-sm mb-4">音声ファイルがまだアップロードされていません。</p>
 
               <input
                 type="file"
                 accept="audio/*"
                 onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
                 disabled={isUploading}
-                className="block w-full text-sm text-zinc-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-zinc-800 file:text-zinc-300 hover:file:bg-zinc-700 disabled:opacity-50"
+                className="block w-full text-sm text-[var(--color-text-secondary)] file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-[var(--color-bg-elevated)] file:text-[var(--color-text-secondary)] hover:file:bg-[var(--color-bg-hover)] disabled:opacity-50"
               />
 
               {audioFile && (
                 <div className="mt-3">
-                  <p className="text-sm text-zinc-400 mb-2">
+                  <p className="text-sm text-[var(--color-text-secondary)] mb-2">
                     {audioFile.name} ({(audioFile.size / 1024 / 1024).toFixed(1)} MB)
                   </p>
                   <button
                     onClick={handleAudioUpload}
                     disabled={isUploading}
-                    className="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-sm font-medium disabled:opacity-50"
+                    className="btn btn-primary"
                   >
                     {isUploading ? uploadMessage : "アップロード"}
                   </button>
@@ -372,31 +372,31 @@ export default function EpisodeDetail() {
           )}
 
           {/* 詳細情報 */}
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
-            <h2 className="text-sm font-medium text-zinc-400 mb-4 flex items-center gap-2">
+          <div className="card p-6">
+            <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-4 flex items-center gap-2">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               詳細情報
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-zinc-900 rounded-lg p-4">
-                <div className="text-xs text-zinc-500 mb-1">再生時間</div>
-                <div className="text-zinc-200 font-medium">{formatDuration(episode.duration)}</div>
+              <div className="bg-[var(--color-bg-elevated)] rounded-lg p-4">
+                <div className="text-xs text-[var(--color-text-muted)] mb-1">再生時間</div>
+                <div className="text-[var(--color-text-primary)] font-medium">{formatDuration(episode.duration)}</div>
               </div>
-              <div className="bg-zinc-900 rounded-lg p-4">
-                <div className="text-xs text-zinc-500 mb-1">ファイルサイズ</div>
-                <div className="text-zinc-200 font-medium">{formatFileSize(episode.fileSize)}</div>
+              <div className="bg-[var(--color-bg-elevated)] rounded-lg p-4">
+                <div className="text-xs text-[var(--color-text-muted)] mb-1">ファイルサイズ</div>
+                <div className="text-[var(--color-text-primary)] font-medium">{formatFileSize(episode.fileSize)}</div>
               </div>
-              <div className="bg-zinc-900 rounded-lg p-4">
-                <div className="text-xs text-zinc-500 mb-1">作成日</div>
-                <div className="text-zinc-200 font-medium">{formatDate(episode.createdAt)}</div>
+              <div className="bg-[var(--color-bg-elevated)] rounded-lg p-4">
+                <div className="text-xs text-[var(--color-text-muted)] mb-1">作成日</div>
+                <div className="text-[var(--color-text-primary)] font-medium">{formatDate(episode.createdAt)}</div>
               </div>
-              <div className="bg-zinc-900 rounded-lg p-4">
-                <div className="text-xs text-zinc-500 mb-1">
+              <div className="bg-[var(--color-bg-elevated)] rounded-lg p-4">
+                <div className="text-xs text-[var(--color-text-muted)] mb-1">
                   {episode.status === "scheduled" ? "公開予定日" : "公開日"}
                 </div>
-                <div className="text-zinc-200 font-medium">
+                <div className="text-[var(--color-text-primary)] font-medium">
                   {episode.status === "scheduled"
                     ? formatDate(episode.publishAt)
                     : formatDate(episode.publishedAt)}
@@ -406,9 +406,9 @@ export default function EpisodeDetail() {
           </div>
 
           {/* 説明 */}
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
+          <div className="card p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-medium text-zinc-400 flex items-center gap-2">
+              <h2 className="text-sm font-medium text-[var(--color-text-secondary)] flex items-center gap-2">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
                 </svg>
@@ -419,18 +419,18 @@ export default function EpisodeDetail() {
                   <button
                     type="button"
                     onClick={() => setShowTemplates(!showTemplates)}
-                    className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                    className="text-xs text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] transition-colors"
                   >
                     テンプレートから挿入
                   </button>
                   {showTemplates && (
-                    <div className="absolute right-0 top-full mt-1 w-64 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-10">
+                    <div className="absolute right-0 top-full mt-1 w-64 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg shadow-xl z-10">
                       {templates.map((t) => (
                         <button
                           key={t.id}
                           type="button"
                           onClick={() => applyTemplate(t)}
-                          className="w-full px-3 py-2 text-left text-sm hover:bg-zinc-700 first:rounded-t-lg last:rounded-b-lg"
+                          className="w-full px-3 py-2 text-left text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-bg-hover)] first:rounded-t-lg last:rounded-b-lg"
                         >
                           {t.name}
                         </button>
@@ -448,15 +448,15 @@ export default function EpisodeDetail() {
               />
             ) : (
               <div
-                className="bg-zinc-900 rounded-lg p-4 text-zinc-400 text-sm prose prose-invert prose-sm max-w-none"
+                className="bg-[var(--color-bg-elevated)] rounded-lg p-4 text-[var(--color-text-secondary)] text-sm prose prose-sm max-w-none"
                 dangerouslySetInnerHTML={{ __html: episode.description || "<p>説明がありません</p>" }}
               />
             )}
           </div>
 
           {/* 参考リンク */}
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
-            <h2 className="text-sm font-medium text-zinc-400 mb-4 flex items-center gap-2">
+          <div className="card p-6">
+            <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-4 flex items-center gap-2">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
               </svg>
@@ -468,18 +468,18 @@ export default function EpisodeDetail() {
                 onChange={setEditReferenceLinks}
               />
             ) : (
-              <div className="bg-zinc-900 rounded-lg p-4">
+              <div className="bg-[var(--color-bg-elevated)] rounded-lg p-4">
                 {(episode.referenceLinks?.length || 0) > 0 ? (
                   <ul className="space-y-2">
                     {episode.referenceLinks?.map((link, index) => (
                       <li key={index} className="text-sm">
-                        <span className="text-zinc-300">{link.title}</span>
+                        <span className="text-[var(--color-text-primary)]">{link.title}</span>
                         <br />
                         <a
                           href={link.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs text-violet-400 hover:text-violet-300"
+                          className="text-xs text-[var(--color-accent)] hover:text-[var(--color-accent-hover)]"
                         >
                           {link.url}
                         </a>
@@ -487,28 +487,28 @@ export default function EpisodeDetail() {
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-zinc-500 text-sm">参考リンクがありません</p>
+                  <p className="text-[var(--color-text-muted)] text-sm">参考リンクがありません</p>
                 )}
               </div>
             )}
           </div>
 
           {/* 文字起こし */}
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
-            <h2 className="text-sm font-medium text-zinc-400 mb-4 flex items-center gap-2">
+          <div className="card p-6">
+            <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-4 flex items-center gap-2">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               文字起こし
             </h2>
             {episode.skipTranscription ? (
-              <p className="text-zinc-500 text-sm">文字起こしはスキップされました</p>
+              <p className="text-[var(--color-text-muted)] text-sm">文字起こしはスキップされました</p>
             ) : episode.transcriptUrl ? (
               <a
                 href={episode.transcriptUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-violet-400 hover:text-violet-300 text-sm"
+                className="inline-flex items-center gap-2 text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] text-sm"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -516,23 +516,23 @@ export default function EpisodeDetail() {
                 文字起こしを表示
               </a>
             ) : (
-              <p className="text-zinc-500 text-sm">文字起こしはまだありません</p>
+              <p className="text-[var(--color-text-muted)] text-sm">文字起こしはまだありません</p>
             )}
           </div>
 
           {/* OGP画像 */}
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
-            <h2 className="text-sm font-medium text-zinc-400 mb-4 flex items-center gap-2">
+          <div className="card p-6">
+            <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-4 flex items-center gap-2">
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
               </svg>
               OGP画像
             </h2>
-            <p className="text-xs text-zinc-500 mb-4">
+            <p className="text-xs text-[var(--color-text-muted)] mb-4">
               SNSでこのエピソードがシェアされた時に表示される画像です。
             </p>
             <div className="flex items-start gap-6">
-              <div className="w-48 h-24 rounded-lg bg-zinc-800 overflow-hidden flex-shrink-0">
+              <div className="w-48 h-24 rounded-lg bg-[var(--color-bg-elevated)] overflow-hidden flex-shrink-0">
                 {(ogImagePreview || episode.ogImageUrl) ? (
                   <img
                     src={ogImagePreview || episode.ogImageUrl || ""}
@@ -540,7 +540,7 @@ export default function EpisodeDetail() {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-zinc-600">
+                  <div className="w-full h-full flex items-center justify-center text-[var(--color-text-faint)]">
                     <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
                     </svg>
@@ -557,26 +557,26 @@ export default function EpisodeDetail() {
                 />
                 <label
                   htmlFor="episode-og-image-upload"
-                  className="inline-block px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg cursor-pointer text-sm font-medium transition-colors"
+                  className="btn btn-secondary inline-block cursor-pointer"
                 >
                   画像を選択
                 </label>
                 {ogImageFile && (
                   <div className="mt-3">
-                    <p className="text-sm text-zinc-400 mb-2">
+                    <p className="text-sm text-[var(--color-text-secondary)] mb-2">
                       {ogImageFile.name} ({(ogImageFile.size / 1024 / 1024).toFixed(2)} MB)
                     </p>
                     <button
                       type="button"
                       onClick={handleOgImageUpload}
                       disabled={uploadingOgImage}
-                      className="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                      className="btn btn-primary"
                     >
                       {uploadingOgImage ? "アップロード中..." : "アップロード"}
                     </button>
                   </div>
                 )}
-                <p className="text-xs text-zinc-500 mt-2">
+                <p className="text-xs text-[var(--color-text-muted)] mt-2">
                   推奨: 1200x630px、JPEGまたはPNG、最大5MB
                 </p>
               </div>
@@ -588,36 +588,36 @@ export default function EpisodeDetail() {
         <div className="space-y-6">
           {/* 公開設定 */}
           {isEditing && (
-            <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 space-y-4">
-              <h2 className="text-sm font-medium text-zinc-400 mb-4 flex items-center gap-2">
+            <div className="card p-6 space-y-4">
+              <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-4 flex items-center gap-2">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 公開設定
               </h2>
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-2">公開日時</label>
+                <label className="label">公開日時</label>
                 <DateTimePicker
                   value={editPublishAt}
                   onChange={setEditPublishAt}
                   placeholder="公開日時を選択..."
                 />
-                <p className="text-xs text-zinc-600 mt-1">空欄にすると下書き状態になります</p>
+                <p className="text-xs text-[var(--color-text-faint)] mt-1">空欄にすると下書き状態になります</p>
               </div>
             </div>
           )}
 
           {/* Bluesky 自動投稿 */}
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
+          <div className="card p-6">
             <div className="flex items-center gap-2 mb-4">
               <svg className="w-5 h-5 text-sky-500" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
               </svg>
-              <h2 className="text-sm font-medium text-zinc-400">Bluesky 自動投稿</h2>
+              <h2 className="text-sm font-medium text-[var(--color-text-secondary)]">Bluesky 自動投稿</h2>
             </div>
 
             {episode.blueskyPostedAt ? (
-              <div className="flex items-center gap-2 text-sm text-emerald-400">
+              <div className="flex items-center gap-2 text-sm text-[var(--color-success)]">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
@@ -625,18 +625,18 @@ export default function EpisodeDetail() {
               </div>
             ) : isEditing ? (
               <div className="space-y-4">
-                <label className="flex items-start gap-3 p-4 bg-zinc-900 border border-zinc-800 rounded-lg cursor-pointer hover:border-zinc-700 transition-colors">
+                <label className="flex items-start gap-3 p-4 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg cursor-pointer hover:border-[var(--color-border-strong)] transition-colors">
                   <input
                     type="checkbox"
                     checked={editBlueskyPostEnabled}
                     onChange={(e) => setEditBlueskyPostEnabled(e.target.checked)}
-                    className="mt-0.5 w-5 h-5 rounded border-zinc-700 bg-zinc-900 text-sky-600 focus:ring-sky-500 focus:ring-offset-0"
+                    className="mt-0.5 w-5 h-5 rounded border-[var(--color-border)] bg-[var(--color-bg-base)] text-sky-600 focus:ring-sky-500 focus:ring-offset-0"
                   />
                   <div>
-                    <span className="block text-sm font-medium text-zinc-200">
+                    <span className="block text-sm font-medium text-[var(--color-text-primary)]">
                       公開時にBlueskyに投稿する
                     </span>
-                    <span className="block text-xs text-zinc-500 mt-1">
+                    <span className="block text-xs text-[var(--color-text-muted)] mt-1">
                       エピソード公開時に下記のテキストを自動投稿します
                     </span>
                   </div>
@@ -644,7 +644,7 @@ export default function EpisodeDetail() {
 
                 {editBlueskyPostEnabled && (
                   <div>
-                    <label className="block text-sm font-medium text-zinc-400 mb-2">
+                    <label className="label">
                       投稿テキスト
                     </label>
                     <BlueskyPostEditor
@@ -658,37 +658,37 @@ export default function EpisodeDetail() {
               <div>
                 {episode.blueskyPostEnabled ? (
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm text-sky-400">
+                    <div className="flex items-center gap-2 text-sm text-sky-500">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
                       公開時に投稿予定
                     </div>
                     {episode.blueskyPostText && (
-                      <div className="bg-zinc-900 rounded-lg p-4 text-zinc-400 text-sm font-mono whitespace-pre-wrap">
+                      <div className="bg-[var(--color-bg-elevated)] rounded-lg p-4 text-[var(--color-text-secondary)] text-sm font-mono whitespace-pre-wrap">
                         {episode.blueskyPostText}
                       </div>
                     )}
                   </div>
                 ) : (
-                  <p className="text-zinc-500 text-sm">Bluesky投稿は無効です</p>
+                  <p className="text-[var(--color-text-muted)] text-sm">Bluesky投稿は無効です</p>
                 )}
               </div>
             )}
           </div>
 
           {/* Apple Podcasts */}
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
+          <div className="card p-6">
             <div className="flex items-center gap-2 mb-4">
               <svg className="w-5 h-5 text-pink-500" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M5.34 0A5.328 5.328 0 000 5.34v13.32A5.328 5.328 0 005.34 24h13.32A5.328 5.328 0 0024 18.66V5.34A5.328 5.328 0 0018.66 0zm6.525 2.568c2.336 0 4.448.902 6.056 2.587 1.224 1.272 1.912 2.619 2.264 4.392.12.59.12 2.2.007 2.864a8.506 8.506 0 01-3.24 5.296c-.608.46-2.096 1.261-2.336 1.261-.088 0-.096-.091-.056-.46.072-.592.144-.715.48-.856.536-.224 1.448-.874 2.008-1.435a7.644 7.644 0 002.008-3.536c.208-.824.184-2.656-.048-3.504-.728-2.696-2.928-4.792-5.624-5.352-.784-.16-2.208-.16-3 0-2.728.56-4.984 2.76-5.672 5.528-.184.752-.184 2.584 0 3.336.456 1.832 1.64 3.512 3.192 4.512.304.2.672.408.824.472.336.144.408.264.472.856.04.36.03.464-.056.464-.056 0-.464-.176-.896-.384l-.04-.03c-2.472-1.216-4.056-3.274-4.632-6.012-.144-.706-.168-2.392-.03-3.04.36-1.74 1.048-3.1 2.192-4.304 1.648-1.737 3.768-2.656 6.128-2.656zm.134 2.81c.409.004.803.04 1.106.106 2.784.62 4.76 3.408 4.376 6.174-.152 1.114-.536 2.03-1.216 2.88-.336.43-1.152 1.15-1.296 1.15-.023 0-.048-.272-.048-.603v-.605l.416-.496c1.568-1.878 1.456-4.502-.256-6.224-.664-.67-1.432-1.064-2.424-1.246-.64-.118-.776-.118-1.448-.008-1.02.167-1.81.562-2.512 1.256-1.72 1.704-1.832 4.342-.264 6.222l.413.496v.608c0 .336-.027.608-.06.608-.03 0-.264-.16-.512-.36l-.034-.011c-.832-.664-1.568-1.842-1.872-2.997-.184-.698-.184-2.024.008-2.72.504-1.878 1.888-3.335 3.808-4.019.41-.145 1.133-.22 1.814-.211zm-.13 2.99c.31 0 .62.06.844.178.488.253.888.745 1.04 1.259.464 1.578-1.208 2.96-2.72 2.254h-.015c-.712-.331-1.096-.956-1.104-1.77 0-.733.408-1.371 1.112-1.745.224-.117.534-.176.844-.176zm-.011 4.728c.988-.004 1.706.349 1.97.97.198.464.124 1.932-.218 4.302-.232 1.656-.36 2.074-.68 2.356-.44.39-1.064.498-1.656.288h-.003c-.716-.257-.87-.605-1.164-2.644-.341-2.37-.416-3.838-.218-4.302.262-.616.974-.966 1.97-.97z"/>
               </svg>
-              <h2 className="text-sm font-medium text-zinc-400">Apple Podcasts</h2>
+              <h2 className="text-sm font-medium text-[var(--color-text-secondary)]">Apple Podcasts</h2>
             </div>
 
             {isEditing ? (
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-2">
+                <label className="label">
                   エピソードURL
                 </label>
                 <input
@@ -696,9 +696,9 @@ export default function EpisodeDetail() {
                   value={editApplePodcastsUrl}
                   onChange={(e) => setEditApplePodcastsUrl(e.target.value)}
                   placeholder="https://podcasts.apple.com/..."
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-violet-500"
+                  className="input"
                 />
-                <p className="text-xs text-zinc-600 mt-1">
+                <p className="text-xs text-[var(--color-text-faint)] mt-1">
                   管理画面起動時に自動取得されます
                 </p>
               </div>
@@ -708,7 +708,7 @@ export default function EpisodeDetail() {
                   href={episode.applePodcastsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-sm text-pink-400 hover:text-pink-300"
+                  className="flex items-center gap-2 text-sm text-pink-500 hover:text-pink-400"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -716,25 +716,25 @@ export default function EpisodeDetail() {
                   Apple Podcasts で開く
                 </a>
               ) : (
-                <p className="text-zinc-500 text-sm">未設定</p>
+                <p className="text-[var(--color-text-muted)] text-sm">未設定</p>
               )
             )}
           </div>
 
           {/* 編集・保存ボタン */}
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 space-y-3">
+          <div className="card p-6 space-y-3">
             {isEditing ? (
               <>
                 <button
                   onClick={handleSave}
                   disabled={isSaving}
-                  className="w-full py-3 bg-violet-600 hover:bg-violet-500 text-white font-medium rounded-lg transition-all disabled:opacity-50"
+                  className="btn btn-primary w-full py-3"
                 >
                   {isSaving ? "保存中..." : "保存"}
                 </button>
                 <button
                   onClick={handleCancelEdit}
-                  className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium rounded-lg transition-all"
+                  className="btn btn-secondary w-full py-3"
                 >
                   キャンセル
                 </button>
@@ -742,7 +742,7 @@ export default function EpisodeDetail() {
             ) : (
               <button
                 onClick={() => setIsEditing(true)}
-                className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium rounded-lg transition-all"
+                className="btn btn-secondary w-full py-3"
               >
                 編集
               </button>
@@ -750,15 +750,15 @@ export default function EpisodeDetail() {
           </div>
 
           {/* 削除 */}
-          <div className="border border-red-500/50 bg-red-500/5 rounded-xl p-6">
-            <h2 className="text-sm font-medium text-red-400 mb-2">危険な操作</h2>
-            <p className="text-zinc-500 text-sm mb-4">
+          <div className="border border-[var(--color-error)] bg-[var(--color-error-muted)] rounded-xl p-6">
+            <h2 className="text-sm font-medium text-[var(--color-error)] mb-2">危険な操作</h2>
+            <p className="text-[var(--color-text-muted)] text-sm mb-4">
               エピソードを削除すると、音声ファイルと文字起こしも削除されます。この操作は取り消せません。
             </p>
             <button
               onClick={handleDelete}
               disabled={isDeleting}
-              className="w-full py-2 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/50 hover:border-red-500 font-medium rounded-lg transition-all disabled:opacity-50"
+              className="w-full py-2 bg-[var(--color-error-muted)] hover:bg-[var(--color-error)] text-[var(--color-error)] hover:text-white border border-[var(--color-error)] font-medium rounded-lg transition-all disabled:opacity-50"
             >
               {isDeleting ? "削除中..." : "エピソードを削除"}
             </button>

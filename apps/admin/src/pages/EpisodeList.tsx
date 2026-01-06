@@ -1,16 +1,16 @@
 import { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api, Episode } from "../lib/api";
-import { BuildStatus } from "../components/BuildStatus";
 
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  draft: { label: "下書き", color: "bg-zinc-800 text-zinc-400" },
-  uploading: { label: "アップロード中", color: "bg-amber-500/10 text-amber-500" },
-  processing: { label: "処理中", color: "bg-amber-500/10 text-amber-500" },
-  transcribing: { label: "文字起こし中", color: "bg-amber-500/10 text-amber-500" },
-  scheduled: { label: "予約済み", color: "bg-blue-500/10 text-blue-500" },
-  published: { label: "公開済み", color: "bg-emerald-500/10 text-emerald-500" },
-  failed: { label: "エラー", color: "bg-red-500/10 text-red-500" },
+// Status badge configuration using design tokens
+const STATUS_CONFIG: Record<string, { label: string; badgeClass: string }> = {
+  draft: { label: "下書き", badgeClass: "badge badge-default" },
+  uploading: { label: "アップロード中", badgeClass: "badge badge-warning" },
+  processing: { label: "処理中", badgeClass: "badge badge-warning" },
+  transcribing: { label: "文字起こし中", badgeClass: "badge badge-warning" },
+  scheduled: { label: "予約済み", badgeClass: "badge badge-info" },
+  published: { label: "公開済み", badgeClass: "badge badge-success" },
+  failed: { label: "エラー", badgeClass: "badge badge-error" },
 };
 
 function formatDate(dateString: string | null): string {
@@ -68,113 +68,107 @@ export default function EpisodeList() {
   }, []);
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-10 pt-14">
-      <header className="flex items-center justify-between mb-8">
-        <h1 className="text-2xl font-bold tracking-tight">エピソード</h1>
-        <div className="flex items-center gap-3">
-          <BuildStatus />
-          <Link
-            to="/settings"
-            className="p-2.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
-            title="設定"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </Link>
-          <Link
-            to="/new"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white font-medium rounded-lg transition-all hover:shadow-lg hover:shadow-violet-500/25 hover:-translate-y-0.5"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            新規登録
-          </Link>
-        </div>
+    <div className="max-w-4xl mx-auto px-6 py-8">
+      {/* Page Header - Clean and minimal */}
+      <header className="mb-6">
+        <h1 className="text-xl font-semibold tracking-tight text-[var(--color-text-primary)]">
+          エピソード
+        </h1>
+        <p className="text-sm text-[var(--color-text-muted)] mt-1">
+          {episodes.length > 0 ? `${episodes.length}件のエピソード` : "エピソードを作成しましょう"}
+        </p>
       </header>
 
+      {/* Loading State */}
       {isLoading && (
         <div className="flex flex-col items-center justify-center py-20">
-          <div className="w-8 h-8 border-3 border-zinc-700 border-t-violet-500 rounded-full animate-spin mb-4" />
-          <p className="text-zinc-500">読み込み中...</p>
+          <div className="w-6 h-6 border-2 border-[var(--color-border-strong)] border-t-[var(--color-accent)] rounded-full animate-spin mb-3" />
+          <p className="text-sm text-[var(--color-text-muted)]">読み込み中...</p>
         </div>
       )}
 
+      {/* Error State */}
       {error && (
-        <div className="p-4 bg-red-500/10 border border-red-500/50 rounded-lg text-red-400">
-          {error}
+        <div className="card p-4 border-[var(--color-error)]! bg-[var(--color-error-muted)]">
+          <p className="text-sm text-[var(--color-error)]">{error}</p>
         </div>
       )}
 
+      {/* Empty State */}
       {!isLoading && !error && episodes.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center mb-4">
-            <svg className="w-8 h-8 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="w-12 h-12 rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] flex items-center justify-center mb-4">
+            <svg className="w-6 h-6 text-[var(--color-text-faint)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-zinc-300 mb-2">エピソードがありません</h3>
-          <p className="text-zinc-500 mb-6">最初のエピソードを登録しましょう</p>
+          <h3 className="text-base font-medium text-[var(--color-text-primary)] mb-1">
+            エピソードがありません
+          </h3>
+          <p className="text-sm text-[var(--color-text-muted)] mb-5">
+            最初のエピソードを作成しましょう
+          </p>
           <Link
             to="/new"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white font-medium rounded-lg transition-all"
+            className="btn btn-primary text-sm"
           >
-            新規登録
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            新規作成
           </Link>
         </div>
       )}
 
+      {/* Episode List */}
       {!isLoading && !error && episodes.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {currentEpisodes.map((ep) => {
-            const status = STATUS_CONFIG[ep.status] || { label: ep.status, color: "bg-zinc-800 text-zinc-400" };
+            const status = STATUS_CONFIG[ep.status] || { label: ep.status, badgeClass: "badge badge-default" };
             return (
               <Link
                 key={ep.id}
                 to={`/episodes/${ep.id}`}
-                className="flex items-center gap-4 p-4 bg-zinc-900/50 border border-zinc-800 rounded-xl hover:bg-zinc-900 hover:border-violet-500/50 transition-all group"
+                className="card flex items-center gap-4 p-4 hover:bg-[var(--color-bg-elevated)] hover:border-[var(--color-border-strong)] transition-all group"
               >
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-medium text-zinc-200 truncate group-hover:text-white transition-colors">
+                  <h3 className="text-sm font-medium text-[var(--color-text-primary)] truncate transition-colors">
                     {ep.title}
                   </h3>
-                  <p className="text-sm text-zinc-500 mt-0.5">
+                  <p className="text-xs text-[var(--color-text-muted)] mt-1 font-mono">
                     {ep.status === "scheduled" && ep.publishAt
                       ? `公開予定: ${formatDate(ep.publishAt)}`
                       : ep.publishAt
                         ? formatDate(ep.publishAt)
-                        : "下書き"}
+                        : "—"}
                   </p>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${status.color}`}>
+                <span className={status.badgeClass}>
                   {status.label}
                 </span>
-                <svg className="w-5 h-5 text-zinc-600 group-hover:text-zinc-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-[var(--color-text-faint)] group-hover:text-[var(--color-text-secondary)] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </Link>
             );
           })}
 
-          {/* ページネーション */}
+          {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 pt-6 mt-4 border-t border-zinc-800">
+            <div className="flex items-center justify-center gap-1 pt-6 mt-4 border-t border-[var(--color-border)]">
               <button
                 onClick={() => goToPage(currentPage - 1)}
                 disabled={currentPage === 1}
-                className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                className="btn btn-ghost disabled:opacity-30"
                 aria-label="前のページ"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
 
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-0.5">
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-                  // 表示するページボタンを制限（現在ページ周辺のみ）
                   const showPage =
                     page === 1 ||
                     page === totalPages ||
@@ -185,7 +179,7 @@ export default function EpisodeList() {
 
                   if (showEllipsisBefore || showEllipsisAfter) {
                     return (
-                      <span key={page} className="px-2 text-zinc-600">
+                      <span key={page} className="px-2 text-[var(--color-text-faint)] text-sm">
                         ...
                       </span>
                     );
@@ -197,10 +191,10 @@ export default function EpisodeList() {
                     <button
                       key={page}
                       onClick={() => goToPage(page)}
-                      className={`min-w-[36px] h-9 px-3 rounded-lg text-sm font-medium transition-all ${
+                      className={`min-w-[32px] h-8 px-2 rounded-md text-sm font-medium transition-all ${
                         page === currentPage
-                          ? "bg-violet-600 text-white"
-                          : "text-zinc-400 hover:text-white hover:bg-zinc-800"
+                          ? "bg-[var(--color-accent)] text-white"
+                          : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-hover)]"
                       }`}
                     >
                       {page}
@@ -212,33 +206,39 @@ export default function EpisodeList() {
               <button
                 onClick={() => goToPage(currentPage + 1)}
                 disabled={currentPage === totalPages}
-                className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                className="btn btn-ghost disabled:opacity-30"
                 aria-label="次のページ"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </button>
             </div>
           )}
 
-          {/* ページ情報 */}
+          {/* Page Info */}
           {episodes.length > 0 && (
-            <p className="text-center text-sm text-zinc-500 mt-4">
-              {episodes.length}件中 {startIndex + 1}〜{Math.min(endIndex, episodes.length)}件を表示
+            <p className="text-center text-xs text-[var(--color-text-muted)] mt-3 font-mono">
+              {startIndex + 1}〜{Math.min(endIndex, episodes.length)} / {episodes.length}
             </p>
           )}
         </div>
       )}
 
+      {/* Refresh Button */}
       {!isLoading && (
-        <button
-          onClick={fetchEpisodes}
-          disabled={isLoading}
-          className="mt-6 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
-        >
-          ↻ 更新
-        </button>
+        <div className="mt-6 flex justify-center">
+          <button
+            onClick={fetchEpisodes}
+            disabled={isLoading}
+            className="btn btn-ghost text-xs"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            更新
+          </button>
+        </div>
       )}
     </div>
   );

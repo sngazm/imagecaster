@@ -45,7 +45,7 @@ function TaskIcon({ type, status }: { type: string; status: string }) {
       );
     default:
       return (
-        <svg className="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-4 h-4 text-[var(--color-text-secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
         </svg>
       );
@@ -57,20 +57,20 @@ function TaskIcon({ type, status }: { type: string; status: string }) {
  */
 function TaskItem({ task }: { task: Task }) {
   const statusColors = {
-    running: "border-l-violet-500",
-    success: "border-l-emerald-500",
-    error: "border-l-red-500",
+    running: "border-l-[var(--color-accent)]",
+    success: "border-l-[var(--color-success)]",
+    error: "border-l-[var(--color-error)]",
   };
 
   return (
     <div
-      className={`flex items-start gap-3 p-3 bg-zinc-900 border-l-2 ${statusColors[task.status]} rounded-r transition-all`}
+      className={`flex items-start gap-3 p-3 bg-[var(--color-bg-elevated)] border-l-2 ${statusColors[task.status]} rounded-r transition-all`}
     >
       <div className="flex-shrink-0 mt-0.5">
         {task.status === "running" ? (
           <div className="relative">
             <TaskIcon type={task.type} status={task.status} />
-            <div className="absolute -top-1 -right-1 w-2 h-2 bg-violet-500 rounded-full animate-pulse" />
+            <div className="absolute -top-1 -right-1 w-2 h-2 bg-[var(--color-accent)] rounded-full animate-pulse" />
           </div>
         ) : (
           <TaskIcon type={task.type} status={task.status} />
@@ -79,20 +79,20 @@ function TaskItem({ task }: { task: Task }) {
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-zinc-200 truncate">
+          <span className="text-sm font-medium text-[var(--color-text-primary)] truncate">
             {task.label}
           </span>
           {task.progress && task.status === "running" && (
-            <span className="text-xs text-zinc-500">{task.progress}</span>
+            <span className="text-xs text-[var(--color-text-muted)]">{task.progress}</span>
           )}
         </div>
         {task.detail && task.status === "running" && (
-          <p className="text-xs mt-0.5 text-zinc-500 truncate">
+          <p className="text-xs mt-0.5 text-[var(--color-text-muted)] truncate">
             {task.detail}
           </p>
         )}
         {task.message && (
-          <p className={`text-xs mt-0.5 ${task.status === "error" ? "text-red-400" : "text-zinc-500"}`}>
+          <p className={`text-xs mt-0.5 ${task.status === "error" ? "text-[var(--color-error)]" : "text-[var(--color-text-muted)]"}`}>
             {task.message}
           </p>
         )}
@@ -100,7 +100,7 @@ function TaskItem({ task }: { task: Task }) {
 
       <button
         onClick={() => taskStore.remove(task.id)}
-        className="flex-shrink-0 p-1 text-zinc-600 hover:text-zinc-400 transition-colors"
+        className="flex-shrink-0 p-1 text-[var(--color-text-faint)] hover:text-[var(--color-text-secondary)] transition-colors"
         title="閉じる"
       >
         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -130,21 +130,21 @@ export function TaskTray() {
       {/* ヘッダー（折りたたみ可能） */}
       <button
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="w-full flex items-center justify-between px-4 py-2.5 bg-zinc-800 border border-zinc-700 rounded-t-lg hover:bg-zinc-750 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-t-lg hover:bg-[var(--color-bg-hover)] transition-colors"
       >
         <div className="flex items-center gap-2">
-          <svg className="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 text-[var(--color-text-secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
           </svg>
-          <span className="text-sm font-medium text-zinc-300">バックグラウンドタスク</span>
+          <span className="text-sm font-medium text-[var(--color-text-secondary)]">バックグラウンドタスク</span>
           {runningCount > 0 && (
-            <span className="px-1.5 py-0.5 bg-violet-500/20 text-violet-400 text-xs rounded">
+            <span className="px-1.5 py-0.5 bg-[var(--color-accent)]/20 text-[var(--color-accent)] text-xs rounded">
               {runningCount}件実行中
             </span>
           )}
         </div>
         <svg
-          className={`w-4 h-4 text-zinc-500 transition-transform ${isCollapsed ? "" : "rotate-180"}`}
+          className={`w-4 h-4 text-[var(--color-text-muted)] transition-transform ${isCollapsed ? "" : "rotate-180"}`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -155,8 +155,8 @@ export function TaskTray() {
 
       {/* タスクリスト */}
       {!isCollapsed && (
-        <div className="bg-zinc-850 border border-t-0 border-zinc-700 rounded-b-lg overflow-hidden">
-          <div className="max-h-64 overflow-y-auto divide-y divide-zinc-800">
+        <div className="bg-[var(--color-bg-base)] border border-t-0 border-[var(--color-border)] rounded-b-lg overflow-hidden">
+          <div className="max-h-64 overflow-y-auto divide-y divide-[var(--color-border)]">
             {tasks.map((task) => (
               <TaskItem key={task.id} task={task} />
             ))}
