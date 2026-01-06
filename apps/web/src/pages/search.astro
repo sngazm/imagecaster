@@ -3,22 +3,22 @@ import Layout from "../layouts/Layout.astro";
 ---
 
 <Layout title="検索" description="エピソードを検索">
-  <div class="mx-auto max-w-4xl px-4 py-12">
-    <h1 class="mb-8 text-3xl font-bold text-zinc-900 dark:text-zinc-100">
+  <div class="mx-auto max-w-4xl px-4 py-8 sm:py-10">
+    <h1 class="mb-6 text-xl font-semibold text-text dark:text-text-dark">
       エピソード検索
     </h1>
 
     <!-- 検索フォーム -->
-    <div class="mb-8">
+    <div class="mb-6">
       <div class="relative">
         <input
           type="text"
           id="search-input"
           placeholder="キーワードを入力..."
-          class="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 pl-12 text-zinc-900 placeholder-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-500"
+          class="w-full rounded-lg border border-border bg-bg-elevated px-4 py-2.5 pl-10 text-sm text-text placeholder-text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 dark:border-border-dark dark:bg-bg-elevated-dark dark:text-text-dark dark:placeholder-text-muted-dark"
         />
         <svg
-          class="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400"
+          class="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted dark:text-text-muted-dark"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -31,14 +31,14 @@ import Layout from "../layouts/Layout.astro";
           />
         </svg>
       </div>
-      <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+      <p class="mt-1.5 text-xs text-text-muted dark:text-text-muted-dark">
         エピソードのタイトル、概要、文字起こしから検索できます
       </p>
     </div>
 
     <!-- 検索結果 -->
-    <div id="search-results" class="space-y-4">
-      <p class="text-zinc-500 dark:text-zinc-400">
+    <div id="search-results" class="space-y-3">
+      <p class="text-sm text-text-muted dark:text-text-muted-dark">
         検索キーワードを入力してください
       </p>
     </div>
@@ -65,7 +65,7 @@ import Layout from "../layouts/Layout.astro";
       } catch (e) {
         console.error("Pagefind not available:", e);
         resultsContainer.innerHTML = `
-          <p class="text-zinc-500 dark:text-zinc-400">
+          <p class="text-sm text-text-muted dark:text-text-muted-dark">
             検索機能は現在利用できません
           </p>
         `;
@@ -76,7 +76,7 @@ import Layout from "../layouts/Layout.astro";
     async function performSearch(query) {
       if (!query) {
         resultsContainer.innerHTML = `
-          <p class="text-zinc-500 dark:text-zinc-400">
+          <p class="text-sm text-text-muted dark:text-text-muted-dark">
             検索キーワードを入力してください
           </p>
         `;
@@ -84,7 +84,7 @@ import Layout from "../layouts/Layout.astro";
       }
 
       resultsContainer.innerHTML = `
-        <p class="text-zinc-500 dark:text-zinc-400">
+        <p class="text-sm text-text-muted dark:text-text-muted-dark">
           検索中...
         </p>
       `;
@@ -97,7 +97,7 @@ import Layout from "../layouts/Layout.astro";
 
         if (results.length === 0) {
           resultsContainer.innerHTML = `
-            <p class="text-zinc-500 dark:text-zinc-400">
+            <p class="text-sm text-text-muted dark:text-text-muted-dark">
               「${escapeHtml(query)}」に一致する結果が見つかりませんでした
             </p>
           `;
@@ -105,19 +105,19 @@ import Layout from "../layouts/Layout.astro";
         }
 
         resultsContainer.innerHTML = `
-          <p class="mb-4 text-sm text-zinc-500 dark:text-zinc-400">
+          <p class="mb-3 text-xs text-text-muted dark:text-text-muted-dark">
             ${search.results.length}件の結果
           </p>
-          <div class="space-y-4">
+          <div class="space-y-3">
             ${results.map((r) => `
               <a
                 href="${r.url}"
-                class="block rounded-xl border border-zinc-200 bg-white p-4 transition-colors hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:border-zinc-600 dark:hover:bg-zinc-700/50"
+                class="block rounded-lg border border-border bg-bg-elevated p-3 transition-colors hover:border-border-subtle hover:bg-bg-subtle dark:border-border-dark dark:bg-bg-elevated-dark dark:hover:border-border-subtle-dark dark:hover:bg-bg-subtle-dark"
               >
-                <h2 class="mb-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                <h2 class="mb-1 text-sm font-semibold text-text dark:text-text-dark">
                   ${escapeHtml(r.meta?.title || "無題")}
                 </h2>
-                <p class="text-sm text-zinc-600 dark:text-zinc-400">
+                <p class="text-xs text-text-secondary dark:text-text-secondary-dark">
                   ${r.excerpt || ""}
                 </p>
               </a>
@@ -127,7 +127,7 @@ import Layout from "../layouts/Layout.astro";
       } catch (error) {
         console.error("Search error:", error);
         resultsContainer.innerHTML = `
-          <p class="text-red-500">
+          <p class="text-sm text-error">
             検索中にエラーが発生しました
           </p>
         `;

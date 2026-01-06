@@ -12,29 +12,26 @@ const processedDescription = processDescription(episode.description, episode, we
 const plainDescription = stripHtml(processedDescription);
 ---
 
-<article class="group rounded-xl border border-zinc-200 bg-white p-5 transition-shadow hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-800 overflow-hidden">
+<article class="group rounded-lg border border-border bg-bg-elevated p-4 transition-all hover:border-border-subtle hover:shadow-sm dark:border-border-dark dark:bg-bg-elevated-dark dark:hover:border-border-subtle-dark overflow-hidden">
   <a href={`/episodes/${episode.id}`} class="block min-w-0">
-    <div class="mb-3">
-      <time class="text-sm text-zinc-500 dark:text-zinc-400" datetime={episode.publishedAt || episode.publishAt}>
+    <div class="mb-2 flex items-center gap-2">
+      <time class="text-xs font-medium text-text-muted dark:text-text-muted-dark" datetime={episode.publishedAt || episode.publishAt}>
         {formatDate(episode.publishedAt || episode.publishAt)}
       </time>
-    </div>
-
-    <h2 class="mb-2 text-lg font-bold leading-tight text-zinc-900 transition-colors group-hover:text-blue-600 dark:text-zinc-100 dark:group-hover:text-blue-400 break-words">
-      {episode.title}
-    </h2>
-
-    <p class="mb-4 line-clamp-2 text-sm text-zinc-600 dark:text-zinc-400 break-words">
-      {plainDescription}
-    </p>
-
-    <div class="flex items-center gap-4 text-sm text-zinc-500 dark:text-zinc-400">
-      <span class="flex items-center gap-1">
-        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <span class="flex items-center gap-1 text-xs text-text-faint dark:text-text-faint-dark">
+        <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         {formatDuration(episode.duration)}
       </span>
     </div>
+
+    <h2 class="mb-1.5 text-base font-semibold leading-snug text-text transition-colors group-hover:text-accent dark:text-text-dark dark:group-hover:text-accent break-words">
+      {episode.title}
+    </h2>
+
+    <p class="line-clamp-2 text-sm leading-relaxed text-text-secondary dark:text-text-secondary-dark break-words">
+      {plainDescription}
+    </p>
   </a>
 </article>

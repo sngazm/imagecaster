@@ -8,53 +8,53 @@ const podcast = index.podcast;
 ---
 
 <Layout title="番組について" description={podcast.description} ogImage={podcast.ogImageUrl || podcast.artworkUrl}>
-  <div class="mx-auto max-w-4xl px-4 py-12">
-    <div class="grid gap-8 lg:grid-cols-3">
+  <div class="mx-auto max-w-4xl px-4 py-8 sm:py-10">
+    <div class="grid gap-6 lg:grid-cols-3 lg:gap-8">
       <div class="lg:col-span-2">
-        <article class="rounded-xl border border-zinc-200 bg-white p-8 dark:border-zinc-800 dark:bg-zinc-800">
-          <div class="mb-8 flex items-start gap-6">
+        <article class="rounded-lg border border-border bg-bg-elevated p-5 dark:border-border-dark dark:bg-bg-elevated-dark">
+          <div class="mb-6 flex items-start gap-4">
             {podcast.artworkUrl && (
               <img
                 src={podcast.artworkUrl}
                 alt={podcast.title}
-                class="h-32 w-32 shrink-0 rounded-xl shadow-lg"
+                class="h-24 w-24 shrink-0 rounded-lg shadow-md"
               />
             )}
             <div>
-              <h1 class="mb-2 text-3xl font-bold text-zinc-900 dark:text-zinc-100">
+              <h1 class="mb-1 text-xl font-semibold text-text dark:text-text-dark">
                 {podcast.title}
               </h1>
               {podcast.author && (
-                <p class="text-lg text-zinc-600 dark:text-zinc-400">
+                <p class="text-sm text-text-secondary dark:text-text-secondary-dark">
                   by {podcast.author}
                 </p>
               )}
             </div>
           </div>
 
-          <div class="prose prose-zinc dark:prose-invert max-w-none">
-            <h2>番組について</h2>
-            <p>{podcast.description}</p>
+          <div class="prose prose-sm prose-zinc dark:prose-invert max-w-none">
+            <h2 class="text-base font-semibold">番組について</h2>
+            <p class="text-text-secondary dark:text-text-secondary-dark">{podcast.description}</p>
 
-            <h2>番組情報</h2>
-            <dl class="grid grid-cols-2 gap-4 not-prose">
+            <h2 class="text-base font-semibold">番組情報</h2>
+            <dl class="grid grid-cols-2 gap-3 not-prose">
               {podcast.category && (
                 <>
-                  <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">カテゴリ</dt>
-                  <dd class="text-sm text-zinc-900 dark:text-zinc-100">{podcast.category}</dd>
+                  <dt class="text-xs font-medium text-text-muted dark:text-text-muted-dark">カテゴリ</dt>
+                  <dd class="text-xs text-text dark:text-text-dark">{podcast.category}</dd>
                 </>
               )}
               {podcast.language && (
                 <>
-                  <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">言語</dt>
-                  <dd class="text-sm text-zinc-900 dark:text-zinc-100">{podcast.language}</dd>
+                  <dt class="text-xs font-medium text-text-muted dark:text-text-muted-dark">言語</dt>
+                  <dd class="text-xs text-text dark:text-text-dark">{podcast.language}</dd>
                 </>
               )}
               {podcast.email && (
                 <>
-                  <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">お問い合わせ</dt>
-                  <dd class="text-sm">
-                    <a href={`mailto:${podcast.email}`} class="text-blue-600 hover:underline dark:text-blue-400">
+                  <dt class="text-xs font-medium text-text-muted dark:text-text-muted-dark">お問い合わせ</dt>
+                  <dd class="text-xs">
+                    <a href={`mailto:${podcast.email}`} class="text-accent hover:text-accent-hover">
                       {podcast.email}
                     </a>
                   </dd>
@@ -62,9 +62,9 @@ const podcast = index.podcast;
               )}
               {podcast.websiteUrl && (
                 <>
-                  <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">ウェブサイト</dt>
-                  <dd class="text-sm">
-                    <a href={podcast.websiteUrl} target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline dark:text-blue-400">
+                  <dt class="text-xs font-medium text-text-muted dark:text-text-muted-dark">ウェブサイト</dt>
+                  <dd class="text-xs">
+                    <a href={podcast.websiteUrl} target="_blank" rel="noopener noreferrer" class="text-accent hover:text-accent-hover">
                       {podcast.websiteUrl}
                     </a>
                   </dd>
