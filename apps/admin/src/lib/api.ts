@@ -411,6 +411,9 @@ export const api = {
   getDeployments: () =>
     request<DeploymentsResponse>("/api/deployments"),
 
+  triggerDeploy: () =>
+    request<{ success: boolean }>("/api/deployments/trigger", { method: "POST" }),
+
   // Podcast management
   resetAllData: () =>
     request<{ success: boolean; message: string; deletedCount: number }>(

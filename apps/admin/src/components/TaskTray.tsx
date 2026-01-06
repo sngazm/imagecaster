@@ -86,6 +86,11 @@ function TaskItem({ task }: { task: Task }) {
             <span className="text-xs text-zinc-500">{task.progress}</span>
           )}
         </div>
+        {task.detail && task.status === "running" && (
+          <p className="text-xs mt-0.5 text-zinc-500 truncate">
+            {task.detail}
+          </p>
+        )}
         {task.message && (
           <p className={`text-xs mt-0.5 ${task.status === "error" ? "text-red-400" : "text-zinc-500"}`}>
             {task.message}

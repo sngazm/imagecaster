@@ -237,7 +237,19 @@ episodes.put("/:id", async (c) => {
     await saveIndex(c.env, index);
 
     // 公開済みの場合はフィードを再生成してWebをリビルド
-    if (meta.status === "published") {
+    // ただし applePodcastsUrl のみの更新はスキップ（RSSに含まれず、頻繁な更新があり得るため）
+    const isApplePodcastsUrlOnlyUpdate =
+      body.applePodcastsUrl !== undefined &&
+      body.title === undefined &&
+      body.description === undefined &&
+      body.publishAt === undefined &&
+      body.skipTranscription === undefined &&
+      body.blueskyPostText === undefined &&
+      body.blueskyPostEnabled === undefined &&
+      body.referenceLinks === undefined &&
+      body.slug === undefined;
+
+    if (meta.status === "published" && !isApplePodcastsUrlOnlyUpdate) {
       await regenerateFeed(c.env);
       await triggerWebRebuild(c.env);
     }

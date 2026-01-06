@@ -18,6 +18,7 @@ export interface Task {
   label: string;
   status: TaskStatus;
   progress?: string; // 例: "3/10件"
+  detail?: string; // 現在処理中のアイテム名など
   message?: string; // 完了時やエラー時のメッセージ
   startedAt: number;
   completedAt?: number;
@@ -58,10 +59,11 @@ class TaskStore {
   /**
    * タスクの進捗を更新する
    */
-  updateProgress(id: string, progress: string): void {
+  updateProgress(id: string, progress: string, detail?: string): void {
     const task = this.tasks.get(id);
     if (task) {
       task.progress = progress;
+      task.detail = detail;
       this.notify();
     }
   }

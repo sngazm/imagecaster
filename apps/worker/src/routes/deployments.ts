@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { Env, Deployment, DeploymentsResponse } from "../types";
+import { triggerWebRebuild } from "../services/deploy";
 
 const deployments = new Hono<{ Bindings: Env }>();
 
@@ -106,6 +107,19 @@ deployments.get("/", async (c) => {
   } catch (err) {
     console.error("Error fetching deployments:", err);
     return c.json({ error: "Failed to fetch deployments" }, 500);
+  }
+});
+
+/**
+ * POST /api/deployments/trigger - デプロイをトリガー
+ */
+deployments.post("/trigger", async (c) => {
+  try {
+    await triggerWebRebuild(c.env);
+    return c.json({ success: true });
+  } catch (err) {
+    console.error("Error triggering deploy:", err);
+    return c.json({ error: "Failed to trigger deploy" }, 500);
   }
 });
 

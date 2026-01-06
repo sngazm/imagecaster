@@ -50,7 +50,6 @@ export async function runApplePodcastsAutoFetch(
 
   // タスク開始
   taskStore.start(taskId, taskType, "Apple Podcasts URL を取得中");
-  taskStore.updateProgress(taskId, `0/${targetEpisodes.length}件`);
 
   try {
     let foundCount = 0;
@@ -58,6 +57,13 @@ export async function runApplePodcastsAutoFetch(
 
     // 各エピソードをタイトル検索で取得（5秒間隔でレート制限対応）
     for (const ep of targetEpisodes) {
+      // 進捗とエピソードタイトルを表示
+      taskStore.updateProgress(
+        taskId,
+        `${processedCount}/${targetEpisodes.length}件`,
+        ep.title
+      );
+
       const guid = ep.sourceGuid || ep.slug || ep.id;
       const applePodcastsUrl = await searchApplePodcastsEpisodeByTitle(
         ep.title,
@@ -75,7 +81,13 @@ export async function runApplePodcastsAutoFetch(
     }
 
     if (foundCount > 0) {
-      taskStore.complete(taskId, `${foundCount}件のURLを設定しました`);
+      // URLが設定されたらデプロイをトリガー
+      try {
+        await api.triggerDeploy();
+        taskStore.complete(taskId, `${foundCount}件のURLを設定しました（デプロイ開始）`);
+      } catch {
+        taskStore.complete(taskId, `${foundCount}件のURLを設定しました（デプロイ失敗）`);
+      }
       onComplete?.();
     } else {
       taskStore.complete(taskId, "該当するエピソードが見つかりませんでした");
