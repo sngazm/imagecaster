@@ -32,7 +32,7 @@ export function EnvironmentBadge() {
 
   if (env === "local") {
     return (
-      <div className="fixed top-3 right-3 z-50 flex items-center gap-2 px-3 py-1.5 bg-violet-500/20 border border-violet-500/50 rounded-lg text-violet-300 text-xs font-medium backdrop-blur-sm">
+      <div className="fixed top-3 right-3 z-50 flex items-center gap-2 px-3 py-1.5 bg-[var(--color-accent)]/20 border border-[var(--color-accent)]/50 rounded-lg text-[var(--color-accent)] text-xs font-medium backdrop-blur-sm">
         <BranchIcon className="w-4 h-4 flex-shrink-0" />
         <span>dev</span>
       </div>

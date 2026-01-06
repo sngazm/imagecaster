@@ -122,7 +122,7 @@ export function HtmlEditor({
           linkOnPaste: true,
           defaultProtocol: "https",
           HTMLAttributes: {
-            class: "text-violet-400 underline",
+            class: "text-[var(--color-accent)] underline",
           },
         },
       }),
@@ -222,23 +222,23 @@ export function HtmlEditor({
 
   if (!editor) {
     return (
-      <div className="h-48 bg-zinc-900 border border-zinc-800 rounded-lg animate-pulse" />
+      <div className="h-48 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg animate-pulse" />
     );
   }
 
   return (
-    <div className="border border-zinc-800 rounded-lg overflow-hidden">
+    <div className="border border-[var(--color-border)] rounded-lg overflow-hidden">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-1 p-2 bg-zinc-900 border-b border-zinc-800">
+      <div className="flex flex-wrap items-center gap-1 p-2 bg-[var(--color-bg-elevated)] border-b border-[var(--color-border)]">
         {/* Mode switcher */}
-        <div className="flex rounded-lg overflow-hidden border border-zinc-700 mr-2">
+        <div className="flex rounded-lg overflow-hidden border border-[var(--color-border)] mr-2">
           <button
             type="button"
             onClick={() => setMode("visual")}
             className={`px-3 py-1 text-xs font-medium transition-colors ${
               mode === "visual"
-                ? "bg-violet-600 text-white"
-                : "bg-zinc-800 text-zinc-400 hover:text-white"
+                ? "bg-[var(--color-accent)] text-white"
+                : "bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
             }`}
           >
             ビジュアル
@@ -248,8 +248,8 @@ export function HtmlEditor({
             onClick={switchToHtmlMode}
             className={`px-3 py-1 text-xs font-medium transition-colors ${
               mode === "html"
-                ? "bg-violet-600 text-white"
-                : "bg-zinc-800 text-zinc-400 hover:text-white"
+                ? "bg-[var(--color-accent)] text-white"
+                : "bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
             }`}
           >
             HTML
@@ -261,8 +261,8 @@ export function HtmlEditor({
             <button
               type="button"
               onClick={() => editor.chain().focus().toggleBold().run()}
-              className={`p-2 rounded hover:bg-zinc-700 ${
-                editor.isActive("bold") ? "bg-zinc-700 text-white" : "text-zinc-400"
+              className={`p-2 rounded hover:bg-[var(--color-bg-hover)] ${
+                editor.isActive("bold") ? "bg-[var(--color-bg-hover)] text-[var(--color-text-primary)]" : "text-[var(--color-text-secondary)]"
               }`}
               title="太字"
             >
@@ -273,8 +273,8 @@ export function HtmlEditor({
             <button
               type="button"
               onClick={() => editor.chain().focus().toggleItalic().run()}
-              className={`p-2 rounded hover:bg-zinc-700 ${
-                editor.isActive("italic") ? "bg-zinc-700 text-white" : "text-zinc-400"
+              className={`p-2 rounded hover:bg-[var(--color-bg-hover)] ${
+                editor.isActive("italic") ? "bg-[var(--color-bg-hover)] text-[var(--color-text-primary)]" : "text-[var(--color-text-secondary)]"
               }`}
               title="斜体"
             >
@@ -285,8 +285,8 @@ export function HtmlEditor({
             <button
               type="button"
               onClick={setLink}
-              className={`p-2 rounded hover:bg-zinc-700 ${
-                editor.isActive("link") ? "bg-zinc-700 text-white" : "text-zinc-400"
+              className={`p-2 rounded hover:bg-[var(--color-bg-hover)] ${
+                editor.isActive("link") ? "bg-[var(--color-bg-hover)] text-[var(--color-text-primary)]" : "text-[var(--color-text-secondary)]"
               }`}
               title="リンク (⌘K)"
             >
@@ -294,12 +294,12 @@ export function HtmlEditor({
                 <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z" />
               </svg>
             </button>
-            <div className="w-px h-6 bg-zinc-700 mx-1" />
+            <div className="w-px h-6 bg-[var(--color-border)] mx-1" />
             <button
               type="button"
               onClick={() => editor.chain().focus().toggleBulletList().run()}
-              className={`p-2 rounded hover:bg-zinc-700 ${
-                editor.isActive("bulletList") ? "bg-zinc-700 text-white" : "text-zinc-400"
+              className={`p-2 rounded hover:bg-[var(--color-bg-hover)] ${
+                editor.isActive("bulletList") ? "bg-[var(--color-bg-hover)] text-[var(--color-text-primary)]" : "text-[var(--color-text-secondary)]"
               }`}
               title="箇条書き"
             >
@@ -310,8 +310,8 @@ export function HtmlEditor({
             <button
               type="button"
               onClick={() => editor.chain().focus().toggleOrderedList().run()}
-              className={`p-2 rounded hover:bg-zinc-700 ${
-                editor.isActive("orderedList") ? "bg-zinc-700 text-white" : "text-zinc-400"
+              className={`p-2 rounded hover:bg-[var(--color-bg-hover)] ${
+                editor.isActive("orderedList") ? "bg-[var(--color-bg-hover)] text-[var(--color-text-primary)]" : "text-[var(--color-text-secondary)]"
               }`}
               title="番号付きリスト"
             >
@@ -326,7 +326,7 @@ export function HtmlEditor({
         <div className="ml-auto relative group">
           <button
             type="button"
-            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-white bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors"
+            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] bg-[var(--color-bg-elevated)] rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
           >
             タグを挿入
             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
@@ -337,16 +337,16 @@ export function HtmlEditor({
               />
             </svg>
           </button>
-          <div className="absolute right-0 mt-1 w-48 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+          <div className="absolute right-0 mt-1 w-48 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
             {PLACEHOLDERS.map((p) => (
               <button
                 key={p.value}
                 type="button"
                 onClick={() => insertPlaceholder(p.value)}
-                className="w-full px-3 py-2 text-left text-sm text-zinc-300 hover:bg-zinc-700 first:rounded-t-lg last:rounded-b-lg"
+                className="w-full px-3 py-2 text-left text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-bg-hover)] first:rounded-t-lg last:rounded-b-lg"
               >
                 <span className="font-medium">{p.label}</span>
-                <span className="block text-xs text-zinc-500 font-mono">
+                <span className="block text-xs text-[var(--color-text-muted)] font-mono">
                   {p.value}
                 </span>
               </button>
@@ -356,18 +356,18 @@ export function HtmlEditor({
       </div>
 
       {/* Editor content */}
-      <div className="bg-zinc-950 max-h-[calc(100vh-200px)] overflow-y-auto">
+      <div className="bg-[var(--color-bg-base)] max-h-[calc(100vh-200px)] overflow-y-auto">
         {mode === "visual" && (
           <EditorContent
             editor={editor}
-            className="prose prose-invert prose-sm max-w-none p-4 min-h-[200px] focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[168px] [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-zinc-600 [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)] [&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none [&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0 [&_.placeholder-tag]:bg-violet-500/30 [&_.placeholder-tag]:text-violet-300 [&_.placeholder-tag]:px-1.5 [&_.placeholder-tag]:py-0.5 [&_.placeholder-tag]:rounded [&_.placeholder-tag]:font-mono [&_.placeholder-tag]:text-xs [&_.placeholder-tag]:border [&_.placeholder-tag]:border-violet-500/50"
+            className="prose prose-sm max-w-none p-4 min-h-[200px] focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[168px] [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-[var(--color-text-faint)] [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)] [&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none [&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0 [&_.placeholder-tag]:bg-[var(--color-accent)]/30 [&_.placeholder-tag]:text-[var(--color-accent)] [&_.placeholder-tag]:px-1.5 [&_.placeholder-tag]:py-0.5 [&_.placeholder-tag]:rounded [&_.placeholder-tag]:font-mono [&_.placeholder-tag]:text-xs [&_.placeholder-tag]:border [&_.placeholder-tag]:border-[var(--color-accent)]/50"
           />
         )}
         {mode === "html" && (
           <textarea
             value={htmlSource}
             onChange={(e) => handleHtmlChange(e.target.value)}
-            className="w-full min-h-[200px] max-h-none p-4 bg-transparent text-zinc-100 font-mono text-sm resize-none focus:outline-none"
+            className="w-full min-h-[200px] max-h-none p-4 bg-transparent text-[var(--color-text-primary)] font-mono text-sm resize-none focus:outline-none"
             spellCheck={false}
           />
         )}

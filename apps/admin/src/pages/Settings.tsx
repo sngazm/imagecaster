@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
 import JSZip from "jszip";
 import { api, uploadToR2 } from "../lib/api";
 import type { PodcastSettings, DescriptionTemplate, ExportManifest } from "../lib/api";
@@ -658,89 +657,87 @@ export default function Settings() {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto px-6 py-10">
-        <div className="flex items-center justify-center py-20">
-          <div className="w-8 h-8 border-3 border-zinc-700 border-t-violet-500 rounded-full animate-spin" />
+      <div className="max-w-4xl mx-auto px-6 py-8">
+        <div className="flex flex-col items-center justify-center py-20">
+          <div className="w-6 h-6 border-2 border-[var(--color-border-strong)] border-t-[var(--color-accent)] rounded-full animate-spin mb-3" />
+          <p className="text-sm text-[var(--color-text-muted)]">読み込み中...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-10">
+    <div className="max-w-4xl mx-auto px-6 py-8">
       {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
-        <Link
-          to="/"
-          className="p-2 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors"
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </Link>
-        <h1 className="text-2xl font-bold tracking-tight">設定</h1>
-      </div>
+      <header className="mb-6">
+        <h1 className="text-xl font-semibold tracking-tight text-[var(--color-text-primary)]">
+          設定
+        </h1>
+        <p className="text-sm text-[var(--color-text-muted)] mt-1">
+          Podcastの基本設定を管理
+        </p>
+      </header>
 
       {/* Alerts */}
       {error && (
-        <div className="mb-6 p-4 bg-red-500/10 border border-red-500/50 text-red-400 rounded-lg">
-          {error}
+        <div className="card mb-6 p-4 border-[var(--color-error)]! bg-[var(--color-error-muted)]">
+          <p className="text-sm text-[var(--color-error)]">{error}</p>
         </div>
       )}
       {success && (
-        <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/50 text-emerald-400 rounded-lg">
-          {success}
+        <div className="card mb-6 p-4 border-[var(--color-success)]! bg-[var(--color-success-muted)]">
+          <p className="text-sm text-[var(--color-success)]">{success}</p>
         </div>
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-8 border-b border-zinc-800">
+      <div className="flex gap-1 mb-6 border-b border-[var(--color-border)]">
         <button
           onClick={() => setActiveTab("general")}
-          className={`px-4 py-3 text-sm font-medium transition-colors ${
+          className={`px-4 py-2.5 text-sm font-medium transition-colors ${
             activeTab === "general"
-              ? "text-violet-400 border-b-2 border-violet-400"
-              : "text-zinc-400 hover:text-white"
+              ? "text-[var(--color-accent)] border-b-2 border-[var(--color-accent)]"
+              : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
           }`}
         >
           基本設定
         </button>
         <button
           onClick={() => setActiveTab("templates")}
-          className={`px-4 py-3 text-sm font-medium transition-colors ${
+          className={`px-4 py-2.5 text-sm font-medium transition-colors ${
             activeTab === "templates"
-              ? "text-violet-400 border-b-2 border-violet-400"
-              : "text-zinc-400 hover:text-white"
+              ? "text-[var(--color-accent)] border-b-2 border-[var(--color-accent)]"
+              : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
           }`}
         >
           テンプレート
         </button>
         <button
           onClick={() => setActiveTab("import")}
-          className={`px-4 py-3 text-sm font-medium transition-colors ${
+          className={`px-4 py-2.5 text-sm font-medium transition-colors ${
             activeTab === "import"
-              ? "text-violet-400 border-b-2 border-violet-400"
-              : "text-zinc-400 hover:text-white"
+              ? "text-[var(--color-accent)] border-b-2 border-[var(--color-accent)]"
+              : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
           }`}
         >
           RSSインポート
         </button>
         <button
           onClick={() => setActiveTab("backup")}
-          className={`px-4 py-3 text-sm font-medium transition-colors ${
+          className={`px-4 py-2.5 text-sm font-medium transition-colors ${
             activeTab === "backup"
-              ? "text-violet-400 border-b-2 border-violet-400"
-              : "text-zinc-400 hover:text-white"
+              ? "text-[var(--color-accent)] border-b-2 border-[var(--color-accent)]"
+              : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
           }`}
         >
           バックアップ
         </button>
         <button
           onClick={() => setActiveTab("danger")}
-          className={`px-4 py-3 text-sm font-medium transition-colors ${
+          className={`px-4 py-2.5 text-sm font-medium transition-colors ${
             activeTab === "danger"
-              ? "text-red-400 border-b-2 border-red-400"
-              : "text-zinc-400 hover:text-red-400"
+              ? "text-[var(--color-error)] border-b-2 border-[var(--color-error)]"
+              : "text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
           }`}
         >
           危険な操作
@@ -749,12 +746,12 @@ export default function Settings() {
 
       {/* General Settings */}
       {activeTab === "general" && settings && (
-        <form onSubmit={handleSaveSettings} className="space-y-6">
+        <form onSubmit={handleSaveSettings} className="space-y-4">
           {/* Artwork */}
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
-            <h2 className="text-lg font-semibold mb-4">アートワーク</h2>
-            <div className="flex items-start gap-6">
-              <div className="w-32 h-32 rounded-lg bg-zinc-800 overflow-hidden flex-shrink-0">
+          <div className="card p-5">
+            <h2 className="text-base font-semibold text-[var(--color-text-primary)] mb-4">アートワーク</h2>
+            <div className="flex items-start gap-5">
+              <div className="w-28 h-28 rounded-lg bg-[var(--color-bg-elevated)] border border-[var(--color-border)] overflow-hidden shrink-0">
                 {(artworkPreview || settings.artworkUrl) ? (
                   <img
                     src={artworkPreview || settings.artworkUrl}
@@ -762,8 +759,8 @@ export default function Settings() {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-zinc-600">
-                    <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 24 24">
+                  <div className="w-full h-full flex items-center justify-center text-[var(--color-text-faint)]">
+                    <svg className="w-10 h-10" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
                     </svg>
                   </div>
@@ -779,26 +776,26 @@ export default function Settings() {
                 />
                 <label
                   htmlFor="artwork-upload"
-                  className="inline-block px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg cursor-pointer text-sm font-medium transition-colors"
+                  className="btn btn-secondary text-sm cursor-pointer"
                 >
                   画像を選択
                 </label>
                 {artworkFile && (
                   <div className="mt-3">
-                    <p className="text-sm text-zinc-400 mb-2">
+                    <p className="text-sm text-[var(--color-text-secondary)] mb-2">
                       {artworkFile.name} ({(artworkFile.size / 1024 / 1024).toFixed(2)} MB)
                     </p>
                     <button
                       type="button"
                       onClick={handleArtworkUpload}
                       disabled={uploadingArtwork}
-                      className="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                      className="btn btn-primary text-sm"
                     >
                       {uploadingArtwork ? "アップロード中..." : "アップロード"}
                     </button>
                   </div>
                 )}
-                <p className="text-xs text-zinc-500 mt-2">
+                <p className="text-xs text-[var(--color-text-muted)] mt-2">
                   推奨: 3000x3000px、JPEGまたはPNG、最大5MB
                 </p>
               </div>
@@ -806,13 +803,13 @@ export default function Settings() {
           </div>
 
           {/* OGP Image */}
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
-            <h2 className="text-lg font-semibold mb-4">OGP画像</h2>
-            <p className="text-sm text-zinc-400 mb-4">
+          <div className="card p-5">
+            <h2 className="text-base font-semibold text-[var(--color-text-primary)] mb-2">OGP画像</h2>
+            <p className="text-sm text-[var(--color-text-muted)] mb-4">
               SNSでシェアされた時に表示される画像です。
             </p>
-            <div className="flex items-start gap-6">
-              <div className="w-48 h-24 rounded-lg bg-zinc-800 overflow-hidden flex-shrink-0">
+            <div className="flex items-start gap-5">
+              <div className="w-44 h-24 rounded-lg bg-[var(--color-bg-elevated)] border border-[var(--color-border)] overflow-hidden shrink-0">
                 {(ogImagePreview || settings.ogImageUrl) ? (
                   <img
                     src={ogImagePreview || settings.ogImageUrl}
@@ -820,8 +817,8 @@ export default function Settings() {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-zinc-600">
-                    <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 24 24">
+                  <div className="w-full h-full flex items-center justify-center text-[var(--color-text-faint)]">
+                    <svg className="w-10 h-10" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
                     </svg>
                   </div>
@@ -837,26 +834,26 @@ export default function Settings() {
                 />
                 <label
                   htmlFor="og-image-upload"
-                  className="inline-block px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg cursor-pointer text-sm font-medium transition-colors"
+                  className="btn btn-secondary text-sm cursor-pointer"
                 >
                   画像を選択
                 </label>
                 {ogImageFile && (
                   <div className="mt-3">
-                    <p className="text-sm text-zinc-400 mb-2">
+                    <p className="text-sm text-[var(--color-text-secondary)] mb-2">
                       {ogImageFile.name} ({(ogImageFile.size / 1024 / 1024).toFixed(2)} MB)
                     </p>
                     <button
                       type="button"
                       onClick={handleOgImageUpload}
                       disabled={uploadingOgImage}
-                      className="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                      className="btn btn-primary text-sm"
                     >
                       {uploadingOgImage ? "アップロード中..." : "アップロード"}
                     </button>
                   </div>
                 )}
-                <p className="text-xs text-zinc-500 mt-2">
+                <p className="text-xs text-[var(--color-text-muted)] mt-2">
                   推奨: 1200x630px、JPEGまたはPNG、最大5MB
                 </p>
               </div>
@@ -864,77 +861,67 @@ export default function Settings() {
           </div>
 
           {/* Basic Info */}
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 space-y-4">
-            <h2 className="text-lg font-semibold mb-4">基本情報</h2>
+          <div className="card p-5 space-y-4">
+            <h2 className="text-base font-semibold text-[var(--color-text-primary)] mb-4">基本情報</h2>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1">
-                番組名
-              </label>
+              <label className="label">番組名</label>
               <input
                 type="text"
                 value={settings.title}
                 onChange={(e) =>
                   setSettings({ ...settings, title: e.target.value })
                 }
-                className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-colors"
+                className="input"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1">
-                説明
-              </label>
+              <label className="label">説明</label>
               <textarea
                 value={settings.description}
                 onChange={(e) =>
                   setSettings({ ...settings, description: e.target.value })
                 }
                 rows={4}
-                className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-colors resize-none"
+                className="input resize-none"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">
-                  著者
-                </label>
+                <label className="label">著者</label>
                 <input
                   type="text"
                   value={settings.author}
                   onChange={(e) =>
                     setSettings({ ...settings, author: e.target.value })
                   }
-                  className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-colors"
+                  className="input"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">
-                  メールアドレス
-                </label>
+                <label className="label">メールアドレス</label>
                 <input
                   type="email"
                   value={settings.email}
                   onChange={(e) =>
                     setSettings({ ...settings, email: e.target.value })
                   }
-                  className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-colors"
+                  className="input"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">
-                  言語
-                </label>
+                <label className="label">言語</label>
                 <select
                   value={settings.language}
                   onChange={(e) =>
                     setSettings({ ...settings, language: e.target.value })
                   }
-                  className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-colors"
+                  className="input"
                 >
                   {LANGUAGES.map((lang) => (
                     <option key={lang.code} value={lang.code}>
@@ -944,15 +931,13 @@ export default function Settings() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">
-                  カテゴリ
-                </label>
+                <label className="label">カテゴリ</label>
                 <select
                   value={settings.category}
                   onChange={(e) =>
                     setSettings({ ...settings, category: e.target.value })
                   }
-                  className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-colors"
+                  className="input"
                 >
                   {CATEGORIES.map((cat) => (
                     <option key={cat} value={cat}>
@@ -964,29 +949,25 @@ export default function Settings() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1">
-                ウェブサイトURL
-              </label>
+              <label className="label">ウェブサイトURL</label>
               <input
                 type="url"
                 value={settings.websiteUrl}
                 onChange={(e) =>
                   setSettings({ ...settings, websiteUrl: e.target.value })
                 }
-                className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-colors"
+                className="input"
               />
             </div>
 
-            <div className="border-t border-zinc-800 pt-4 mt-4">
-              <h3 className="text-sm font-medium text-zinc-300 mb-3">購読リンク</h3>
-              <p className="text-xs text-zinc-500 mb-4">
+            <div className="border-t border-[var(--color-border)] pt-4 mt-4">
+              <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-2">購読リンク</h3>
+              <p className="text-xs text-[var(--color-text-muted)] mb-4">
                 ポッドキャストプラットフォームのURLを設定すると、公開サイトに購読ボタンが表示されます。
               </p>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1">
-                    Apple Podcasts URL
-                  </label>
+                  <label className="label">Apple Podcasts URL</label>
                   <input
                     type="url"
                     value={settings.applePodcastsUrl || ""}
@@ -994,13 +975,11 @@ export default function Settings() {
                       setSettings({ ...settings, applePodcastsUrl: e.target.value || undefined })
                     }
                     placeholder="https://podcasts.apple.com/..."
-                    className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-colors"
+                    className="input"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1">
-                    Spotify URL
-                  </label>
+                  <label className="label">Spotify URL</label>
                   <input
                     type="url"
                     value={settings.spotifyUrl || ""}
@@ -1008,7 +987,7 @@ export default function Settings() {
                       setSettings({ ...settings, spotifyUrl: e.target.value || undefined })
                     }
                     placeholder="https://open.spotify.com/show/..."
-                    className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-colors"
+                    className="input"
                   />
                 </div>
               </div>
@@ -1022,22 +1001,20 @@ export default function Settings() {
                 onChange={(e) =>
                   setSettings({ ...settings, explicit: e.target.checked })
                 }
-                className="w-4 h-4 rounded border-zinc-700 bg-zinc-900 text-violet-600 focus:ring-violet-500"
+                className="w-4 h-4 rounded border-[var(--color-border)] bg-[var(--color-bg-elevated)] text-[var(--color-accent)] focus:ring-[var(--color-accent)]"
               />
-              <label htmlFor="explicit" className="text-sm text-zinc-300">
+              <label htmlFor="explicit" className="text-sm text-[var(--color-text-secondary)]">
                 成人向けコンテンツを含む
               </label>
             </div>
           </div>
 
           {/* Apple Podcasts Integration */}
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 space-y-4">
-            <h2 className="text-lg font-semibold mb-4">Apple Podcasts 連携</h2>
+          <div className="card p-5 space-y-4">
+            <h2 className="text-base font-semibold text-[var(--color-text-primary)] mb-4">Apple Podcasts 連携</h2>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1">
-                Apple Podcasts ID
-              </label>
+              <label className="label">Apple Podcasts ID</label>
               <input
                 type="text"
                 value={settings.applePodcastsId || ""}
@@ -1045,29 +1022,29 @@ export default function Settings() {
                   setSettings({ ...settings, applePodcastsId: e.target.value || null })
                 }
                 placeholder="1234567890"
-                className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-colors"
+                className="input"
               />
-              <p className="text-xs text-zinc-500 mt-2">
+              <p className="text-xs text-[var(--color-text-muted)] mt-2">
                 Apple Podcasts のURLに含まれる ID を入力してください。<br />
                 例: https://podcasts.apple.com/jp/podcast/id<strong>1234567890</strong>
               </p>
             </div>
 
-            <div className="border-t border-zinc-800 pt-4">
-              <h3 className="text-sm font-medium text-zinc-300 mb-2">エピソードURLの一括取得</h3>
-              <p className="text-xs text-zinc-500 mb-3">
+            <div className="border-t border-[var(--color-border)] pt-4">
+              <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-2">エピソードURLの一括取得</h3>
+              <p className="text-xs text-[var(--color-text-muted)] mb-3">
                 iTunes API からエピソードごとの Apple Podcasts リンクを取得し、各エピソードに設定します。
               </p>
 
               {applePodcastsProgress && (
                 <div className="mb-3">
-                  <div className="flex justify-between text-sm text-zinc-400 mb-1">
+                  <div className="flex justify-between text-sm text-[var(--color-text-secondary)] mb-1">
                     <span>処理中... (マッチ: {applePodcastsProgress.found}件)</span>
                     <span>{applePodcastsProgress.current} / {applePodcastsProgress.total}</span>
                   </div>
-                  <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-[var(--color-bg-hover)] rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-violet-500 transition-all duration-300"
+                      className="h-full bg-[var(--color-accent)] transition-all duration-300"
                       style={{ width: `${(applePodcastsProgress.current / applePodcastsProgress.total) * 100}%` }}
                     />
                   </div>
@@ -1078,7 +1055,7 @@ export default function Settings() {
                 type="button"
                 onClick={handleFetchApplePodcastsUrls}
                 disabled={fetchingApplePodcasts || !settings.applePodcastsId}
-                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                className="btn btn-secondary text-sm"
               >
                 {fetchingApplePodcasts ? (
                   <>
@@ -1096,7 +1073,7 @@ export default function Settings() {
               </button>
             </div>
 
-            <div className="border-t border-zinc-800 pt-4">
+            <div className="border-t border-[var(--color-border)] pt-4">
               <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
@@ -1105,13 +1082,13 @@ export default function Settings() {
                     setSettings({ ...settings, applePodcastsAutoFetch: e.target.checked })
                   }
                   disabled={!settings.applePodcastsId}
-                  className="mt-0.5 w-5 h-5 rounded border-zinc-700 bg-zinc-900 text-violet-600 focus:ring-violet-500 focus:ring-offset-0 disabled:opacity-50"
+                  className="mt-0.5 w-5 h-5 rounded border-[var(--color-border)] bg-[var(--color-bg-elevated)] text-[var(--color-accent)] focus:ring-[var(--color-accent)] focus:ring-offset-0 disabled:opacity-50"
                 />
                 <div>
-                  <span className={`block text-sm font-medium ${settings.applePodcastsId ? 'text-zinc-200' : 'text-zinc-500'}`}>
+                  <span className={`block text-sm font-medium ${settings.applePodcastsId ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]'}`}>
                     管理画面起動時に自動取得
                   </span>
-                  <span className="block text-xs text-zinc-500 mt-1">
+                  <span className="block text-xs text-[var(--color-text-muted)] mt-1">
                     公開から1日以上経ったエピソードのApple Podcasts URLを自動取得します
                   </span>
                 </div>
@@ -1123,7 +1100,7 @@ export default function Settings() {
             <button
               type="submit"
               disabled={saving}
-              className="px-6 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg font-medium transition-colors disabled:opacity-50"
+              className="btn btn-primary"
             >
               {saving ? "保存中..." : "設定を保存"}
             </button>
@@ -1133,13 +1110,13 @@ export default function Settings() {
 
       {/* Templates */}
       {activeTab === "templates" && (
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Template list */}
-          <div className="space-y-3">
+          <div className="space-y-2">
             {templates.map((template) => (
               <div
                 key={template.id}
-                className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4"
+                className="card p-4"
               >
                 {editingTemplate?.id === template.id ? (
                   <div className="space-y-4">
@@ -1152,7 +1129,7 @@ export default function Settings() {
                           name: e.target.value,
                         })
                       }
-                      className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+                      className="input"
                       placeholder="テンプレート名"
                     />
                     <HtmlEditor
@@ -1167,13 +1144,13 @@ export default function Settings() {
                     <div className="flex gap-2">
                       <button
                         onClick={handleUpdateTemplate}
-                        className="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-sm font-medium"
+                        className="btn btn-primary text-sm"
                       >
                         保存
                       </button>
                       <button
                         onClick={() => setEditingTemplate(null)}
-                        className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm font-medium"
+                        className="btn btn-secondary text-sm"
                       >
                         キャンセル
                       </button>
@@ -1183,22 +1160,20 @@ export default function Settings() {
                   <div className="flex items-start justify-between">
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className="font-medium">{template.name}</h3>
+                        <h3 className="text-sm font-medium text-[var(--color-text-primary)]">{template.name}</h3>
                         {template.isDefault && (
-                          <span className="px-2 py-0.5 bg-violet-500/20 text-violet-400 rounded text-xs font-medium">
-                            デフォルト
-                          </span>
+                          <span className="badge badge-accent">デフォルト</span>
                         )}
                       </div>
-                      <p className="text-sm text-zinc-500 mt-1 line-clamp-2">
+                      <p className="text-xs text-[var(--color-text-muted)] mt-1 line-clamp-2">
                         {template.content.replace(/<[^>]*>/g, "").slice(0, 100)}...
                       </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-1">
                       {!template.isDefault && (
                         <button
                           onClick={() => handleSetDefaultTemplate(template.id)}
-                          className="p-2 text-zinc-400 hover:text-violet-400 hover:bg-zinc-800 rounded-lg transition-colors"
+                          className="btn btn-ghost p-2"
                           title="デフォルトに設定"
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1208,7 +1183,7 @@ export default function Settings() {
                       )}
                       <button
                         onClick={() => setEditingTemplate(template)}
-                        className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+                        className="btn btn-ghost p-2"
                       >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -1216,7 +1191,7 @@ export default function Settings() {
                       </button>
                       <button
                         onClick={() => handleDeleteTemplate(template.id)}
-                        className="p-2 text-zinc-400 hover:text-red-400 hover:bg-zinc-800 rounded-lg transition-colors"
+                        className="btn btn-ghost p-2 hover:text-[var(--color-error)]"
                       >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1229,21 +1204,21 @@ export default function Settings() {
             ))}
 
             {templates.length === 0 && (
-              <div className="text-center py-8 text-zinc-500">
+              <div className="text-center py-8 text-[var(--color-text-muted)]">
                 テンプレートがありません
               </div>
             )}
           </div>
 
           {/* New template form */}
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
-            <h3 className="text-lg font-semibold mb-4">新規テンプレート</h3>
+          <div className="card p-5">
+            <h3 className="text-base font-semibold text-[var(--color-text-primary)] mb-4">新規テンプレート</h3>
             <div className="space-y-4">
               <input
                 type="text"
                 value={newTemplateName}
                 onChange={(e) => setNewTemplateName(e.target.value)}
-                className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+                className="input"
                 placeholder="テンプレート名"
               />
               <HtmlEditor
@@ -1254,7 +1229,7 @@ export default function Settings() {
               <button
                 onClick={handleCreateTemplate}
                 disabled={!newTemplateName.trim()}
-                className="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-sm font-medium disabled:opacity-50"
+                className="btn btn-primary text-sm"
               >
                 テンプレートを作成
               </button>
@@ -1265,10 +1240,10 @@ export default function Settings() {
 
       {/* RSS Import */}
       {activeTab === "import" && (
-        <div className="space-y-6">
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
-            <h2 className="text-lg font-semibold mb-4">RSSフィードからインポート</h2>
-            <p className="text-sm text-zinc-400 mb-4">
+        <div className="space-y-4">
+          <div className="card p-5">
+            <h2 className="text-base font-semibold text-[var(--color-text-primary)] mb-2">RSSフィードからインポート</h2>
+            <p className="text-sm text-[var(--color-text-muted)] mb-4">
               既存のポッドキャストのRSSフィードURLを入力してエピソードをインポートします。
             </p>
 
@@ -1278,166 +1253,166 @@ export default function Settings() {
                 value={rssUrl}
                 onChange={(e) => setRssUrl(e.target.value)}
                 placeholder="https://example.com/feed.xml"
-                className="flex-1 px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+                className="input flex-1"
               />
               <button
                 onClick={handlePreviewRss}
                 disabled={importing || !rssUrl.trim()}
-                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg font-medium disabled:opacity-50"
+                className="btn btn-secondary text-sm"
               >
                 {importing ? "読み込み中..." : "プレビュー"}
               </button>
             </div>
 
-            <label className="flex items-center gap-2 text-sm text-zinc-400">
+            <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
               <input
                 type="checkbox"
                 checked={importAudio}
                 onChange={(e) => setImportAudio(e.target.checked)}
-                className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-violet-600 focus:ring-violet-500"
+                className="w-4 h-4 rounded bg-[var(--color-bg-elevated)] border-[var(--color-border)] text-[var(--color-accent)] focus:ring-[var(--color-accent)]"
               />
               <span>オーディオファイルをコピーする（R2にダウンロード保存）</span>
             </label>
             {!importAudio && (
-              <p className="text-xs text-zinc-500 mt-1 ml-6">
+              <p className="text-xs text-[var(--color-text-muted)] mt-1 ml-6">
                 チェックしない場合、音声は外部URLへの参照として保存されます
               </p>
             )}
 
-            <label className="flex items-center gap-2 text-sm text-zinc-400 mt-3">
+            <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)] mt-3">
               <input
                 type="checkbox"
                 checked={importPodcastSettings}
                 onChange={(e) => setImportPodcastSettings(e.target.checked)}
-                className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-violet-600 focus:ring-violet-500"
+                className="w-4 h-4 rounded bg-[var(--color-bg-elevated)] border-[var(--color-border)] text-[var(--color-accent)] focus:ring-[var(--color-accent)]"
               />
               <span>Podcast設定を上書きする</span>
             </label>
-            <p className="text-xs text-zinc-500 mt-1 ml-6">
+            <p className="text-xs text-[var(--color-text-muted)] mt-1 ml-6">
               チェックすると、RSSフィードの番組情報で現在の設定を上書きします
             </p>
           </div>
 
           {/* Preview */}
           {importPreview && (
-            <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
+            <div className="card p-5">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h3 className="text-lg font-semibold">{importPreview.podcast.title}</h3>
-                  <p className="text-sm text-zinc-400">{importPreview.podcast.author}</p>
+                  <h3 className="text-base font-semibold text-[var(--color-text-primary)]">{importPreview.podcast.title}</h3>
+                  <p className="text-sm text-[var(--color-text-secondary)]">{importPreview.podcast.author}</p>
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   <div className="flex gap-2">
-                    <span className="px-3 py-1 bg-violet-500/20 text-violet-400 rounded-full text-sm">
+                    <span className="badge badge-accent">
                       新規 {importPreview.newEpisodeCount}件
                     </span>
                     {importPreview.episodeCount - importPreview.newEpisodeCount > 0 && (
-                      <span className="px-3 py-1 bg-zinc-700/50 text-zinc-400 rounded-full text-sm">
+                      <span className="badge badge-default">
                         済 {importPreview.episodeCount - importPreview.newEpisodeCount}件
                       </span>
                     )}
                   </div>
-                  <span className="text-xs text-zinc-500">
+                  <span className="text-xs text-[var(--color-text-muted)]">
                     新規分: {(importPreview.totalFileSize / 1024 / 1024).toFixed(1)} MB
                   </span>
                 </div>
               </div>
 
-              <p className="text-sm text-zinc-500 mb-4 line-clamp-2">
+              <p className="text-sm text-[var(--color-text-muted)] mb-4 line-clamp-2">
                 {importPreview.podcast.description}
               </p>
 
               {/* Podcast設定比較 */}
               {importPodcastSettings && (
-                <div className="mb-4 p-4 bg-violet-500/10 border border-violet-500/30 rounded-lg">
-                  <h4 className="text-sm font-medium text-violet-400 mb-3">Podcast設定の変更内容</h4>
+                <div className="mb-4 p-4 bg-[var(--color-accent-muted)] border border-[var(--color-accent)]/30 rounded-lg">
+                  <h4 className="text-sm font-medium text-[var(--color-accent)] mb-3">Podcast設定の変更内容</h4>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                      <thead className="text-zinc-500 text-left">
+                      <thead className="text-[var(--color-text-muted)] text-left">
                         <tr>
                           <th className="pb-2 pr-4 w-24">項目</th>
                           <th className="pb-2 pr-4">現在の設定</th>
                           <th className="pb-2">RSSフィードの値</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-zinc-800">
+                      <tbody className="divide-y divide-[var(--color-border)]">
                         <tr>
-                          <td className="py-2 pr-4 text-zinc-400">番組名</td>
-                          <td className="py-2 pr-4 text-zinc-500 truncate max-w-[200px]">
-                            {importPreview.existingPodcast.title || <span className="text-zinc-600">未設定</span>}
+                          <td className="py-2 pr-4 text-[var(--color-text-secondary)]">番組名</td>
+                          <td className="py-2 pr-4 text-[var(--color-text-muted)] truncate max-w-50">
+                            {importPreview.existingPodcast.title || <span className="text-[var(--color-text-faint)]">未設定</span>}
                           </td>
-                          <td className={`py-2 truncate max-w-[200px] ${
+                          <td className={`py-2 truncate max-w-50 ${
                             importPreview.podcast.title !== importPreview.existingPodcast.title
-                              ? "text-violet-400"
-                              : "text-zinc-500"
+                              ? "text-[var(--color-accent)]"
+                              : "text-[var(--color-text-muted)]"
                           }`}>
-                            {importPreview.podcast.title || <span className="text-zinc-600">-</span>}
+                            {importPreview.podcast.title || <span className="text-[var(--color-text-faint)]">-</span>}
                           </td>
                         </tr>
                         <tr>
-                          <td className="py-2 pr-4 text-zinc-400">著者</td>
-                          <td className="py-2 pr-4 text-zinc-500 truncate max-w-[200px]">
-                            {importPreview.existingPodcast.author || <span className="text-zinc-600">未設定</span>}
+                          <td className="py-2 pr-4 text-[var(--color-text-secondary)]">著者</td>
+                          <td className="py-2 pr-4 text-[var(--color-text-muted)] truncate max-w-50">
+                            {importPreview.existingPodcast.author || <span className="text-[var(--color-text-faint)]">未設定</span>}
                           </td>
-                          <td className={`py-2 truncate max-w-[200px] ${
+                          <td className={`py-2 truncate max-w-50 ${
                             importPreview.podcast.author !== importPreview.existingPodcast.author
-                              ? "text-violet-400"
-                              : "text-zinc-500"
+                              ? "text-[var(--color-accent)]"
+                              : "text-[var(--color-text-muted)]"
                           }`}>
-                            {importPreview.podcast.author || <span className="text-zinc-600">-</span>}
+                            {importPreview.podcast.author || <span className="text-[var(--color-text-faint)]">-</span>}
                           </td>
                         </tr>
                         <tr>
-                          <td className="py-2 pr-4 text-zinc-400">言語</td>
-                          <td className="py-2 pr-4 text-zinc-500">
-                            {importPreview.existingPodcast.language || <span className="text-zinc-600">未設定</span>}
+                          <td className="py-2 pr-4 text-[var(--color-text-secondary)]">言語</td>
+                          <td className="py-2 pr-4 text-[var(--color-text-muted)]">
+                            {importPreview.existingPodcast.language || <span className="text-[var(--color-text-faint)]">未設定</span>}
                           </td>
                           <td className={`py-2 ${
                             importPreview.podcast.language !== importPreview.existingPodcast.language
-                              ? "text-violet-400"
-                              : "text-zinc-500"
+                              ? "text-[var(--color-accent)]"
+                              : "text-[var(--color-text-muted)]"
                           }`}>
-                            {importPreview.podcast.language || <span className="text-zinc-600">-</span>}
+                            {importPreview.podcast.language || <span className="text-[var(--color-text-faint)]">-</span>}
                           </td>
                         </tr>
                         <tr>
-                          <td className="py-2 pr-4 text-zinc-400">カテゴリ</td>
-                          <td className="py-2 pr-4 text-zinc-500">
-                            {importPreview.existingPodcast.category || <span className="text-zinc-600">未設定</span>}
+                          <td className="py-2 pr-4 text-[var(--color-text-secondary)]">カテゴリ</td>
+                          <td className="py-2 pr-4 text-[var(--color-text-muted)]">
+                            {importPreview.existingPodcast.category || <span className="text-[var(--color-text-faint)]">未設定</span>}
                           </td>
                           <td className={`py-2 ${
                             importPreview.podcast.category !== importPreview.existingPodcast.category
-                              ? "text-violet-400"
-                              : "text-zinc-500"
+                              ? "text-[var(--color-accent)]"
+                              : "text-[var(--color-text-muted)]"
                           }`}>
-                            {importPreview.podcast.category || <span className="text-zinc-600">-</span>}
+                            {importPreview.podcast.category || <span className="text-[var(--color-text-faint)]">-</span>}
                           </td>
                         </tr>
                         <tr>
-                          <td className="py-2 pr-4 text-zinc-400">アートワーク</td>
-                          <td className="py-2 pr-4 text-zinc-500">
+                          <td className="py-2 pr-4 text-[var(--color-text-secondary)]">アートワーク</td>
+                          <td className="py-2 pr-4 text-[var(--color-text-muted)]">
                             {importPreview.existingPodcast.artworkUrl ? (
-                              <span className="text-emerald-400">設定済み</span>
+                              <span className="text-[var(--color-success)]">設定済み</span>
                             ) : (
-                              <span className="text-zinc-600">未設定</span>
+                              <span className="text-[var(--color-text-faint)]">未設定</span>
                             )}
                           </td>
                           <td className={`py-2 ${
                             importPreview.podcast.artworkUrl !== importPreview.existingPodcast.artworkUrl
-                              ? "text-violet-400"
-                              : "text-zinc-500"
+                              ? "text-[var(--color-accent)]"
+                              : "text-[var(--color-text-muted)]"
                           }`}>
                             {importPreview.podcast.artworkUrl ? (
                               <span>外部URL（上書き）</span>
                             ) : (
-                              <span className="text-zinc-600">-</span>
+                              <span className="text-[var(--color-text-faint)]">-</span>
                             )}
                           </td>
                         </tr>
                       </tbody>
                     </table>
                   </div>
-                  <p className="text-xs text-zinc-500 mt-3">
+                  <p className="text-xs text-[var(--color-text-muted)] mt-3">
                     ※ 紫色で表示されている項目は現在の設定と異なる値です
                   </p>
                 </div>
@@ -1445,19 +1420,19 @@ export default function Settings() {
 
               {/* 重複警告 */}
               {importPreview.episodes.some((ep) => ep.hasConflict && !ep.alreadyImported) && (
-                <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-                  <p className="text-sm text-red-400">
+                <div className="mb-4 p-3 bg-[var(--color-error-muted)] border border-[var(--color-error)]/30 rounded-lg">
+                  <p className="text-sm text-[var(--color-error)]">
                     {importPreview.episodes.filter((ep) => ep.hasConflict && !ep.alreadyImported).length}
                     件のエピソードでslugが既存と重複しています（赤字で表示）
                   </p>
                 </div>
               )}
 
-              <div className="border-t border-zinc-800 pt-4 mb-4">
-                <h4 className="text-sm font-medium mb-2">エピソード一覧</h4>
+              <div className="border-t border-[var(--color-border)] pt-4 mb-4">
+                <h4 className="text-sm font-medium text-[var(--color-text-primary)] mb-2">エピソード一覧</h4>
                 <div className="max-h-80 overflow-y-auto">
                   <table className="w-full text-sm">
-                    <thead className="text-zinc-500 text-left">
+                    <thead className="text-[var(--color-text-muted)] text-left">
                       <tr>
                         <th className="pb-2 pr-4">タイトル</th>
                         <th className="pb-2 pr-4 w-32">Slug</th>
@@ -1465,22 +1440,22 @@ export default function Settings() {
                         <th className="pb-2 w-24 text-right">公開日</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-zinc-800">
+                    <tbody className="divide-y divide-[var(--color-border)]">
                       {importPreview.episodes.map((ep, i) => (
                         <tr
                           key={i}
                           className={
                             ep.alreadyImported
-                              ? "text-zinc-600"
+                              ? "text-[var(--color-text-faint)]"
                               : ep.hasConflict
-                              ? "text-red-400"
+                              ? "text-[var(--color-error)]"
                               : ""
                           }
                         >
                           <td className="py-2 pr-4">
                             <div className="flex items-center gap-2">
                               {ep.alreadyImported ? (
-                                <span title="インポート済み" className="text-zinc-500">✓</span>
+                                <span title="インポート済み" className="text-[var(--color-text-muted)]">✓</span>
                               ) : ep.hasConflict ? (
                                 <span title="slugが既存と重複">⚠</span>
                               ) : null}
@@ -1489,7 +1464,7 @@ export default function Settings() {
                           </td>
                           <td className="py-2 pr-4 font-mono text-xs">
                             {ep.alreadyImported ? (
-                              <span className="text-zinc-600">-</span>
+                              <span className="text-[var(--color-text-faint)]">-</span>
                             ) : (
                               <input
                                 type="text"
@@ -1498,30 +1473,29 @@ export default function Settings() {
                                   const value = e.target.value;
                                   setCustomSlugs((prev) => {
                                     if (value === ep.slug) {
-                                      // デフォルト値と同じ場合は削除
                                       const { [String(ep.index)]: _, ...rest } = prev;
                                       return rest;
                                     }
                                     return { ...prev, [String(ep.index)]: value };
                                   });
                                 }}
-                                className={`w-full px-2 py-1 bg-zinc-800 border rounded text-xs ${
+                                className={`w-full px-2 py-1 bg-[var(--color-bg-hover)] border rounded text-xs ${
                                   customSlugs[String(ep.index)]
-                                    ? "border-violet-500"
+                                    ? "border-[var(--color-accent)]"
                                     : ep.hasConflict
-                                    ? "border-red-500"
-                                    : "border-zinc-700"
+                                    ? "border-[var(--color-error)]"
+                                    : "border-[var(--color-border)]"
                                 }`}
                                 placeholder={ep.slug}
                               />
                             )}
                           </td>
-                          <td className="py-2 pr-4 text-right text-zinc-500">
+                          <td className="py-2 pr-4 text-right text-[var(--color-text-muted)]">
                             {ep.fileSize > 0
                               ? `${(ep.fileSize / 1024 / 1024).toFixed(1)} MB`
                               : "-"}
                           </td>
-                          <td className="py-2 text-right text-zinc-500">
+                          <td className="py-2 text-right text-[var(--color-text-muted)]">
                             {new Date(ep.pubDate).toLocaleDateString()}
                           </td>
                         </tr>
@@ -1534,7 +1508,7 @@ export default function Settings() {
               <button
                 onClick={handleImportRss}
                 disabled={importing || importPreview.newEpisodeCount === 0}
-                className="w-full px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg font-medium disabled:opacity-50"
+                className="btn btn-primary w-full"
               >
                 {importing
                   ? importAudio
@@ -1549,20 +1523,20 @@ export default function Settings() {
 
           {/* Result */}
           {importResult && (
-            <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
-              <h3 className="text-lg font-semibold mb-4">インポート結果</h3>
+            <div className="card p-5">
+              <h3 className="text-base font-semibold text-[var(--color-text-primary)] mb-4">インポート結果</h3>
               <div className="flex gap-4 mb-4">
-                <div className="flex-1 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-emerald-400">
+                <div className="flex-1 p-4 bg-[var(--color-success-muted)] border border-[var(--color-success)]/30 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-[var(--color-success)]">
                     {importResult.imported}
                   </div>
-                  <div className="text-sm text-zinc-400">インポート成功</div>
+                  <div className="text-sm text-[var(--color-text-secondary)]">インポート成功</div>
                 </div>
-                <div className="flex-1 p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-amber-400">
+                <div className="flex-1 p-4 bg-[var(--color-warning-muted)] border border-[var(--color-warning)]/30 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-[var(--color-warning)]">
                     {importResult.skipped}
                   </div>
-                  <div className="text-sm text-zinc-400">スキップ</div>
+                  <div className="text-sm text-[var(--color-text-secondary)]">スキップ</div>
                 </div>
               </div>
 
@@ -1572,16 +1546,16 @@ export default function Settings() {
                     key={i}
                     className={`flex items-center justify-between text-sm py-2 px-3 rounded ${
                       ep.status === "imported"
-                        ? "bg-emerald-500/5"
-                        : "bg-amber-500/5"
+                        ? "bg-[var(--color-success-muted)]"
+                        : "bg-[var(--color-warning-muted)]"
                     }`}
                   >
                     <span>{ep.title}</span>
                     <span
                       className={
                         ep.status === "imported"
-                          ? "text-emerald-400"
-                          : "text-amber-400"
+                          ? "text-[var(--color-success)]"
+                          : "text-[var(--color-warning)]"
                       }
                     >
                       {ep.status === "imported" ? "成功" : ep.reason}
@@ -1596,23 +1570,23 @@ export default function Settings() {
 
       {/* Backup */}
       {activeTab === "backup" && (
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Export */}
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
-            <h2 className="text-lg font-semibold mb-4">エクスポート</h2>
-            <p className="text-sm text-zinc-400 mb-4">
+          <div className="card p-5">
+            <h2 className="text-base font-semibold text-[var(--color-text-primary)] mb-2">エクスポート</h2>
+            <p className="text-sm text-[var(--color-text-muted)] mb-4">
               全てのデータ（設定、エピソード、音声ファイル、文字起こし、画像）をZIPファイルとしてダウンロードします。
             </p>
 
             {exportProgress && (
               <div className="mb-4">
-                <div className="flex justify-between text-sm text-zinc-400 mb-1">
+                <div className="flex justify-between text-sm text-[var(--color-text-secondary)] mb-1">
                   <span>ファイルをダウンロード中...</span>
                   <span>{exportProgress.current} / {exportProgress.total}</span>
                 </div>
-                <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                <div className="h-1.5 bg-[var(--color-bg-hover)] rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-violet-500 transition-all duration-300"
+                    className="h-full bg-[var(--color-accent)] transition-all duration-300"
                     style={{ width: `${(exportProgress.current / exportProgress.total) * 100}%` }}
                   />
                 </div>
@@ -1622,7 +1596,7 @@ export default function Settings() {
             <button
               onClick={handleExportBackup}
               disabled={exporting}
-              className="px-6 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+              className="btn btn-primary"
             >
               {exporting ? (
                 <>
@@ -1631,7 +1605,7 @@ export default function Settings() {
                 </>
               ) : (
                 <>
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
                   ZIPをダウンロード
@@ -1641,25 +1615,25 @@ export default function Settings() {
           </div>
 
           {/* Import */}
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
-            <h2 className="text-lg font-semibold mb-4">インポート</h2>
-            <p className="text-sm text-zinc-400 mb-4">
+          <div className="card p-5">
+            <h2 className="text-base font-semibold text-[var(--color-text-primary)] mb-2">インポート</h2>
+            <p className="text-sm text-[var(--color-text-muted)] mb-4">
               エクスポートしたZIPファイルからデータを復元します。
               既存のエピソードと重複するIDは上書きされます。
             </p>
 
             {importProgress && (
               <div className="mb-4">
-                <div className="flex justify-between text-sm text-zinc-400 mb-1">
+                <div className="flex justify-between text-sm text-[var(--color-text-secondary)] mb-1">
                   <span>{importProgress.phase}</span>
                   {importProgress.total > 0 && (
                     <span>{importProgress.current} / {importProgress.total}</span>
                   )}
                 </div>
                 {importProgress.total > 0 && (
-                  <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-[var(--color-bg-hover)] rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-violet-500 transition-all duration-300"
+                      className="h-full bg-[var(--color-accent)] transition-all duration-300"
                       style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
                     />
                   </div>
@@ -1678,7 +1652,7 @@ export default function Settings() {
             />
             <label
               htmlFor="backup-import"
-              className={`inline-flex items-center gap-2 px-6 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg font-medium transition-colors cursor-pointer ${
+              className={`btn btn-secondary cursor-pointer ${
                 importingBackup ? "opacity-50 cursor-not-allowed" : ""
               }`}
             >
@@ -1689,7 +1663,7 @@ export default function Settings() {
                 </>
               ) : (
                 <>
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                   </svg>
                   ZIPファイルを選択
@@ -1702,30 +1676,30 @@ export default function Settings() {
 
       {/* Danger Zone */}
       {activeTab === "danger" && (
-        <div className="space-y-6">
-          <div className="border border-red-500/50 bg-red-500/5 rounded-xl p-6">
-            <h2 className="text-lg font-semibold text-red-400 mb-4">
+        <div className="space-y-4">
+          <div className="border border-[var(--color-error)]/50 bg-[var(--color-error-muted)] rounded-lg p-5">
+            <h2 className="text-base font-semibold text-[var(--color-error)] mb-4">
               全データの削除
             </h2>
             <div className="space-y-4">
-              <div className="text-sm text-zinc-400 space-y-2">
+              <div className="text-sm text-[var(--color-text-secondary)] space-y-2">
                 <p>
                   この操作を実行すると、R2バケット内の全てのデータが削除されます：
                 </p>
-                <ul className="list-disc list-inside text-zinc-500 space-y-1">
+                <ul className="list-disc list-inside text-[var(--color-text-muted)] space-y-1">
                   <li>全てのエピソード（音声ファイル、文字起こし、OG画像を含む）</li>
                   <li>Podcast設定（タイトル、説明、著者など）</li>
                   <li>アートワークとOGP画像</li>
                   <li>説明文テンプレート</li>
                   <li>RSSフィード</li>
                 </ul>
-                <p className="text-red-400 font-medium mt-4">
+                <p className="text-[var(--color-error)] font-medium mt-4">
                   この操作は取り消せません。
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-2">
+                <label className="label">
                   確認のため「削除する」と入力してください
                 </label>
                 <input
@@ -1733,14 +1707,14 @@ export default function Settings() {
                   value={resetConfirmText}
                   onChange={(e) => setResetConfirmText(e.target.value)}
                   placeholder="削除する"
-                  className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-500/20 transition-colors"
+                  className="input focus:border-[var(--color-error)]"
                 />
               </div>
 
               <button
                 onClick={handleResetAllData}
                 disabled={resetting || resetConfirmText !== "削除する"}
-                className="w-full py-3 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/50 hover:border-red-500 font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-500/10 disabled:hover:text-red-400"
+                className="w-full py-2.5 bg-[var(--color-error-muted)] hover:bg-[var(--color-error)] text-[var(--color-error)] hover:text-white border border-[var(--color-error)]/50 hover:border-[var(--color-error)] font-medium rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[var(--color-error-muted)] disabled:hover:text-[var(--color-error)]"
               >
                 {resetting ? "削除中..." : "全データを削除"}
               </button>

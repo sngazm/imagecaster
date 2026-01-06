@@ -243,7 +243,7 @@ export function ReferenceLinksEditor({
             return (
               <div
                 key={`${index}-${link.url}`}
-                className="flex items-start gap-2 p-3 bg-zinc-900 border border-zinc-800 rounded-lg"
+                className="flex items-start gap-2 p-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg"
               >
                 {/* 並び替えボタン */}
                 <div className="flex flex-col gap-0.5 shrink-0">
@@ -251,7 +251,7 @@ export function ReferenceLinksEditor({
                     type="button"
                     onClick={() => handleMoveUp(index)}
                     disabled={disabled || index === 0}
-                    className="p-1 text-zinc-500 hover:text-zinc-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                     title="上に移動"
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -262,7 +262,7 @@ export function ReferenceLinksEditor({
                     type="button"
                     onClick={() => handleMoveDown(index)}
                     disabled={disabled || index === links.length - 1}
-                    className="p-1 text-zinc-500 hover:text-zinc-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                     title="下に移動"
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -279,11 +279,11 @@ export function ReferenceLinksEditor({
                       onChange={(e) => handleUpdateTitle(index, e.target.value)}
                       disabled={disabled || isFetching}
                       placeholder={isFetching ? "タイトル取得中..." : "タイトル"}
-                      className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-zinc-100 text-sm focus:outline-none focus:border-violet-500 disabled:opacity-50"
+                      className="w-full px-3 py-2 bg-[var(--color-bg-base)] border border-[var(--color-border)] rounded text-[var(--color-text-primary)] text-sm focus:outline-none focus:border-[var(--color-accent)] disabled:opacity-50"
                     />
                     {isFetching && (
                       <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <div className="w-4 h-4 border-2 border-zinc-600 border-t-violet-400 rounded-full animate-spin" />
+                        <div className="w-4 h-4 border-2 border-[var(--color-border)] border-t-[var(--color-accent)] rounded-full animate-spin" />
                       </div>
                     )}
                   </div>
@@ -297,14 +297,14 @@ export function ReferenceLinksEditor({
                           onKeyDown={(e) => handleEditUrlKeyDown(e, index)}
                           disabled={disabled}
                           autoFocus
-                          className="flex-1 px-2 py-1 bg-zinc-800 border border-violet-500 rounded text-zinc-100 text-xs focus:outline-none"
+                          className="flex-1 px-2 py-1 bg-[var(--color-bg-base)] border border-[var(--color-accent)] rounded text-[var(--color-text-primary)] text-xs focus:outline-none"
                           placeholder="URLを入力..."
                         />
                         <button
                           type="button"
                           onClick={() => handleUpdateUrl(index)}
                           disabled={disabled || !editingUrl.trim()}
-                          className="shrink-0 px-2 py-1 text-xs text-zinc-100 bg-violet-600 hover:bg-violet-500 rounded transition-colors disabled:opacity-50"
+                          className="shrink-0 px-2 py-1 text-xs text-white bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] rounded transition-colors disabled:opacity-50"
                           title="URLを更新"
                         >
                           更新
@@ -313,7 +313,7 @@ export function ReferenceLinksEditor({
                           type="button"
                           onClick={handleCancelEditUrl}
                           disabled={disabled}
-                          className="shrink-0 px-2 py-1 text-xs text-zinc-400 bg-zinc-800 hover:bg-zinc-700 rounded transition-colors disabled:opacity-50"
+                          className="shrink-0 px-2 py-1 text-xs text-[var(--color-text-secondary)] bg-[var(--color-bg-elevated)] hover:bg-[var(--color-bg-hover)] rounded transition-colors disabled:opacity-50"
                           title="キャンセル"
                         >
                           取消
@@ -325,7 +325,7 @@ export function ReferenceLinksEditor({
                           href={link.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex-1 text-xs text-violet-400 hover:text-violet-300 truncate"
+                          className="flex-1 text-xs text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] truncate"
                         >
                           {link.url}
                         </a>
@@ -333,7 +333,7 @@ export function ReferenceLinksEditor({
                           type="button"
                           onClick={() => handleStartEditUrl(index)}
                           disabled={disabled || isFetching}
-                          className="shrink-0 px-2 py-1 text-xs text-zinc-400 hover:text-zinc-300 bg-zinc-800 hover:bg-zinc-700 rounded transition-colors disabled:opacity-50"
+                          className="shrink-0 px-2 py-1 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] bg-[var(--color-bg-elevated)] hover:bg-[var(--color-bg-hover)] rounded transition-colors disabled:opacity-50"
                           title="URLを編集"
                         >
                           編集
@@ -342,7 +342,7 @@ export function ReferenceLinksEditor({
                           type="button"
                           onClick={() => handleCleanUrl(index)}
                           disabled={disabled}
-                          className="shrink-0 px-2 py-1 text-xs text-zinc-400 hover:text-emerald-400 bg-zinc-800 hover:bg-zinc-700 rounded transition-colors disabled:opacity-50"
+                          className="shrink-0 px-2 py-1 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-success)] bg-[var(--color-bg-elevated)] hover:bg-[var(--color-bg-hover)] rounded transition-colors disabled:opacity-50"
                           title="URLをクリーン"
                         >
                           Clean
@@ -355,7 +355,7 @@ export function ReferenceLinksEditor({
                   type="button"
                   onClick={() => handleRemoveLink(index)}
                   disabled={disabled}
-                  className="p-2 text-zinc-500 hover:text-red-400 transition-colors disabled:opacity-50"
+                  className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-error)] transition-colors disabled:opacity-50"
                   title="削除"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -377,13 +377,13 @@ export function ReferenceLinksEditor({
           onKeyDown={handleKeyDown}
           disabled={disabled}
           placeholder="URLを入力して追加..."
-          className="flex-1 px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500 disabled:opacity-50 text-sm"
+          className="flex-1 px-4 py-2 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg text-[var(--color-text-primary)] placeholder:text-[var(--color-text-faint)] focus:outline-none focus:border-[var(--color-accent)] disabled:opacity-50 text-sm"
         />
         <button
           type="button"
           onClick={handleAddLink}
           disabled={disabled || !newUrl.trim()}
-          className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          className="px-4 py-2 bg-[var(--color-bg-elevated)] hover:bg-[var(--color-bg-hover)] text-[var(--color-text-secondary)] rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -393,7 +393,7 @@ export function ReferenceLinksEditor({
       </div>
 
       <div className="flex items-center justify-between">
-        <p className="text-xs text-zinc-600">
+        <p className="text-xs text-[var(--color-text-faint)]">
           URLを入力するとページタイトルを自動取得します。タイトルは後から編集可能です。
         </p>
         {links.length > 0 && (
@@ -401,7 +401,7 @@ export function ReferenceLinksEditor({
             type="button"
             onClick={handleCleanAllUrls}
             disabled={disabled}
-            className="text-xs text-zinc-500 hover:text-emerald-400 transition-colors disabled:opacity-50"
+            className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-success)] transition-colors disabled:opacity-50"
           >
             全URLをクリーン
           </button>

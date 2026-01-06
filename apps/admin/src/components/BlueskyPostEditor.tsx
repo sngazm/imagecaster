@@ -69,10 +69,10 @@ export function BlueskyPostEditor({
         placeholder={"🎙️ 新エピソード公開！\n{{TITLE}}\n\n詳しくはこちら👇\n{{EPISODE_URL}}"}
         rows={5}
         disabled={disabled}
-        className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all disabled:opacity-50 font-mono text-sm"
+        className="w-full px-4 py-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg text-[var(--color-text-primary)] placeholder:text-[var(--color-text-faint)] focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all disabled:opacity-50 font-mono text-sm"
       />
       <div className="flex flex-wrap gap-2">
-        <span className="text-xs text-zinc-500 py-1">挿入:</span>
+        <span className="text-xs text-[var(--color-text-muted)] py-1">挿入:</span>
         {PLACEHOLDERS.map((p) => (
           <button
             key={p.value}
@@ -83,14 +83,14 @@ export function BlueskyPostEditor({
               copyPlaceholder(p.value);
             }}
             disabled={disabled}
-            className="inline-flex items-center gap-1 px-2 py-1 bg-zinc-800 hover:bg-sky-600/20 border border-zinc-700 hover:border-sky-500/50 rounded text-xs text-sky-400 hover:text-sky-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            className="inline-flex items-center gap-1 px-2 py-1 bg-[var(--color-bg-elevated)] hover:bg-sky-600/20 border border-[var(--color-border)] hover:border-sky-500/50 rounded text-xs text-sky-500 hover:text-sky-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             title={`クリックで挿入 / 右クリックでコピー`}
           >
             <code className="font-mono">{p.value}</code>
           </button>
         ))}
       </div>
-      <p className="text-xs text-zinc-600">
+      <p className="text-xs text-[var(--color-text-faint)]">
         タグをクリックするとカーソル位置に挿入されます
       </p>
     </div>
