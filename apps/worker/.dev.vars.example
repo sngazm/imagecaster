@@ -1,0 +1,25 @@
+# このファイルを .dev.vars にコピーして値を設定してください
+# .dev.vars は gitignore されており、ローカル開発用です
+
+# Podcast 設定
+PODCAST_TITLE=番組名
+WEBSITE_URL=https://your-podcast.example.com
+
+# Cloudflare R2
+R2_ACCOUNT_ID=your_cloudflare_account_id
+R2_BUCKET_NAME=podcast-bucket
+R2_PUBLIC_URL=https://your-r2-bucket.example.com
+
+# Cloudflare Access (JWT認証用)
+CF_ACCESS_TEAM_DOMAIN=yourteam.cloudflareaccess.com
+CF_ACCESS_AUD=your_access_application_aud
+
+# 開発モード（認証をスキップ）
+IS_DEV=true
+
+# シークレット（本番では `wrangler secret put <NAME>` で設定）
+# R2_ACCESS_KEY_ID=your_r2_access_key_id
+# R2_SECRET_ACCESS_KEY=your_r2_secret_access_key
+# WEB_DEPLOY_HOOK_URL=https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/...
+# BLUESKY_IDENTIFIER=your.bsky.handle
+# BLUESKY_PASSWORD=your_app_password

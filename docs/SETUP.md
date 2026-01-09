@@ -220,26 +220,26 @@ https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers
 
 ## Worker の設定
 
-### 1. wrangler.toml を編集
+### 1. 本番環境の環境変数を設定
 
-`apps/worker/wrangler.toml` を開き、以下の値を設定:
+Cloudflare Dashboard で環境変数を設定します:
 
-```toml
-[vars]
-PODCAST_TITLE = "あなたの番組名"
-WEBSITE_URL = "https://your-website.com"
-R2_ACCOUNT_ID = "あなたのAccount ID"
-R2_BUCKET_NAME = "podcast-bucket"
-R2_PUBLIC_URL = "https://pub-xxxxxxxx.r2.dev"  # R2 パブリックアクセスURL
-CF_ACCESS_TEAM_DOMAIN = "your-team.cloudflareaccess.com"
-CF_ACCESS_AUD = "あなたのAUD Tag"
+1. [Cloudflare ダッシュボード](https://dash.cloudflare.com/) にログイン
+2. **Workers & Pages** → Worker プロジェクトを選択
+3. **Settings** → **Variables and Secrets** を開く
+4. **Add** をクリックして以下の変数を追加:
 
-[[r2_buckets]]
-binding = "R2_BUCKET"
-bucket_name = "podcast-bucket"
-preview_bucket_name = "podcast-bucket-dev"
-remote = true  # wrangler dev でもリモート R2 に接続
-```
+| 変数名 | 値 |
+|--------|-----|
+| `PODCAST_TITLE` | あなたの番組名 |
+| `WEBSITE_URL` | https://your-website.com |
+| `R2_ACCOUNT_ID` | あなたのAccount ID（32文字の英数字） |
+| `R2_BUCKET_NAME` | podcast-bucket |
+| `R2_PUBLIC_URL` | https://pub-xxxxxxxx.r2.dev（R2パブリックアクセスURL） |
+| `CF_ACCESS_TEAM_DOMAIN` | your-team.cloudflareaccess.com |
+| `CF_ACCESS_AUD` | あなたのAUD Tag |
+
+> **Note**: `wrangler.toml` には環境変数の値を直接書かず、Cloudflare Dashboard で管理することでセキュリティを確保しています。
 
 ### 2. シークレットを設定（本番用）
 
@@ -324,22 +324,38 @@ npx wrangler secret put PAGES_PROJECT_NAME
 
 ### 1. .dev.vars を作成
 
-`apps/worker/.dev.vars` を作成（このファイルは .gitignore に含まれています）:
+`apps/worker/.dev.vars.example` をコピーして `.dev.vars` を作成:
 
 ```bash
-# ローカル開発用（認証・リモート処理をスキップ）
-IS_DEV=true
+cd apps/worker
+cp .dev.vars.example .dev.vars
+```
 
-# 開発用バケット名
+`.dev.vars` を編集して値を設定:
+
+```bash
+# Podcast 設定
+PODCAST_TITLE=番組名
+WEBSITE_URL=https://your-podcast.example.com
+
+# Cloudflare R2
+R2_ACCOUNT_ID=あなたのAccount ID
 R2_BUCKET_NAME=podcast-bucket-dev
-
-# 開発用バケットのパブリックURL（R2 ダッシュボードで確認）
 R2_PUBLIC_URL=https://pub-xxxxxxxx.r2.dev
+
+# Cloudflare Access (JWT認証用)
+CF_ACCESS_TEAM_DOMAIN=your-team.cloudflareaccess.com
+CF_ACCESS_AUD=あなたのAUD Tag
+
+# 開発モード（認証をスキップ）
+IS_DEV=true
 
 # R2 API Token（Presigned URL 生成に必要）
 R2_ACCESS_KEY_ID=あなたのAccess Key ID
 R2_SECRET_ACCESS_KEY=あなたのSecret Access Key
 ```
+
+> **Note**: `.dev.vars` は `.gitignore` に含まれているため、リポジトリにコミットされません。
 
 ### 2. 開発サーバーを起動
 
@@ -446,16 +462,18 @@ pnpm deploy:admin
 
 | 設定項目 | 取得場所 | 設定場所 |
 |---------|---------|---------|
-| Account ID | Cloudflare ダッシュボード右側 | wrangler.toml |
-| R2 Bucket Name | R2 ダッシュボード | wrangler.toml |
-| R2 Public URL | R2 バケット Settings → Public access | wrangler.toml / .dev.vars |
-| CF Access Team Domain | Zero Trust 設定 | wrangler.toml |
-| CF Access AUD | Access Application 詳細 | wrangler.toml |
+| Account ID | Cloudflare ダッシュボード右側 | Dashboard / .dev.vars |
+| R2 Bucket Name | R2 ダッシュボード | Dashboard / .dev.vars |
+| R2 Public URL | R2 バケット Settings → Public access | Dashboard / .dev.vars |
+| CF Access Team Domain | Zero Trust 設定 | Dashboard / .dev.vars |
+| CF Access AUD | Access Application 詳細 | Dashboard / .dev.vars |
 | R2 Access Key ID | R2 API Token 作成時 | .dev.vars / wrangler secret |
 | R2 Secret Access Key | R2 API Token 作成時 | .dev.vars / wrangler secret |
 | WEB_DEPLOY_HOOK_URL | Pages Settings → Deploy hooks | wrangler secret（オプション）|
 | CLOUDFLARE_API_TOKEN | API Tokens ページで作成 | wrangler secret（オプション）|
 | PAGES_PROJECT_NAME | Workers & Pages プロジェクト名 | wrangler secret（オプション）|
+
+> **Note**: 「Dashboard」は Cloudflare Dashboard の Workers & Pages > Settings > Variables and Secrets を指します。
 
 ---
 

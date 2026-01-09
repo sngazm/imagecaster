@@ -9,14 +9,18 @@ routes = [
 
 workers_dev = true
 
-[vars]
-PODCAST_TITLE = "番組名"
-WEBSITE_URL = "https://cast.image.club"
-R2_ACCOUNT_ID = "f79879b4bd3520260744db022329425d"
-R2_BUCKET_NAME = "podcast-bucket"
-R2_PUBLIC_URL = "https://cast-bucket.image.club"
-CF_ACCESS_TEAM_DOMAIN = "sngazm.cloudflareaccess.com"
-CF_ACCESS_AUD = "5269d12ad25457e6c5f25a6c8565eafab46cc4817164401abe12982c405263a9"
+# 環境変数
+# Cloudflare Dashboard (Workers & Pages > Settings > Variables) で設定するか、
+# ローカル開発では .dev.vars.example を .dev.vars にコピーして使用
+#
+# 必須の環境変数:
+# - PODCAST_TITLE: 番組名
+# - WEBSITE_URL: 公開サイトURL
+# - R2_ACCOUNT_ID: CloudflareアカウントID
+# - R2_BUCKET_NAME: R2バケット名
+# - R2_PUBLIC_URL: R2公開URL
+# - CF_ACCESS_TEAM_DOMAIN: Cloudflare Accessチームドメイン (例: yourteam.cloudflareaccess.com)
+# - CF_ACCESS_AUD: Cloudflare AccessアプリケーションのAUDタグ
 
 [observability]
 enabled = true
