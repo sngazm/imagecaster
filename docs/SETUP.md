@@ -318,6 +318,36 @@ npx wrangler secret put PAGES_PROJECT_NAME
 
 クリックすると最近5件のデプロイ履歴が確認できます。
 
+### 5. Spotify 連携の設定（オプション）
+
+Spotify のエピソード URL を自動取得するには、Spotify Developer アプリの認証情報が必要です。
+
+> **Note**: 2026年1月現在、Spotify Developer の新規アプリ登録が一時停止されています。既存のアプリがある場合のみ設定可能です。
+
+**Spotify Developer アプリの作成:**
+
+1. [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) にアクセス
+2. **Create app** をクリック
+3. アプリ名と説明を入力
+4. **Redirect URIs** に任意の URL を入力（実際には使用しません）
+5. **Web API** にチェックを入れる
+6. 利用規約に同意して作成
+7. **Settings** から **Client ID** と **Client secret** をコピー
+
+**Worker にシークレットを設定:**
+
+```bash
+npx wrangler secret put SPOTIFY_CLIENT_ID
+# プロンプトで Client ID を入力
+
+npx wrangler secret put SPOTIFY_CLIENT_SECRET
+# プロンプトで Client secret を入力
+```
+
+**設定後の動作:**
+- 管理画面の設定 → Spotify 連携セクションが有効になります
+- Spotify Show ID を設定し、自動取得を有効にすると、公開から1日以上経ったエピソードの Spotify URL が自動取得されます
+
 ---
 
 ## ローカル開発環境の設定
@@ -472,6 +502,8 @@ pnpm deploy:admin
 | WEB_DEPLOY_HOOK_URL | Pages Settings → Deploy hooks | wrangler secret（オプション）|
 | CLOUDFLARE_API_TOKEN | API Tokens ページで作成 | wrangler secret（オプション）|
 | PAGES_PROJECT_NAME | Workers & Pages プロジェクト名 | wrangler secret（オプション）|
+| SPOTIFY_CLIENT_ID | Spotify Developer Dashboard | wrangler secret（オプション）|
+| SPOTIFY_CLIENT_SECRET | Spotify Developer Dashboard | wrangler secret（オプション）|
 
 > **Note**: 「Dashboard」は Cloudflare Dashboard の Workers & Pages > Settings > Variables and Secrets を指します。
 
