@@ -50,16 +50,9 @@ async function downloadImage(url, destPath) {
   }
 }
 
-/**
- * URLから拡張子を取得
- */
-function getExtension(url) {
-  const match = url.match(/\.(jpg|jpeg|png|webp|gif)(\?|$)/i);
-  return match ? match[1].toLowerCase() : "jpg";
-}
-
 async function main() {
   console.log("[OG Images] Starting OG image download...");
+  console.log(`[OG Images] R2_PUBLIC_URL: ${R2_PUBLIC_URL}`);
 
   // ディレクトリ作成
   if (!existsSync(ogDir)) {
@@ -69,30 +62,38 @@ async function main() {
     await mkdir(episodesOgDir, { recursive: true });
   }
 
-  // index.jsonを取得
+  // Podcast OGP画像をダウンロード（R2から直接、固定パスで取得）
+  // index.jsonのURLはWEBSITE_URLベースで認証付きの可能性があるため、R2から直接取得
+  const ogImageDownloaded = await downloadImage(
+    `${R2_PUBLIC_URL}/assets/og-image.jpg`,
+    join(ogDir, "podcast.jpg")
+  );
+
+  // OGP画像がなければartworkを試す
+  if (!ogImageDownloaded) {
+    await downloadImage(
+      `${R2_PUBLIC_URL}/assets/artwork.jpg`,
+      join(ogDir, "podcast.jpg")
+    );
+  }
+
+  // index.jsonを取得してエピソード一覧を取得
   let index;
   try {
     const response = await fetch(`${R2_PUBLIC_URL}/index.json`);
     if (!response.ok) {
-      console.warn("[OG Images] index.json not found, skipping");
+      console.warn("[OG Images] index.json not found, skipping episode images");
+      console.log("[OG Images] Done!");
       process.exit(0);
     }
     index = await response.json();
   } catch (error) {
     console.warn("[OG Images] Failed to fetch index.json:", error.message);
+    console.log("[OG Images] Done!");
     process.exit(0);
   }
 
-  const podcast = index.podcast;
-
-  // Podcast OGP画像をダウンロード
-  const podcastOgUrl = podcast.ogImageUrl || podcast.artworkUrl;
-  if (podcastOgUrl) {
-    const ext = getExtension(podcastOgUrl);
-    await downloadImage(podcastOgUrl, join(ogDir, `podcast.${ext}`));
-  }
-
-  // 各エピソードのOGP画像をダウンロード
+  // 各エピソードのOGP画像をダウンロード（R2から直接）
   for (const epRef of index.episodes) {
     try {
       const metaResponse = await fetch(`${R2_PUBLIC_URL}/episodes/${epRef.id}/meta.json`);
@@ -103,11 +104,11 @@ async function main() {
       // 公開済みエピソードのみ
       if (meta.status !== "published") continue;
 
-      // エピソード固有のOGP画像がある場合のみダウンロード
-      if (meta.ogImageUrl) {
-        const ext = getExtension(meta.ogImageUrl);
-        await downloadImage(meta.ogImageUrl, join(episodesOgDir, `${meta.id}.${ext}`));
-      }
+      // R2から直接OGP画像をダウンロード（meta.ogImageUrlは使わない）
+      await downloadImage(
+        `${R2_PUBLIC_URL}/episodes/${meta.id}/og-image.jpg`,
+        join(episodesOgDir, `${meta.id}.jpg`)
+      );
     } catch (error) {
       console.warn(`[OG Images] Error processing episode ${epRef.id}:`, error.message);
     }

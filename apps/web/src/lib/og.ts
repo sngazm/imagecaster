@@ -11,18 +11,15 @@ const publicDir = process.cwd().includes("/apps/web")
   ? join(process.cwd(), "public")
   : join(process.cwd(), "apps/web/public");
 
-const SUPPORTED_EXTENSIONS = ["jpg", "jpeg", "png", "webp"];
-
 /**
  * ローカルのOGP画像パスを取得
  * ファイルが存在すればそのパスを、なければnullを返す
+ * ダウンロードスクリプトは常に.jpg形式で保存する
  */
 function findLocalOgImage(basePath: string): string | null {
-  for (const ext of SUPPORTED_EXTENSIONS) {
-    const filePath = join(publicDir, `${basePath}.${ext}`);
-    if (existsSync(filePath)) {
-      return `${basePath}.${ext}`;
-    }
+  const filePath = join(publicDir, `${basePath}.jpg`);
+  if (existsSync(filePath)) {
+    return `${basePath}.jpg`;
   }
   return null;
 }
