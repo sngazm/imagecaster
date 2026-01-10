@@ -1,0 +1,5 @@
+# Build output
+dist/
+
+# Node modules (handled by root)
+node_modules/
