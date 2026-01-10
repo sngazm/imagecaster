@@ -2,13 +2,14 @@
 import Layout from "../layouts/Layout.astro";
 import SubscribeSection from "../components/SubscribeSection.astro";
 import { getPodcastIndex } from "../lib/api";
+import { getPodcastOgImageUrl } from "../lib/og";
 
 const index = await getPodcastIndex();
 const podcast = index.podcast;
 
-// OGP画像はWorker経由でプロキシ（Bluesky等で正しく表示されるように）
-const siteUrl = Astro.site?.toString().replace(/\/$/, "") || "";
-const ogImageUrl = siteUrl ? `${siteUrl}/api/og-image/podcast` : (podcast.ogImageUrl || podcast.artworkUrl);
+// OGP画像（ビルド時にダウンロードされたローカル画像を優先）
+const siteUrl = Astro.site?.toString() || "";
+const ogImageUrl = getPodcastOgImageUrl(siteUrl, podcast.ogImageUrl || podcast.artworkUrl);
 ---
 
 <Layout title="番組について" description={podcast.description} ogImage={ogImageUrl}>

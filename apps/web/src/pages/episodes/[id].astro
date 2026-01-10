@@ -1,6 +1,7 @@
 ---
 import Layout from "../../layouts/Layout.astro";
 import { getPublishedEpisodes, getEpisode, formatDuration, formatDate, formatFileSize, processDescription, getPodcastIndex, getTranscriptText } from "../../lib/api";
+import { getEpisodeOgImageUrl } from "../../lib/og";
 import type { Episode } from "../../lib/types";
 
 // 前後エピソードのナビゲーション用
@@ -88,9 +89,9 @@ if (Astro.props.episode) {
 
 const description = processDescription(episode.description, episode, websiteUrl);
 
-// OGP画像はWorker経由でプロキシ（Bluesky等で正しく表示されるように）
-const siteUrl = Astro.site?.toString().replace(/\/$/, "") || "";
-const ogImageUrl = siteUrl ? `${siteUrl}/api/og-image/episodes/${episode.id}` : (episode.ogImageUrl || podcastArtworkUrl);
+// OGP画像（ビルド時にダウンロードされたローカル画像を優先）
+const siteUrl = Astro.site?.toString() || "";
+const ogImageUrl = getEpisodeOgImageUrl(episode.id, siteUrl, episode.ogImageUrl, podcastArtworkUrl);
 ---
 
 <Layout title={episode.title} description={description} ogImage={ogImageUrl} ogType="article">

@@ -4,6 +4,7 @@ import EpisodeCard from "../components/EpisodeCard.astro";
 import SubscribeSection from "../components/SubscribeSection.astro";
 import Pagination from "../components/Pagination.astro";
 import { getPublishedEpisodes, getPodcastIndex } from "../lib/api";
+import { getPodcastOgImageUrl } from "../lib/og";
 
 const EPISODES_PER_PAGE = 10;
 const currentPage = 1;
@@ -15,9 +16,9 @@ const podcast = index.podcast;
 const totalPages = Math.ceil(allEpisodes.length / EPISODES_PER_PAGE);
 const episodes = allEpisodes.slice(0, EPISODES_PER_PAGE);
 
-// OGP画像はWorker経由でプロキシ（Bluesky等で正しく表示されるように）
-const siteUrl = Astro.site?.toString().replace(/\/$/, "") || "";
-const ogImageUrl = siteUrl ? `${siteUrl}/api/og-image/podcast` : (podcast.ogImageUrl || podcast.artworkUrl);
+// OGP画像（ビルド時にダウンロードされたローカル画像を優先）
+const siteUrl = Astro.site?.toString() || "";
+const ogImageUrl = getPodcastOgImageUrl(siteUrl, podcast.ogImageUrl || podcast.artworkUrl);
 ---
 
 <Layout title={podcast.title} description={podcast.description} ogImage={ogImageUrl}>

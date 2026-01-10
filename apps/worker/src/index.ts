@@ -54,66 +54,6 @@ app.get("/api/health", (c) => {
   return c.json({ status: "ok" });
 });
 
-// OGP画像プロキシ（認証不要 - Bluesky等のクローラーがアクセスするため）
-// R2から画像を取得して、適切なContent-Typeヘッダーを付けて返す
-app.get("/api/og-image/podcast", async (c) => {
-  try {
-    // まずOGP画像を試す
-    let object = await c.env.R2_BUCKET.get("assets/og-image.jpg");
-
-    // OGP画像がなければartworkを試す
-    if (!object) {
-      object = await c.env.R2_BUCKET.get("assets/artwork.jpg");
-    }
-
-    if (!object) {
-      return c.notFound();
-    }
-
-    const headers = new Headers();
-    headers.set("Content-Type", object.httpMetadata?.contentType || "image/jpeg");
-    headers.set("Cache-Control", "public, max-age=3600");
-    // Blueskyが画像をプレビューできるようにするためのヘッダー
-    headers.set("Access-Control-Allow-Origin", "*");
-
-    return new Response(object.body, { headers });
-  } catch (error) {
-    console.error("Error fetching podcast OG image:", error);
-    return c.notFound();
-  }
-});
-
-app.get("/api/og-image/episodes/:id", async (c) => {
-  const id = c.req.param("id");
-
-  try {
-    // エピソード固有のOGP画像を試す
-    let object = await c.env.R2_BUCKET.get(`episodes/${id}/og-image.jpg`);
-
-    // なければPodcastのartworkにフォールバック
-    if (!object) {
-      object = await c.env.R2_BUCKET.get("assets/og-image.jpg");
-    }
-    if (!object) {
-      object = await c.env.R2_BUCKET.get("assets/artwork.jpg");
-    }
-
-    if (!object) {
-      return c.notFound();
-    }
-
-    const headers = new Headers();
-    headers.set("Content-Type", object.httpMetadata?.contentType || "image/jpeg");
-    headers.set("Cache-Control", "public, max-age=3600");
-    headers.set("Access-Control-Allow-Origin", "*");
-
-    return new Response(object.body, { headers });
-  } catch (error) {
-    console.error(`Error fetching episode ${id} OG image:`, error);
-    return c.notFound();
-  }
-});
-
 // API ルート（認証必要）
 const api = new Hono<{ Bindings: Env }>();
 
