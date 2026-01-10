@@ -114,10 +114,10 @@ jobs:
         run: |
           cat <<EOF | npx wrangler secret bulk --env preview
           {
-            "PODCAST_TITLE": "${{ vars.PODCAST_TITLE_PREVIEW }}",
-            "WEBSITE_URL": "${{ vars.WEBSITE_URL_PREVIEW }}",
-            "R2_BUCKET_NAME": "${{ vars.R2_BUCKET_NAME_PREVIEW }}",
-            "R2_PUBLIC_URL": "${{ vars.R2_PUBLIC_URL_PREVIEW }}",
+            "PODCAST_TITLE": "${{ vars.PODCAST_TITLE }}",
+            "WEBSITE_URL": "${{ vars.WEBSITE_URL }}",
+            "R2_BUCKET_NAME": "podcast-bucket-dev",
+            "R2_PUBLIC_URL": "${{ vars.R2_PUBLIC_URL }}",
             "CF_ACCESS_TEAM_DOMAIN": "${{ vars.CF_ACCESS_TEAM_DOMAIN }}",
             "R2_ACCOUNT_ID": "${{ secrets.R2_ACCOUNT_ID }}",
             "R2_ACCESS_KEY_ID": "${{ secrets.R2_ACCESS_KEY_ID }}",

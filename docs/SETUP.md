@@ -434,10 +434,8 @@ pnpm dev:admin    # http://localhost:5173
 | `R2_PUBLIC_URL` | R2公開URL | `https://pub-xxx.r2.dev` |
 | `CF_ACCESS_TEAM_DOMAIN` | Accessチームドメイン | `yourteam.cloudflareaccess.com` |
 | `PAGES_PROJECT_NAME` | Pagesプロジェクト名 | `podcast-web` |
-| `PODCAST_TITLE_PREVIEW` | プレビュー用番組名 | `My Podcast (Preview)` |
-| `WEBSITE_URL_PREVIEW` | プレビュー用URL | `https://preview.your-website.com` |
-| `R2_BUCKET_NAME_PREVIEW` | プレビュー用バケット | `podcast-bucket-dev` |
-| `R2_PUBLIC_URL_PREVIEW` | プレビュー用R2 URL | `https://pub-xxx.r2.dev` |
+
+> **Note**: プレビュー環境では本番と同じ変数を使用し、R2バケット名のみ `podcast-bucket-dev` に自動設定されます。
 
 **Secrets（暗号化、機密情報）:**
 
