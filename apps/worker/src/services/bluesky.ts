@@ -32,6 +32,18 @@ interface Facet {
 }
 
 /**
+ * Blobアップロード結果
+ */
+interface BlobRef {
+  $type: "blob";
+  ref: {
+    $link: string;
+  };
+  mimeType: string;
+  size: number;
+}
+
+/**
  * 投稿レコード
  */
 interface PostRecord {
@@ -45,6 +57,7 @@ interface PostRecord {
       uri: string;
       title: string;
       description: string;
+      thumb?: BlobRef;
     };
   };
 }
@@ -73,6 +86,54 @@ async function createSession(
   }
 
   return response.json();
+}
+
+/**
+ * 画像をダウンロードしてBlueskyにアップロード
+ */
+async function uploadImageBlob(
+  session: BlueskySession,
+  imageUrl: string
+): Promise<BlobRef | null> {
+  try {
+    // 画像をダウンロード
+    const imageResponse = await fetch(imageUrl);
+    if (!imageResponse.ok) {
+      console.error(`Failed to fetch image: ${imageResponse.status} - ${imageUrl}`);
+      return null;
+    }
+
+    const contentType = imageResponse.headers.get("content-type") || "image/jpeg";
+    const imageBuffer = await imageResponse.arrayBuffer();
+
+    // Blueskyの画像サイズ制限 (1MB)
+    if (imageBuffer.byteLength > 1000000) {
+      console.warn(`Image too large for Bluesky (${imageBuffer.byteLength} bytes), skipping thumbnail`);
+      return null;
+    }
+
+    // Blueskyにアップロード
+    const uploadResponse = await fetch(`${BLUESKY_API_URL}/com.atproto.repo.uploadBlob`, {
+      method: "POST",
+      headers: {
+        "Content-Type": contentType,
+        Authorization: `Bearer ${session.accessJwt}`,
+      },
+      body: imageBuffer,
+    });
+
+    if (!uploadResponse.ok) {
+      const error = await uploadResponse.text();
+      console.error(`Failed to upload blob to Bluesky: ${uploadResponse.status} - ${error}`);
+      return null;
+    }
+
+    const result = await uploadResponse.json() as { blob: BlobRef };
+    return result.blob;
+  } catch (error) {
+    console.error("Error uploading image to Bluesky:", error);
+    return null;
+  }
 }
 
 /**
@@ -117,7 +178,8 @@ async function createPost(
   text: string,
   episodeUrl?: string,
   episodeTitle?: string,
-  episodeDescription?: string
+  episodeDescription?: string,
+  ogImageUrl?: string
 ): Promise<{ uri: string; cid: string }> {
   const facets = detectUrls(text);
 
@@ -133,12 +195,19 @@ async function createPost(
 
   // エピソードURLがある場合は外部リンクカードを追加
   if (episodeUrl && episodeTitle) {
+    // OGP画像があればアップロードしてサムネイルとして設定
+    let thumbBlob: BlobRef | null = null;
+    if (ogImageUrl) {
+      thumbBlob = await uploadImageBlob(session, ogImageUrl);
+    }
+
     record.embed = {
       $type: "app.bsky.embed.external",
       external: {
         uri: episodeUrl,
         title: episodeTitle,
         description: episodeDescription || "",
+        ...(thumbBlob && { thumb: thumbBlob }),
       },
     };
   }
@@ -170,12 +239,14 @@ async function createPost(
  * @param env - 環境変数
  * @param meta - エピソードメタデータ
  * @param websiteUrl - ウェブサイトのベースURL
+ * @param fallbackImageUrl - OGP画像がない場合のフォールバック画像URL（artworkUrl等）
  * @returns 投稿成功時はtrue
  */
 export async function postEpisodeToBluesky(
   env: Env,
   meta: EpisodeMeta,
-  websiteUrl: string
+  websiteUrl: string,
+  fallbackImageUrl?: string
 ): Promise<boolean> {
   // 認証情報がない場合はスキップ
   if (!env.BLUESKY_IDENTIFIER || !env.BLUESKY_PASSWORD) {
@@ -211,13 +282,17 @@ export async function postEpisodeToBluesky(
       .replace(/\{\{TITLE\}\}/g, meta.title)
       .replace(/\{\{AUDIO_URL\}\}/g, meta.audioUrl || "");
 
+    // OGP画像URL（エピソード固有 > フォールバック）
+    const ogImageUrl = meta.ogImageUrl || fallbackImageUrl;
+
     // 投稿
     const result = await createPost(
       session,
       postText,
       episodeUrl,
       meta.title,
-      meta.description.slice(0, 300) // 説明文は300文字まで
+      meta.description.slice(0, 300), // 説明文は300文字まで
+      ogImageUrl || undefined
     );
 
     console.log(`Posted to Bluesky: ${result.uri}`);
