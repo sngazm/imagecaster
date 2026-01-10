@@ -420,63 +420,45 @@ pnpm dev:admin    # http://localhost:5173
 2. **Settings** → **Builds & deployments**
 3. **Git repository** セクションで **Disconnect** をクリック
 
-#### 2. GitHub Secrets を設定
+#### 2. GitHub Variables と Secrets を設定
 
-リポジトリの **Settings** → **Secrets and variables** → **Actions** で以下を設定:
+リポジトリの **Settings** → **Secrets and variables** → **Actions** で設定します。
 
-| Secret 名 | 値 |
-|-----------|-----|
-| `CLOUDFLARE_API_TOKEN` | Workers をデプロイできる API Token |
+**Variables（テキスト、後から確認可能）:**
+
+| 変数名 | 説明 | 例 |
+|--------|------|-----|
+| `PODCAST_TITLE` | 番組名 | `My Podcast` |
+| `WEBSITE_URL` | 公開サイトURL | `https://your-website.com` |
+| `R2_BUCKET_NAME` | R2バケット名 | `podcast-bucket` |
+| `R2_PUBLIC_URL` | R2公開URL | `https://pub-xxx.r2.dev` |
+| `CF_ACCESS_TEAM_DOMAIN` | Accessチームドメイン | `yourteam.cloudflareaccess.com` |
+| `PAGES_PROJECT_NAME` | Pagesプロジェクト名 | `podcast-web` |
+| `PODCAST_TITLE_PREVIEW` | プレビュー用番組名 | `My Podcast (Preview)` |
+| `WEBSITE_URL_PREVIEW` | プレビュー用URL | `https://preview.your-website.com` |
+| `R2_BUCKET_NAME_PREVIEW` | プレビュー用バケット | `podcast-bucket-dev` |
+| `R2_PUBLIC_URL_PREVIEW` | プレビュー用R2 URL | `https://pub-xxx.r2.dev` |
+
+**Secrets（暗号化、機密情報）:**
+
+| シークレット名 | 説明 |
+|---------------|------|
+| `CLOUDFLARE_API_TOKEN` | Workers デプロイ用 API Token |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare Account ID |
-| `WORKER_SECRETS` | 本番用環境変数（JSON形式、下記参照） |
-| `WORKER_SECRETS_PREVIEW` | プレビュー用環境変数（JSON形式、下記参照） |
+| `R2_ACCOUNT_ID` | R2 Account ID |
+| `R2_ACCESS_KEY_ID` | R2 API Key ID |
+| `R2_SECRET_ACCESS_KEY` | R2 API Secret |
+| `CF_ACCESS_AUD` | Cloudflare Access AUD Tag |
+| `WEB_DEPLOY_HOOK_URL` | Pages デプロイフック URL（オプション） |
+| `WORKER_CLOUDFLARE_API_TOKEN` | Worker内で使用するAPI Token（オプション） |
+| `BLUESKY_IDENTIFIER` | Bluesky ハンドル（オプション） |
+| `BLUESKY_PASSWORD` | Bluesky アプリパスワード（オプション） |
+| `SPOTIFY_CLIENT_ID` | Spotify Client ID（オプション） |
+| `SPOTIFY_CLIENT_SECRET` | Spotify Client Secret（オプション） |
 
-#### 3. WORKER_SECRETS の形式
+> **Note**: Cloudflare Dashboard の環境変数は空のままで OK です。すべて GitHub で管理します。
 
-JSON形式で**すべての環境変数**を設定します。Cloudflare Dashboard には何も設定しません。
-
-**本番用 (`WORKER_SECRETS`):**
-
-```json
-{
-  "PODCAST_TITLE": "番組名",
-  "WEBSITE_URL": "https://your-website.com",
-  "R2_ACCOUNT_ID": "your_account_id",
-  "R2_BUCKET_NAME": "podcast-bucket",
-  "R2_ACCESS_KEY_ID": "your_access_key_id",
-  "R2_SECRET_ACCESS_KEY": "your_secret_access_key",
-  "R2_PUBLIC_URL": "https://pub-xxxxxxxx.r2.dev",
-  "CF_ACCESS_TEAM_DOMAIN": "your-team.cloudflareaccess.com",
-  "CF_ACCESS_AUD": "your_aud_tag",
-  "WEB_DEPLOY_HOOK_URL": "https://api.cloudflare.com/...",
-  "CLOUDFLARE_API_TOKEN": "your_api_token",
-  "PAGES_PROJECT_NAME": "your-pages-project",
-  "BLUESKY_IDENTIFIER": "your.bsky.handle",
-  "BLUESKY_PASSWORD": "your_app_password",
-  "SPOTIFY_CLIENT_ID": "your_spotify_client_id",
-  "SPOTIFY_CLIENT_SECRET": "your_spotify_client_secret"
-}
-```
-
-**プレビュー用 (`WORKER_SECRETS_PREVIEW`):**
-
-```json
-{
-  "PODCAST_TITLE": "番組名 (Preview)",
-  "WEBSITE_URL": "https://preview.your-website.com",
-  "R2_ACCOUNT_ID": "your_account_id",
-  "R2_BUCKET_NAME": "podcast-bucket-dev",
-  "R2_ACCESS_KEY_ID": "your_access_key_id",
-  "R2_SECRET_ACCESS_KEY": "your_secret_access_key",
-  "R2_PUBLIC_URL": "https://pub-xxxxxxxx.r2.dev",
-  "CF_ACCESS_TEAM_DOMAIN": "your-team.cloudflareaccess.com",
-  "CF_ACCESS_AUD": "your_aud_tag"
-}
-```
-
-> **Note**: オプションの変数（`WEB_DEPLOY_HOOK_URL`, `BLUESKY_*`, `SPOTIFY_*` など）は使用しない場合は省略可能です。
-
-#### 4. デプロイの動作
+#### 3. デプロイの動作
 
 - **main ブランチへの push**: 本番環境にデプロイ
 - **PR / 他のブランチへの push**: プレビュー環境にデプロイ

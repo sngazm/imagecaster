@@ -74,6 +74,9 @@ jobs:
         run: |
           npx wrangler deploy --env preview
 
+      # 環境変数をJSONとして組み立てて wrangler secret bulk に渡す
+      # Variables（テキスト）: 後から確認可能
+      # Secrets（暗号化）: 機密情報
       - name: Set secrets (Production)
         if: steps.env.outputs.environment == 'production'
         working-directory: apps/worker
@@ -81,7 +84,26 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          echo '${{ toJson(fromJson(secrets.WORKER_SECRETS)) }}' | npx wrangler secret bulk
+          cat <<EOF | npx wrangler secret bulk
+          {
+            "PODCAST_TITLE": "${{ vars.PODCAST_TITLE }}",
+            "WEBSITE_URL": "${{ vars.WEBSITE_URL }}",
+            "R2_BUCKET_NAME": "${{ vars.R2_BUCKET_NAME }}",
+            "R2_PUBLIC_URL": "${{ vars.R2_PUBLIC_URL }}",
+            "CF_ACCESS_TEAM_DOMAIN": "${{ vars.CF_ACCESS_TEAM_DOMAIN }}",
+            "PAGES_PROJECT_NAME": "${{ vars.PAGES_PROJECT_NAME }}",
+            "R2_ACCOUNT_ID": "${{ secrets.R2_ACCOUNT_ID }}",
+            "R2_ACCESS_KEY_ID": "${{ secrets.R2_ACCESS_KEY_ID }}",
+            "R2_SECRET_ACCESS_KEY": "${{ secrets.R2_SECRET_ACCESS_KEY }}",
+            "CF_ACCESS_AUD": "${{ secrets.CF_ACCESS_AUD }}",
+            "WEB_DEPLOY_HOOK_URL": "${{ secrets.WEB_DEPLOY_HOOK_URL }}",
+            "CLOUDFLARE_API_TOKEN": "${{ secrets.WORKER_CLOUDFLARE_API_TOKEN }}",
+            "BLUESKY_IDENTIFIER": "${{ secrets.BLUESKY_IDENTIFIER }}",
+            "BLUESKY_PASSWORD": "${{ secrets.BLUESKY_PASSWORD }}",
+            "SPOTIFY_CLIENT_ID": "${{ secrets.SPOTIFY_CLIENT_ID }}",
+            "SPOTIFY_CLIENT_SECRET": "${{ secrets.SPOTIFY_CLIENT_SECRET }}"
+          }
+          EOF
 
       - name: Set secrets (Preview)
         if: steps.env.outputs.environment == 'preview'
@@ -90,7 +112,19 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          echo '${{ toJson(fromJson(secrets.WORKER_SECRETS_PREVIEW)) }}' | npx wrangler secret bulk --env preview
+          cat <<EOF | npx wrangler secret bulk --env preview
+          {
+            "PODCAST_TITLE": "${{ vars.PODCAST_TITLE_PREVIEW }}",
+            "WEBSITE_URL": "${{ vars.WEBSITE_URL_PREVIEW }}",
+            "R2_BUCKET_NAME": "${{ vars.R2_BUCKET_NAME_PREVIEW }}",
+            "R2_PUBLIC_URL": "${{ vars.R2_PUBLIC_URL_PREVIEW }}",
+            "CF_ACCESS_TEAM_DOMAIN": "${{ vars.CF_ACCESS_TEAM_DOMAIN }}",
+            "R2_ACCOUNT_ID": "${{ secrets.R2_ACCOUNT_ID }}",
+            "R2_ACCESS_KEY_ID": "${{ secrets.R2_ACCESS_KEY_ID }}",
+            "R2_SECRET_ACCESS_KEY": "${{ secrets.R2_SECRET_ACCESS_KEY }}",
+            "CF_ACCESS_AUD": "${{ secrets.CF_ACCESS_AUD }}"
+          }
+          EOF
 
       - name: Output deployment info
         run: |
