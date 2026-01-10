@@ -87,9 +87,13 @@ if (Astro.props.episode) {
 }
 
 const description = processDescription(episode.description, episode, websiteUrl);
+
+// OGP画像はWorker経由でプロキシ（Bluesky等で正しく表示されるように）
+const siteUrl = Astro.site?.toString().replace(/\/$/, "") || "";
+const ogImageUrl = siteUrl ? `${siteUrl}/api/og-image/episodes/${episode.id}` : (episode.ogImageUrl || podcastArtworkUrl);
 ---
 
-<Layout title={episode.title} description={description} ogImage={episode.ogImageUrl || podcastArtworkUrl} ogType="article">
+<Layout title={episode.title} description={description} ogImage={ogImageUrl} ogType="article">
   <article class="mx-auto max-w-4xl px-4 py-8 sm:py-10" data-pagefind-body>
     <!-- ヘッダー -->
     <header class="mb-6">

@@ -5,9 +5,13 @@ import { getPodcastIndex } from "../lib/api";
 
 const index = await getPodcastIndex();
 const podcast = index.podcast;
+
+// OGP画像はWorker経由でプロキシ（Bluesky等で正しく表示されるように）
+const siteUrl = Astro.site?.toString().replace(/\/$/, "") || "";
+const ogImageUrl = siteUrl ? `${siteUrl}/api/og-image/podcast` : (podcast.ogImageUrl || podcast.artworkUrl);
 ---
 
-<Layout title="番組について" description={podcast.description} ogImage={podcast.ogImageUrl || podcast.artworkUrl}>
+<Layout title="番組について" description={podcast.description} ogImage={ogImageUrl}>
   <div class="mx-auto max-w-4xl px-4 py-8 sm:py-10">
     <div class="grid gap-6 lg:grid-cols-3 lg:gap-8">
       <div class="lg:col-span-2">
