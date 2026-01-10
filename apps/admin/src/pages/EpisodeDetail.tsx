@@ -6,7 +6,7 @@ import { HtmlEditor } from "../components/HtmlEditor";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { BlueskyPostEditor } from "../components/BlueskyPostEditor";
 import { ReferenceLinksEditor } from "../components/ReferenceLinksEditor";
-import { getWebsiteUrl } from "../lib/env";
+import { getWebsiteUrl, getEnvironment } from "../lib/env";
 
 const STATUS_CONFIG: Record<string, { label: string; badgeClass: string }> = {
   draft: { label: "下書き", badgeClass: "badge badge-default" },
@@ -67,11 +67,14 @@ export default function EpisodeDetail() {
       if (!id) return;
       try {
         setIsLoading(true);
-        const [data, templatesData, deploymentsData] = await Promise.all([
+        const env = getEnvironment();
+
+        // エピソードとテンプレートは必須なのでPromise.allで取得
+        const [data, templatesData] = await Promise.all([
           api.getEpisode(id),
           api.getTemplates(),
-          api.getDeployments(),
         ]);
+
         setEpisode(data);
         setEditTitle(data.title);
         setEditSlug(data.slug || data.id);
@@ -82,8 +85,18 @@ export default function EpisodeDetail() {
         setEditReferenceLinks(data.referenceLinks || []);
         setEditApplePodcastsUrl(data.applePodcastsUrl || "");
         setTemplates(templatesData);
-        if (deploymentsData.websiteUrl) {
-          setBaseWebsiteUrl(deploymentsData.websiteUrl);
+
+        // deploymentsはローカル開発環境ではスキップ、失敗しても処理を続行
+        if (env !== "local") {
+          try {
+            const deploymentsData = await api.getDeployments();
+            if (deploymentsData.websiteUrl) {
+              setBaseWebsiteUrl(deploymentsData.websiteUrl);
+            }
+          } catch (err) {
+            console.error("ビルド状況の取得に失敗しました:", err);
+            // deploymentsの取得失敗はエラー表示せず、処理を続行
+          }
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "エピソードの取得に失敗しました");
