@@ -321,8 +321,9 @@ episodes.post("/:id/transcription-complete", async (c) => {
           meta.status = "published";
           meta.publishedAt = now.toISOString();
 
-          // Bluesky に投稿
-          const posted = await postEpisodeToBluesky(c.env, meta, c.env.WEBSITE_URL);
+          // Bluesky に投稿（OGP画像のフォールバックとしてartworkUrlを渡す）
+          const index = await getIndex(c.env);
+          const posted = await postEpisodeToBluesky(c.env, meta, c.env.WEBSITE_URL, index.podcast.artworkUrl);
           if (posted) {
             meta.blueskyPostedAt = now.toISOString();
           }

@@ -45,6 +45,7 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
   const [accountId, setAccountId] = useState<string | undefined>();
   const [projectName, setProjectName] = useState<string | undefined>();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const env = getEnvironment();
 
   const fetchDeployments = async () => {
     try {
@@ -65,11 +66,21 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
   const isBuilding = deployments.length > 0 && deployments[0].latestStage.status === "active";
 
   useEffect(() => {
+    // ローカル開発環境ではdeployments取得をスキップ
+    if (env === "local") {
+      setIsLoading(false);
+      return;
+    }
     fetchDeployments();
-  }, []);
+  }, [env]);
 
   // ポーリング間隔を動的に変更
   useEffect(() => {
+    // ローカル開発環境ではポーリングしない
+    if (env === "local") {
+      return;
+    }
+
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
@@ -82,7 +93,12 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
         clearInterval(intervalRef.current);
       }
     };
-  }, [isBuilding]);
+  }, [isBuilding, env]);
+
+  // ローカル開発環境では何も表示しない
+  if (env === "local") {
+    return null;
+  }
 
   // 設定されていない場合は何も表示しない
   if (!configured && !isLoading) {
@@ -110,7 +126,6 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
 
   // 環境に応じたwebサイトURLを計算
   const displayWebsiteUrl = websiteUrl ? getWebsiteUrl(websiteUrl) : undefined;
-  const env = getEnvironment();
 
   return (
     <div className={`relative ${className}`}>

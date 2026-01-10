@@ -1,6 +1,7 @@
 ---
 import Layout from "../../layouts/Layout.astro";
 import { getPublishedEpisodes, getEpisode, formatDuration, formatDate, formatFileSize, processDescription, getPodcastIndex, getTranscriptText } from "../../lib/api";
+import { getEpisodeOgImageUrl } from "../../lib/og";
 import type { Episode } from "../../lib/types";
 
 // 前後エピソードのナビゲーション用
@@ -87,9 +88,13 @@ if (Astro.props.episode) {
 }
 
 const description = processDescription(episode.description, episode, websiteUrl);
+
+// OGP画像（Astroで生成される /og/episodes/{id}.jpg を使用）
+const siteUrl = Astro.site?.toString() || "";
+const ogImageUrl = getEpisodeOgImageUrl(episode.id, siteUrl);
 ---
 
-<Layout title={episode.title} description={description} ogImage={episode.ogImageUrl || podcastArtworkUrl} ogType="article">
+<Layout title={episode.title} description={description} ogImage={ogImageUrl} ogType="article">
   <article class="mx-auto max-w-4xl px-4 py-8 sm:py-10" data-pagefind-body>
     <!-- ヘッダー -->
     <header class="mb-6">

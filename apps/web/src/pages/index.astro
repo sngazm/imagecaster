@@ -4,6 +4,7 @@ import EpisodeCard from "../components/EpisodeCard.astro";
 import SubscribeSection from "../components/SubscribeSection.astro";
 import Pagination from "../components/Pagination.astro";
 import { getPublishedEpisodes, getPodcastIndex } from "../lib/api";
+import { getPodcastOgImageUrl } from "../lib/og";
 
 const EPISODES_PER_PAGE = 10;
 const currentPage = 1;
@@ -14,9 +15,13 @@ const podcast = index.podcast;
 
 const totalPages = Math.ceil(allEpisodes.length / EPISODES_PER_PAGE);
 const episodes = allEpisodes.slice(0, EPISODES_PER_PAGE);
+
+// OGP画像（Astroで生成される /og/podcast.jpg を使用）
+const siteUrl = Astro.site?.toString() || "";
+const ogImageUrl = getPodcastOgImageUrl(siteUrl);
 ---
 
-<Layout title={podcast.title} description={podcast.description} ogImage={podcast.ogImageUrl || podcast.artworkUrl}>
+<Layout title={podcast.title} description={podcast.description} ogImage={ogImageUrl}>
   <div class="mx-auto max-w-4xl px-4 py-8 sm:py-10">
     <!-- ヒーローセクション -->
     <section class="mb-10">
