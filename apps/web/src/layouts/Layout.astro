@@ -27,9 +27,6 @@ function toAbsoluteUrl(url: string | undefined): string | undefined {
 }
 
 const absoluteOgImage = toAbsoluteUrl(ogImage);
-
-// 開発環境でErudaを有効化（モバイルデバッグ用）
-const isDev = import.meta.env.DEV;
 ---
 
 <!doctype html>
@@ -250,14 +247,21 @@ const isDev = import.meta.env.DEV;
       });
     </script>
 
-    {/* 開発環境でErudaを有効化（モバイルデバッグ用） */}
-    {isDev && (
-      <script>
-        import("eruda").then((eruda) => {
-          eruda.default.init();
-        });
-      </script>
-    )}
+    {/* 開発環境・プレビュー環境でErudaを有効化（モバイルデバッグ用） */}
+    <script is:inline>
+      (function() {
+        const hostname = window.location.hostname;
+        const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
+        const isPreview = hostname.endsWith('.pages.dev') && hostname.split('.').length >= 3;
+
+        if (isLocal || isPreview) {
+          const script = document.createElement('script');
+          script.src = 'https://cdn.jsdelivr.net/npm/eruda';
+          script.onload = function() { eruda.init(); };
+          document.body.appendChild(script);
+        }
+      })();
+    </script>
   </body>
 </html>
 
