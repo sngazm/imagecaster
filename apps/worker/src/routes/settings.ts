@@ -10,7 +10,14 @@ export const settings = new Hono<{ Bindings: Env }>();
  */
 settings.get("/", async (c) => {
   const index = await getIndex(c.env);
-  return c.json(index.podcast);
+
+  // Spotify API認証情報が設定されているかどうかを追加
+  const spotifyConfigured = !!(c.env.SPOTIFY_CLIENT_ID && c.env.SPOTIFY_CLIENT_SECRET);
+
+  return c.json({
+    ...index.podcast,
+    spotifyConfigured,
+  });
 });
 
 /**
