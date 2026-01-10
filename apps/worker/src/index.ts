@@ -192,8 +192,8 @@ async function handleScheduledPublish(env: Env): Promise<void> {
       meta.status = "published";
       meta.publishedAt = now.toISOString();
 
-      // Bluesky に投稿
-      const posted = await postEpisodeToBluesky(env, meta, env.WEBSITE_URL);
+      // Bluesky に投稿（OGP画像のフォールバックとしてartworkUrlを渡す）
+      const posted = await postEpisodeToBluesky(env, meta, env.WEBSITE_URL, index.podcast.artworkUrl);
       if (posted) {
         meta.blueskyPostedAt = now.toISOString();
       }

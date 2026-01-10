@@ -14,6 +14,19 @@ const siteTitle = import.meta.env.SITE_TITLE || "Podcast";
 const fullTitle = title === siteTitle ? title : `${title} | ${siteTitle}`;
 const plainDescription = stripHtml(description);
 const canonicalUrl = Astro.url.href;
+
+// OGP画像を絶対URLに変換（Bluesky等で必要）
+function toAbsoluteUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return url;
+  }
+  // 相対URLの場合はサイトURLと結合
+  const siteUrl = Astro.site?.toString().replace(/\/$/, "") || Astro.url.origin;
+  return `${siteUrl}${url.startsWith("/") ? "" : "/"}${url}`;
+}
+
+const absoluteOgImage = toAbsoluteUrl(ogImage);
 ---
 
 <!doctype html>
@@ -27,7 +40,20 @@ const canonicalUrl = Astro.url.href;
     <meta property="og:type" content={ogType} />
     <meta property="og:url" content={canonicalUrl} />
     <meta property="og:site_name" content={siteTitle} />
-    {ogImage && <meta property="og:image" content={ogImage} />}
+    {absoluteOgImage && (
+      <>
+        <meta property="og:image" content={absoluteOgImage} />
+        <meta property="og:image:secure_url" content={absoluteOgImage} />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:alt" content={fullTitle} />
+      </>
+    )}
+    {/* Twitter/Bluesky Card用メタタグ */}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={plainDescription} />
+    {absoluteOgImage && <meta name="twitter:image" content={absoluteOgImage} />}
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="alternate" type="application/rss+xml" title={siteTitle} href="/feed.xml" />
     <meta name="color-scheme" content="light dark" />
