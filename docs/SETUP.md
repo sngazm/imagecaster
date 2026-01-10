@@ -409,19 +409,80 @@ pnpm dev:admin    # http://localhost:5173
 
 ## 本番デプロイ
 
-### 1. Worker をデプロイ
+### GitHub Actions による自動デプロイ（推奨）
+
+> **Note**: Cloudflare の GitHub 連携には環境変数がデプロイ時に消えるバグがあるため、GitHub Actions での手動デプロイを推奨します。
+> 参考: [Issue #8871](https://github.com/cloudflare/workers-sdk/issues/8871)
+
+#### 1. Cloudflare の GitHub 連携を無効化
+
+1. Cloudflare Dashboard → Workers & Pages → `imagecaster-api`
+2. **Settings** → **Builds & deployments**
+3. **Git repository** セクションで **Disconnect** をクリック
+
+#### 2. GitHub Variables と Secrets を設定
+
+リポジトリの **Settings** → **Secrets and variables** → **Actions** で設定します。
+
+**Variables（テキスト、後から確認可能）:**
+
+| 変数名 | 説明 | 例 |
+|--------|------|-----|
+| `PODCAST_TITLE` | 番組名 | `My Podcast` |
+| `WEBSITE_URL` | 公開サイトURL | `https://your-website.com` |
+| `R2_BUCKET_NAME` | R2バケット名 | `podcast-bucket` |
+| `R2_PUBLIC_URL` | R2公開URL | `https://pub-xxx.r2.dev` |
+| `CF_ACCESS_TEAM_DOMAIN` | Accessチームドメイン | `yourteam.cloudflareaccess.com` |
+| `PAGES_PROJECT_NAME` | Pagesプロジェクト名 | `podcast-web` |
+
+> **Note**: プレビュー環境では本番と同じ変数を使用し、R2バケット名のみ `podcast-bucket-dev` に自動設定されます。
+
+**Secrets（暗号化、機密情報）:**
+
+| シークレット名 | 説明 |
+|---------------|------|
+| `CLOUDFLARE_API_TOKEN` | Workers デプロイ用 API Token |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare Account ID |
+| `R2_ACCOUNT_ID` | R2 Account ID |
+| `R2_ACCESS_KEY_ID` | R2 API Key ID |
+| `R2_SECRET_ACCESS_KEY` | R2 API Secret |
+| `CF_ACCESS_AUD` | Cloudflare Access AUD Tag |
+| `WEB_DEPLOY_HOOK_URL` | Pages デプロイフック URL（オプション） |
+| `WORKER_CLOUDFLARE_API_TOKEN` | Worker内で使用するAPI Token（オプション） |
+| `BLUESKY_IDENTIFIER` | Bluesky ハンドル（オプション） |
+| `BLUESKY_PASSWORD` | Bluesky アプリパスワード（オプション） |
+| `SPOTIFY_CLIENT_ID` | Spotify Client ID（オプション） |
+| `SPOTIFY_CLIENT_SECRET` | Spotify Client Secret（オプション） |
+
+> **Note**: Cloudflare Dashboard の環境変数は空のままで OK です。すべて GitHub で管理します。
+
+#### 3. デプロイの動作
+
+- **main ブランチへの push**: 本番環境にデプロイ
+- **PR / 他のブランチへの push**: プレビュー環境にデプロイ
+- **手動実行**: Actions タブから `workflow_dispatch` でデプロイ可能
+
+プレビュー環境は `imagecaster-api-preview.<subdomain>.workers.dev` でアクセスできます。
+
+---
+
+### 手動デプロイ（代替手段）
+
+GitHub Actions を使わない場合:
+
+#### 1. Worker をデプロイ
 
 ```bash
 pnpm deploy:worker
 ```
 
-### 2. Admin をデプロイ
+#### 2. Admin をデプロイ
 
 ```bash
 pnpm deploy:admin
 ```
 
-### 3. 本番用バケットの CORS 設定
+#### 3. 本番用バケットの CORS 設定
 
 セットアップ時に `r2-cors.json` を適用済みであれば、追加設定は不要です。
 
