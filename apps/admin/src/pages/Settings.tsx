@@ -79,6 +79,10 @@ export default function Settings() {
   const [fetchingApplePodcasts, setFetchingApplePodcasts] = useState(false);
   const [applePodcastsProgress, setApplePodcastsProgress] = useState<{ current: number; total: number; found: number } | null>(null);
 
+  // Spotify URL fetch
+  const [fetchingSpotify, setFetchingSpotify] = useState(false);
+  const [spotifyProgress, setSpotifyProgress] = useState<{ total: number; matched: number } | null>(null);
+
   // Backup
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState<{ current: number; total: number } | null>(null);
@@ -386,6 +390,35 @@ export default function Settings() {
     } finally {
       setFetchingApplePodcasts(false);
       setApplePodcastsProgress(null);
+    }
+  }
+
+  async function handleFetchSpotifyUrls() {
+    if (!settings?.spotifyShowId) {
+      setError("Spotify Show ID が設定されていません");
+      return;
+    }
+
+    setFetchingSpotify(true);
+    setError(null);
+    setSpotifyProgress(null);
+
+    try {
+      const result = await api.fetchSpotifyEpisodes();
+
+      setSpotifyProgress({ total: result.total, matched: result.matched });
+
+      const unmatchedCount = result.total - result.matched;
+      if (unmatchedCount > 0) {
+        setSuccess(`${result.matched}件のエピソードにSpotify URLを設定しました（${unmatchedCount}件はマッチしませんでした）`);
+      } else {
+        setSuccess(`${result.matched}件のエピソードにSpotify URLを設定しました`);
+      }
+      setTimeout(() => setSuccess(null), 5000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch Spotify URLs");
+    } finally {
+      setFetchingSpotify(false);
     }
   }
 
@@ -1090,6 +1123,87 @@ export default function Settings() {
                   </span>
                   <span className="block text-xs text-[var(--color-text-muted)] mt-1">
                     公開から1日以上経ったエピソードのApple Podcasts URLを自動取得します
+                  </span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          {/* Spotify Integration */}
+          <div className="card p-5 space-y-4">
+            <h2 className="text-base font-semibold text-[var(--color-text-primary)] mb-4">Spotify 連携</h2>
+
+            <div>
+              <label className="label">Spotify Show ID</label>
+              <input
+                type="text"
+                value={settings.spotifyShowId || ""}
+                onChange={(e) =>
+                  setSettings({ ...settings, spotifyShowId: e.target.value || null })
+                }
+                placeholder="1234abcd5678efgh"
+                className="input"
+              />
+              <p className="text-xs text-[var(--color-text-muted)] mt-2">
+                Spotify のURLに含まれる Show ID を入力してください。<br />
+                例: https://open.spotify.com/show/<strong>1234abcd5678efgh</strong>
+              </p>
+            </div>
+
+            <div className="border-t border-[var(--color-border)] pt-4">
+              <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-2">エピソードURLの一括取得</h3>
+              <p className="text-xs text-[var(--color-text-muted)] mb-3">
+                Spotify API からエピソードごとの Spotify リンクを取得し、各エピソードに設定します。<br />
+                タイトルでマッチングを行います。
+              </p>
+
+              {spotifyProgress && (
+                <div className="mb-3 p-3 bg-[var(--color-bg-elevated)] rounded-lg">
+                  <div className="text-sm text-[var(--color-text-secondary)]">
+                    マッチ: {spotifyProgress.matched} / {spotifyProgress.total} 件
+                  </div>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleFetchSpotifyUrls}
+                disabled={fetchingSpotify || !settings.spotifyShowId}
+                className="btn btn-secondary text-sm"
+              >
+                {fetchingSpotify ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    取得中...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Spotify URLを一括取得
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div className="border-t border-[var(--color-border)] pt-4">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.spotifyAutoFetch ?? false}
+                  onChange={(e) =>
+                    setSettings({ ...settings, spotifyAutoFetch: e.target.checked })
+                  }
+                  disabled={!settings.spotifyShowId}
+                  className="mt-0.5 w-5 h-5 rounded border-[var(--color-border)] bg-[var(--color-bg-elevated)] text-[var(--color-accent)] focus:ring-[var(--color-accent)] focus:ring-offset-0 disabled:opacity-50"
+                />
+                <div>
+                  <span className={`block text-sm font-medium ${settings.spotifyShowId ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]'}`}>
+                    管理画面起動時に自動取得
+                  </span>
+                  <span className="block text-xs text-[var(--color-text-muted)] mt-1">
+                    公開から1日以上経ったエピソードのSpotify URLを自動取得します
                   </span>
                 </div>
               </label>

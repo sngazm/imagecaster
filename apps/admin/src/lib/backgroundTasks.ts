@@ -99,6 +99,75 @@ export async function runApplePodcastsAutoFetch(
 }
 
 /**
+ * Spotify URL 自動取得タスク
+ */
+export async function runSpotifyAutoFetch(
+  episodes: Episode[],
+  settings: PodcastSettings,
+  onComplete?: () => void
+): Promise<void> {
+  const taskType = "spotify";
+  const taskId = `${taskType}-${Date.now()}`;
+
+  // 既に実行済み or 実行中ならスキップ
+  if (taskRanFlags[taskType] || taskStore.isRunning(taskType)) {
+    return;
+  }
+
+  // 自動取得が無効または Show ID が未設定
+  if (!settings.spotifyAutoFetch || !settings.spotifyShowId) {
+    return;
+  }
+
+  // 公開から1日以上経過 & spotifyUrl が未設定のエピソードがあるか確認
+  const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+  const targetEpisodes = episodes.filter((ep) => {
+    if (ep.status !== "published" || ep.spotifyUrl) return false;
+    const publishedAt = ep.publishedAt ? new Date(ep.publishedAt).getTime() : 0;
+    return publishedAt > 0 && publishedAt < oneDayAgo;
+  });
+
+  if (targetEpisodes.length === 0) {
+    return;
+  }
+
+  // フラグを立てる
+  taskRanFlags[taskType] = true;
+
+  // タスク開始
+  taskStore.start(taskId, taskType, "Spotify URL を取得中");
+
+  try {
+    taskStore.updateProgress(taskId, "Spotify API に接続中...");
+
+    // Worker API経由で一括取得
+    const result = await api.fetchSpotifyEpisodes();
+
+    if (result.matched > 0) {
+      // URLが設定されたらデプロイをトリガー
+      try {
+        await api.triggerDeploy();
+        taskStore.complete(
+          taskId,
+          `${result.matched}件のURLを設定しました（デプロイ開始）`
+        );
+      } catch {
+        taskStore.complete(
+          taskId,
+          `${result.matched}件のURLを設定しました（デプロイ失敗）`
+        );
+      }
+      onComplete?.();
+    } else {
+      taskStore.complete(taskId, "該当するエピソードが見つかりませんでした");
+    }
+  } catch (err) {
+    console.error("Spotify auto-fetch failed:", err);
+    taskStore.fail(taskId, err instanceof Error ? err.message : "取得に失敗しました");
+  }
+}
+
+/**
  * すべてのバックグラウンドタスクを実行
  *
  * 管理画面の読み込み時に呼び出す
@@ -113,8 +182,10 @@ export async function runAllBackgroundTasks(
     // Apple Podcasts URL 自動取得
     await runApplePodcastsAutoFetch(episodes, settings, onEpisodesUpdated);
 
+    // Spotify URL 自動取得
+    await runSpotifyAutoFetch(episodes, settings, onEpisodesUpdated);
+
     // 将来追加するタスク:
-    // - Spotify URL 自動取得
     // - 文字起こしステータス確認
     // など
   } catch (err) {
