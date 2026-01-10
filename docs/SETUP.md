@@ -416,7 +416,20 @@ pnpm dev:admin    # http://localhost:5173
 
 #### 1. Cloudflare の GitHub 連携を無効化
 
+全てのアプリで GitHub 連携を解除します:
+
+**Worker (imagecaster-api):**
 1. Cloudflare Dashboard → Workers & Pages → `imagecaster-api`
+2. **Settings** → **Builds & deployments**
+3. **Git repository** セクションで **Disconnect** をクリック
+
+**Admin (imagecaster-admin):**
+1. Cloudflare Dashboard → Workers & Pages → Admin プロジェクト
+2. **Settings** → **Builds & deployments**
+3. **Git repository** セクションで **Disconnect** をクリック
+
+**Web (imagecaster-web):**
+1. Cloudflare Dashboard → Workers & Pages → Web プロジェクト
 2. **Settings** → **Builds & deployments**
 3. **Git repository** セクションで **Disconnect** をクリック
 
@@ -433,7 +446,10 @@ pnpm dev:admin    # http://localhost:5173
 | `R2_BUCKET_NAME` | R2バケット名 | `podcast-bucket` |
 | `R2_PUBLIC_URL` | R2公開URL | `https://pub-xxx.r2.dev` |
 | `CF_ACCESS_TEAM_DOMAIN` | Accessチームドメイン | `yourteam.cloudflareaccess.com` |
-| `PAGES_PROJECT_NAME` | Pagesプロジェクト名 | `podcast-web` |
+| `PAGES_PROJECT_NAME` | Web Pagesプロジェクト名 | `podcast-web` |
+| `ADMIN_PROJECT_NAME` | Admin Pagesプロジェクト名 | `podcast-admin` |
+| `WEB_PROJECT_NAME` | Web Pagesプロジェクト名 | `podcast-web` |
+| `PUBLIC_API_BASE_URL` | Web用API URL | `https://your-api.example.com/api` |
 
 > **Note**: プレビュー環境では本番と同じ変数を使用し、R2バケット名のみ `podcast-bucket-dev` に自動設定されます。
 
@@ -458,11 +474,20 @@ pnpm dev:admin    # http://localhost:5173
 
 #### 3. デプロイの動作
 
+3つのワークフローが用意されています:
+- **deploy-worker.yml**: Worker API のデプロイ
+- **deploy-admin.yml**: Admin 管理画面のデプロイ
+- **deploy-web.yml**: Web 公開サイトのデプロイ
+
+各ワークフローは対応する `apps/` ディレクトリの変更時に自動実行されます:
+
 - **main ブランチへの push**: 本番環境にデプロイ
-- **PR / 他のブランチへの push**: プレビュー環境にデプロイ
+- **PR**: プレビュー環境にデプロイ
 - **手動実行**: Actions タブから `workflow_dispatch` でデプロイ可能
 
-プレビュー環境は `imagecaster-api-preview.<subdomain>.workers.dev` でアクセスできます。
+プレビュー環境URL:
+- Worker: `imagecaster-api-preview.<subdomain>.workers.dev`
+- Admin/Web: `<branch>.<project>.pages.dev`
 
 ---
 
