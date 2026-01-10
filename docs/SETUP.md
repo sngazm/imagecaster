@@ -409,19 +409,100 @@ pnpm dev:admin    # http://localhost:5173
 
 ## 本番デプロイ
 
-### 1. Worker をデプロイ
+### GitHub Actions による自動デプロイ（推奨）
+
+> **Note**: Cloudflare の GitHub 連携には環境変数がデプロイ時に消えるバグがあるため、GitHub Actions での手動デプロイを推奨します。
+> 参考: [Issue #8871](https://github.com/cloudflare/workers-sdk/issues/8871)
+
+#### 1. Cloudflare の GitHub 連携を無効化
+
+1. Cloudflare Dashboard → Workers & Pages → `imagecaster-api`
+2. **Settings** → **Builds & deployments**
+3. **Git repository** セクションで **Disconnect** をクリック
+
+#### 2. GitHub Secrets を設定
+
+リポジトリの **Settings** → **Secrets and variables** → **Actions** で以下を設定:
+
+| Secret 名 | 値 |
+|-----------|-----|
+| `CLOUDFLARE_API_TOKEN` | Workers をデプロイできる API Token |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare Account ID |
+| `WORKER_SECRETS` | 本番用環境変数（JSON形式、下記参照） |
+| `WORKER_SECRETS_PREVIEW` | プレビュー用環境変数（JSON形式、下記参照） |
+
+#### 3. WORKER_SECRETS の形式
+
+JSON形式で**すべての環境変数**を設定します。Cloudflare Dashboard には何も設定しません。
+
+**本番用 (`WORKER_SECRETS`):**
+
+```json
+{
+  "PODCAST_TITLE": "番組名",
+  "WEBSITE_URL": "https://your-website.com",
+  "R2_ACCOUNT_ID": "your_account_id",
+  "R2_BUCKET_NAME": "podcast-bucket",
+  "R2_ACCESS_KEY_ID": "your_access_key_id",
+  "R2_SECRET_ACCESS_KEY": "your_secret_access_key",
+  "R2_PUBLIC_URL": "https://pub-xxxxxxxx.r2.dev",
+  "CF_ACCESS_TEAM_DOMAIN": "your-team.cloudflareaccess.com",
+  "CF_ACCESS_AUD": "your_aud_tag",
+  "WEB_DEPLOY_HOOK_URL": "https://api.cloudflare.com/...",
+  "CLOUDFLARE_API_TOKEN": "your_api_token",
+  "PAGES_PROJECT_NAME": "your-pages-project",
+  "BLUESKY_IDENTIFIER": "your.bsky.handle",
+  "BLUESKY_PASSWORD": "your_app_password",
+  "SPOTIFY_CLIENT_ID": "your_spotify_client_id",
+  "SPOTIFY_CLIENT_SECRET": "your_spotify_client_secret"
+}
+```
+
+**プレビュー用 (`WORKER_SECRETS_PREVIEW`):**
+
+```json
+{
+  "PODCAST_TITLE": "番組名 (Preview)",
+  "WEBSITE_URL": "https://preview.your-website.com",
+  "R2_ACCOUNT_ID": "your_account_id",
+  "R2_BUCKET_NAME": "podcast-bucket-dev",
+  "R2_ACCESS_KEY_ID": "your_access_key_id",
+  "R2_SECRET_ACCESS_KEY": "your_secret_access_key",
+  "R2_PUBLIC_URL": "https://pub-xxxxxxxx.r2.dev",
+  "CF_ACCESS_TEAM_DOMAIN": "your-team.cloudflareaccess.com",
+  "CF_ACCESS_AUD": "your_aud_tag"
+}
+```
+
+> **Note**: オプションの変数（`WEB_DEPLOY_HOOK_URL`, `BLUESKY_*`, `SPOTIFY_*` など）は使用しない場合は省略可能です。
+
+#### 4. デプロイの動作
+
+- **main ブランチへの push**: 本番環境にデプロイ
+- **PR / 他のブランチへの push**: プレビュー環境にデプロイ
+- **手動実行**: Actions タブから `workflow_dispatch` でデプロイ可能
+
+プレビュー環境は `imagecaster-api-preview.<subdomain>.workers.dev` でアクセスできます。
+
+---
+
+### 手動デプロイ（代替手段）
+
+GitHub Actions を使わない場合:
+
+#### 1. Worker をデプロイ
 
 ```bash
 pnpm deploy:worker
 ```
 
-### 2. Admin をデプロイ
+#### 2. Admin をデプロイ
 
 ```bash
 pnpm deploy:admin
 ```
 
-### 3. 本番用バケットの CORS 設定
+#### 3. 本番用バケットの CORS 設定
 
 セットアップ時に `r2-cors.json` を適用済みであれば、追加設定は不要です。
 
