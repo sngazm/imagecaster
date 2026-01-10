@@ -10,6 +10,7 @@ import { importRoutes } from "./routes/import";
 import { deployments } from "./routes/deployments";
 import { podcast } from "./routes/podcast";
 import { backup } from "./routes/backup";
+import { spotify } from "./routes/spotify";
 import { getIndex, getEpisodeMeta, saveEpisodeMeta } from "./services/r2";
 import { regenerateFeed } from "./services/feed";
 import { postEpisodeToBluesky } from "./services/bluesky";
@@ -156,6 +157,9 @@ api.route("/podcast", podcast);
 
 // バックアップ（エクスポート/インポート）のルートをマウント
 api.route("/backup", backup);
+
+// Spotify 関連のルートをマウント
+api.route("/spotify", spotify);
 
 // URLからタイトルを取得（microlink.io API経由）
 api.post("/fetch-link-title", async (c) => {

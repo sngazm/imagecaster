@@ -42,6 +42,7 @@ episodes.get("/", async (c) => {
         publishedAt: meta.publishedAt,
         sourceGuid: meta.sourceGuid || null,
         applePodcastsUrl: meta.applePodcastsUrl || null,
+        spotifyUrl: meta.spotifyUrl || null,
       };
     })
   );
@@ -142,6 +143,7 @@ episodes.post("/", async (c) => {
     blueskyPostedAt: null,
     referenceLinks: body.referenceLinks ?? [],
     applePodcastsUrl: null,
+    spotifyUrl: null,
   };
 
   // メタデータを保存
@@ -220,6 +222,10 @@ episodes.put("/:id", async (c) => {
     if (body.applePodcastsUrl !== undefined) {
       meta.applePodcastsUrl = body.applePodcastsUrl;
     }
+    // Spotify
+    if (body.spotifyUrl !== undefined) {
+      meta.spotifyUrl = body.spotifyUrl;
+    }
 
     // slugが変わる場合はファイルを移動
     if (needsMove) {
@@ -237,9 +243,9 @@ episodes.put("/:id", async (c) => {
     await saveIndex(c.env, index);
 
     // 公開済みの場合はフィードを再生成してWebをリビルド
-    // ただし applePodcastsUrl のみの更新はスキップ（RSSに含まれず、頻繁な更新があり得るため）
-    const isApplePodcastsUrlOnlyUpdate =
-      body.applePodcastsUrl !== undefined &&
+    // ただし applePodcastsUrl / spotifyUrl のみの更新はスキップ（RSSに含まれず、頻繁な更新があり得るため）
+    const isPlatformUrlOnlyUpdate =
+      (body.applePodcastsUrl !== undefined || body.spotifyUrl !== undefined) &&
       body.title === undefined &&
       body.description === undefined &&
       body.publishAt === undefined &&
@@ -249,7 +255,7 @@ episodes.put("/:id", async (c) => {
       body.referenceLinks === undefined &&
       body.slug === undefined;
 
-    if (meta.status === "published" && !isApplePodcastsUrlOnlyUpdate) {
+    if (meta.status === "published" && !isPlatformUrlOnlyUpdate) {
       await regenerateFeed(c.env);
       await triggerWebRebuild(c.env);
     }

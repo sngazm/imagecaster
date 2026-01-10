@@ -21,6 +21,9 @@ export interface Env {
   // Cloudflare Pages API（ビルド状況確認用）
   CLOUDFLARE_API_TOKEN?: string;
   PAGES_PROJECT_NAME?: string;
+  // Spotify
+  SPOTIFY_CLIENT_ID?: string;
+  SPOTIFY_CLIENT_SECRET?: string;
   // ローカル開発用
   IS_DEV?: string;
 }
@@ -42,6 +45,8 @@ export interface PodcastIndex {
     explicit: boolean;
     applePodcastsId: string | null; // Apple Podcasts ID (collectionId)
     applePodcastsAutoFetch: boolean; // 管理画面起動時に自動取得するか
+    spotifyShowId: string | null; // Spotify Show ID
+    spotifyAutoFetch: boolean; // 管理画面起動時に自動取得するか
     // 購読リンク
     applePodcastsUrl?: string;
     spotifyUrl?: string;
@@ -99,6 +104,8 @@ export interface EpisodeMeta {
   referenceLinks: ReferenceLink[];
   // Apple Podcasts
   applePodcastsUrl: string | null; // エピソード個別URL
+  // Spotify
+  spotifyUrl: string | null; // エピソード個別URL
 }
 
 /**
@@ -129,6 +136,8 @@ export interface UpdateEpisodeRequest {
   referenceLinks?: ReferenceLink[];
   // Apple Podcasts（管理画面から編集可能）
   applePodcastsUrl?: string | null;
+  // Spotify（管理画面から編集可能）
+  spotifyUrl?: string | null;
 }
 
 /**
@@ -234,6 +243,8 @@ export interface UpdatePodcastSettingsRequest {
   explicit?: boolean;
   applePodcastsId?: string | null;
   applePodcastsAutoFetch?: boolean;
+  spotifyShowId?: string | null;
+  spotifyAutoFetch?: boolean;
   // 購読リンク
   applePodcastsUrl?: string;
   spotifyUrl?: string;

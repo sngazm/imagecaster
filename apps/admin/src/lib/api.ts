@@ -32,6 +32,7 @@ export interface Episode {
   publishedAt: string | null;
   sourceGuid: string | null;
   applePodcastsUrl: string | null;
+  spotifyUrl: string | null;
 }
 
 export interface ReferenceLink {
@@ -64,6 +65,8 @@ export interface EpisodeDetail {
   referenceLinks: ReferenceLink[];
   // Apple Podcasts
   applePodcastsUrl: string | null;
+  // Spotify
+  spotifyUrl: string | null;
 }
 
 export interface PodcastSettings {
@@ -79,6 +82,8 @@ export interface PodcastSettings {
   explicit: boolean;
   applePodcastsId: string | null;
   applePodcastsAutoFetch: boolean;
+  spotifyShowId: string | null;
+  spotifyAutoFetch: boolean;
   // 購読リンク
   applePodcastsUrl?: string;
   spotifyUrl?: string;
@@ -297,6 +302,7 @@ export const api = {
     blueskyPostEnabled?: boolean;
     referenceLinks?: ReferenceLink[];
     applePodcastsUrl?: string | null;
+    spotifyUrl?: string | null;
   }) =>
     request<EpisodeDetail>(`/api/episodes/${id}`, {
       method: "PUT",
@@ -452,6 +458,23 @@ export const api = {
     request<{ success: boolean }>("/api/backup/import/complete", {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+
+  // Spotify
+  fetchSpotifyEpisodes: () =>
+    request<{
+      success: boolean;
+      total: number;
+      matched: number;
+      results: Array<{
+        episodeId: string;
+        title: string;
+        spotifyUrl: string | null;
+        matched: boolean;
+        matchedTitle?: string;
+      }>;
+    }>("/api/spotify/fetch-episodes", {
+      method: "POST",
     }),
 };
 
