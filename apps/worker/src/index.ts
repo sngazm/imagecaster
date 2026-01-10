@@ -57,6 +57,51 @@ app.get("/api/health", (c) => {
 // API ルート（認証必要）
 const api = new Hono<{ Bindings: Env }>();
 
+// 必須環境変数のリスト
+const REQUIRED_ENV_VARS = [
+  "PODCAST_TITLE",
+  "WEBSITE_URL",
+  "R2_ACCOUNT_ID",
+  "R2_BUCKET_NAME",
+  "R2_ACCESS_KEY_ID",
+  "R2_SECRET_ACCESS_KEY",
+  "R2_PUBLIC_URL",
+  "CF_ACCESS_TEAM_DOMAIN",
+  "CF_ACCESS_AUD",
+] as const;
+
+// 環境変数チェックミドルウェア（認証ミドルウェアの前に配置）
+api.use("*", async (c, next) => {
+  // 開発モードではスキップ
+  if (c.env.IS_DEV === "true") {
+    await next();
+    return;
+  }
+
+  const missingVars: string[] = [];
+
+  for (const varName of REQUIRED_ENV_VARS) {
+    if (!c.env[varName as keyof Env]) {
+      missingVars.push(varName);
+    }
+  }
+
+  if (missingVars.length > 0) {
+    console.error(
+      `Missing required environment variables: ${missingVars.join(", ")}`
+    );
+    return c.json(
+      {
+        error: "Server configuration error",
+        message: `Missing required environment variables: ${missingVars.join(", ")}`,
+      },
+      500
+    );
+  }
+
+  await next();
+});
+
 // Cloudflare Access JWT 認証
 api.use("*", async (c, next) => {
   // ローカル開発時は認証スキップ
