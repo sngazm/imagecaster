@@ -3,6 +3,3 @@ dist/
 
 # Node modules (handled by root)
 node_modules/
-
-# OG images (downloaded at build time)
-public/og/

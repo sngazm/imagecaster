@@ -47,9 +47,9 @@ const { page } = Astro.params;
 const currentPage = Number(page);
 const { episodes, allEpisodesCount, totalPages, podcast } = Astro.props;
 
-// OGP画像（ビルド時にダウンロードされたローカル画像を優先）
+// OGP画像（Astroで生成される /og/podcast.jpg を使用）
 const siteUrl = Astro.site?.toString() || "";
-const ogImageUrl = getPodcastOgImageUrl(siteUrl, podcast.ogImageUrl || podcast.artworkUrl);
+const ogImageUrl = getPodcastOgImageUrl(siteUrl);
 ---
 
 <Layout title={`${podcast.title} - ページ ${currentPage}`} description={podcast.description} ogImage={ogImageUrl}>

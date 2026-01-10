@@ -4,7 +4,6 @@
   "type": "module",
   "scripts": {
     "dev": "astro dev --port 4321",
-    "prebuild": "node scripts/download-og-images.js",
     "build": "astro build && pagefind --site dist",
     "preview": "astro preview"
   },

@@ -89,9 +89,9 @@ if (Astro.props.episode) {
 
 const description = processDescription(episode.description, episode, websiteUrl);
 
-// OGP画像（ビルド時にダウンロードされたローカル画像を優先）
+// OGP画像（Astroで生成される /og/episodes/{id}.jpg を使用）
 const siteUrl = Astro.site?.toString() || "";
-const ogImageUrl = getEpisodeOgImageUrl(episode.id, siteUrl, episode.ogImageUrl, podcastArtworkUrl);
+const ogImageUrl = getEpisodeOgImageUrl(episode.id, siteUrl);
 ---
 
 <Layout title={episode.title} description={description} ogImage={ogImageUrl} ogType="article">
