@@ -114,8 +114,8 @@ export async function runSpotifyAutoFetch(
     return;
   }
 
-  // 自動取得が無効または Show ID が未設定
-  if (!settings.spotifyAutoFetch || !settings.spotifyShowId) {
+  // 自動取得が無効、Show ID が未設定、または API認証情報が未設定
+  if (!settings.spotifyAutoFetch || !settings.spotifyShowId || !settings.spotifyConfigured) {
     return;
   }
 

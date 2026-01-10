@@ -84,6 +84,7 @@ export interface PodcastSettings {
   applePodcastsAutoFetch: boolean;
   spotifyShowId: string | null;
   spotifyAutoFetch: boolean;
+  spotifyConfigured: boolean;
   // 購読リンク
   applePodcastsUrl?: string;
   spotifyUrl?: string;
