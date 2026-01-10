@@ -27,6 +27,9 @@ function toAbsoluteUrl(url: string | undefined): string | undefined {
 }
 
 const absoluteOgImage = toAbsoluteUrl(ogImage);
+
+// 開発環境でErudaを有効化（モバイルデバッグ用）
+const isDev = import.meta.env.DEV;
 ---
 
 <!doctype html>
@@ -246,6 +249,15 @@ const absoluteOgImage = toAbsoluteUrl(ogImage);
         }
       });
     </script>
+
+    {/* 開発環境でErudaを有効化（モバイルデバッグ用） */}
+    {isDev && (
+      <script>
+        import("eruda").then((eruda) => {
+          eruda.default.init();
+        });
+      </script>
+    )}
   </body>
 </html>
 
