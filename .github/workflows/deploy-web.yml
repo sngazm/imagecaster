@@ -36,7 +36,7 @@ jobs:
       - name: Build Web
         working-directory: apps/web
         env:
-          PUBLIC_API_BASE_URL: ${{ vars.PUBLIC_API_BASE_URL }}
+          R2_PUBLIC_URL: ${{ vars.R2_PUBLIC_URL }}
         run: pnpm build
 
       - name: Deploy to Cloudflare Pages (Production)
