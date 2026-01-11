@@ -40,7 +40,7 @@ jobs:
         run: pnpm build
 
       - name: Deploy to Cloudflare Pages (Production)
-        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || github.event_name == 'workflow_dispatch'
         working-directory: apps/web
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -61,7 +61,7 @@ jobs:
         run: |
           echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [[ ("${{ github.event_name }}" == "push" || "${{ github.event_name }}" == "workflow_dispatch") && "${{ github.ref }}" == "refs/heads/main" ]]; then
+          if [[ ("${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main") || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "- **Environment**: Production" >> $GITHUB_STEP_SUMMARY
             echo "- **URL**: https://${{ vars.WEB_PROJECT_NAME }}.pages.dev" >> $GITHUB_STEP_SUMMARY
           else
