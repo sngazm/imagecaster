@@ -9,6 +9,8 @@ routes = [
 
 workers_dev = true
 
+keep_vars = true
+
 # 環境変数
 # Cloudflare Dashboard (Workers & Pages > Settings > Variables) で設定するか、
 # ローカル開発では .dev.vars.example を .dev.vars にコピーして使用
@@ -41,24 +43,3 @@ crons = ["*/5 * * * *"]
 # - WEB_DEPLOY_HOOK_URL (optional: Cloudflare Pages Deploy Hook URL)
 # - BLUESKY_IDENTIFIER (optional: Bluesky handle or DID for auto-posting)
 # - BLUESKY_PASSWORD (optional: Bluesky app password for auto-posting)
-
-# =============================================================================
-# プレビュー環境
-# GitHub Actions で PR/非mainブランチ時に使用
-# =============================================================================
-[env.preview]
-name = "imagecaster-api-preview"
-workers_dev = true
-
-# プレビュー環境ではカスタムドメインルートを使用しない
-routes = []
-
-# プレビュー用R2バケット
-[[env.preview.r2_buckets]]
-binding = "R2_BUCKET"
-bucket_name = "podcast-bucket-dev"
-remote = true
-
-# プレビュー環境ではcronを無効化
-[env.preview.triggers]
-crons = []
