@@ -13,7 +13,7 @@ export interface Episode {
   audioUrl: string;
   sourceAudioUrl: string | null; // 外部参照の音声URL（RSSインポート時）
   transcriptUrl: string | null;
-  ogImageUrl: string | null;
+  artworkUrl: string | null;
   status: string;
   createdAt: string;
   publishAt: string;
@@ -30,7 +30,6 @@ export interface PodcastInfo {
   language: string;
   category: string;
   artworkUrl: string;
-  ogImageUrl: string;
   websiteUrl: string;
   explicit: boolean;
   // 購読リンク

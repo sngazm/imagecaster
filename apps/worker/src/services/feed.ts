@@ -104,6 +104,11 @@ function generateEpisodeItem(episode: EpisodeMeta, websiteUrl: string): string {
     ? `\n      <podcast:transcript url="${escapeXml(episode.transcriptUrl)}" type="text/vtt" language="ja"/>`
     : "";
 
+  // エピソード固有のアートワークがある場合
+  const imageTag = episode.artworkUrl
+    ? `\n      <itunes:image href="${escapeXml(episode.artworkUrl)}"/>`
+    : "";
+
   // 音声URLはaudioUrlがあればそれを使い、なければsourceAudioUrl（外部参照）を使用
   const audioUrl = episode.audioUrl || episode.sourceAudioUrl || "";
 
@@ -125,7 +130,7 @@ function generateEpisodeItem(episode: EpisodeMeta, websiteUrl: string): string {
       <guid isPermaLink="false">${episode.sourceGuid || episode.slug || episode.id}</guid>
       <pubDate>${toRFC2822(episode.publishedAt!)}</pubDate>
       <itunes:duration>${formatDuration(episode.duration)}</itunes:duration>
-      <itunes:explicit>false</itunes:explicit>${transcriptTag}
+      <itunes:explicit>false</itunes:explicit>${imageTag}${transcriptTag}
     </item>`;
 }
 

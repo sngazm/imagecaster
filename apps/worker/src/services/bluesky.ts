@@ -282,8 +282,8 @@ export async function postEpisodeToBluesky(
       .replace(/\{\{TITLE\}\}/g, meta.title)
       .replace(/\{\{AUDIO_URL\}\}/g, meta.audioUrl || "");
 
-    // OGP画像URL（エピソード固有 > フォールバック）
-    const ogImageUrl = meta.ogImageUrl || fallbackImageUrl;
+    // サムネイル画像URL（エピソード固有のアートワーク > Podcastアートワーク）
+    const ogImageUrl = meta.artworkUrl || fallbackImageUrl;
 
     // 投稿
     const result = await createPost(

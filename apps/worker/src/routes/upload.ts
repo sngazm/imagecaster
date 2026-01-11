@@ -268,9 +268,9 @@ upload.post("/:id/upload-from-url", async (c) => {
 });
 
 /**
- * POST /api/episodes/:id/og-image/upload-url - エピソードOGP画像のPresigned URL発行
+ * POST /api/episodes/:id/artwork/upload-url - エピソードアートワークのPresigned URL発行
  */
-upload.post("/:id/og-image/upload-url", async (c) => {
+upload.post("/:id/artwork/upload-url", async (c) => {
   const id = c.req.param("id");
   const body = await c.req.json<{ contentType: string; fileSize: number }>();
 
@@ -290,7 +290,7 @@ upload.post("/:id/og-image/upload-url", async (c) => {
     const meta = await getEpisodeMeta(c.env, id);
 
     const extension = contentType === "image/png" ? "png" : "jpg";
-    const key = `episodes/${meta.slug}/og-image.${extension}`;
+    const key = `episodes/${meta.slug}/artwork.${extension}`;
 
     const r2 = new AwsClient({
       accessKeyId: c.env.R2_ACCESS_KEY_ID,
@@ -315,7 +315,7 @@ upload.post("/:id/og-image/upload-url", async (c) => {
     return c.json({
       uploadUrl: signedRequest.url,
       expiresIn: 3600,
-      ogImageUrl: `${c.env.WEBSITE_URL}/episodes/${meta.slug}/og-image.${extension}`,
+      artworkUrl: `${c.env.R2_PUBLIC_URL}/${key}`,
     });
   } catch {
     return c.json({ error: "Episode not found" }, 404);
@@ -323,18 +323,24 @@ upload.post("/:id/og-image/upload-url", async (c) => {
 });
 
 /**
- * POST /api/episodes/:id/og-image/upload-complete - エピソードOGP画像アップロード完了通知
+ * POST /api/episodes/:id/artwork/upload-complete - エピソードアートワークアップロード完了通知
  */
-upload.post("/:id/og-image/upload-complete", async (c) => {
+upload.post("/:id/artwork/upload-complete", async (c) => {
   const id = c.req.param("id");
-  const body = await c.req.json<{ ogImageUrl: string }>();
+  const body = await c.req.json<{ artworkUrl: string }>();
 
   try {
     const meta = await getEpisodeMeta(c.env, id);
-    meta.ogImageUrl = body.ogImageUrl;
+    meta.artworkUrl = body.artworkUrl;
     await saveEpisodeMeta(c.env, meta);
 
-    return c.json({ success: true, ogImageUrl: body.ogImageUrl });
+    // 公開済みの場合はフィードを再生成（<itunes:image>が変わる）
+    if (meta.status === "published") {
+      await regenerateFeed(c.env);
+      await triggerWebRebuild(c.env);
+    }
+
+    return c.json({ success: true, artworkUrl: body.artworkUrl });
   } catch {
     return c.json({ error: "Episode not found" }, 404);
   }

@@ -7,9 +7,8 @@ import { getPodcastOgImageUrl } from "../lib/og";
 const index = await getPodcastIndex();
 const podcast = index.podcast;
 
-// OGP画像（Astroで生成される /og/podcast.jpg を使用）
-const siteUrl = Astro.site?.toString() || "";
-const ogImageUrl = getPodcastOgImageUrl(siteUrl);
+// OGP画像（PodcastアートワークURLを直接使用）
+const ogImageUrl = getPodcastOgImageUrl(podcast.artworkUrl);
 ---
 
 <Layout title="番組について" description={podcast.description} ogImage={ogImageUrl}>

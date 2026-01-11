@@ -166,14 +166,14 @@ describe("Upload API", () => {
     });
   });
 
-  describe("POST /api/episodes/:id/og-image/upload-url", () => {
+  describe("POST /api/episodes/:id/artwork/upload-url", () => {
     it("rejects invalid content type", async () => {
       const { id } = await createTestEpisode({
-        title: "OG Image Content Type Test",
+        title: "Artwork Content Type Test",
       });
 
       const response = await SELF.fetch(
-        `http://localhost/api/episodes/${id}/og-image/upload-url`,
+        `http://localhost/api/episodes/${id}/artwork/upload-url`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -192,11 +192,11 @@ describe("Upload API", () => {
 
     it("rejects file too large", async () => {
       const { id } = await createTestEpisode({
-        title: "OG Image Size Test",
+        title: "Artwork Size Test",
       });
 
       const response = await SELF.fetch(
-        `http://localhost/api/episodes/${id}/og-image/upload-url`,
+        `http://localhost/api/episodes/${id}/artwork/upload-url`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -215,7 +215,7 @@ describe("Upload API", () => {
 
     it("returns 404 for non-existent episode", async () => {
       const response = await SELF.fetch(
-        "http://localhost/api/episodes/non-existent-id/og-image/upload-url",
+        "http://localhost/api/episodes/non-existent-id/artwork/upload-url",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -230,20 +230,20 @@ describe("Upload API", () => {
     });
   });
 
-  describe("POST /api/episodes/:id/og-image/upload-complete", () => {
-    it("updates ogImageUrl in episode metadata", async () => {
+  describe("POST /api/episodes/:id/artwork/upload-complete", () => {
+    it("updates artworkUrl in episode metadata", async () => {
       const { id } = await createTestEpisode({
-        title: "OG Image Complete Test",
+        title: "Artwork Complete Test",
       });
 
-      const ogImageUrl = "https://example.com/og-image.jpg";
+      const artworkUrl = "https://example.com/artwork.jpg";
 
       const response = await SELF.fetch(
-        `http://localhost/api/episodes/${id}/og-image/upload-complete`,
+        `http://localhost/api/episodes/${id}/artwork/upload-complete`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ogImageUrl }),
+          body: JSON.stringify({ artworkUrl }),
         }
       );
 
@@ -251,24 +251,24 @@ describe("Upload API", () => {
 
       const json = await response.json();
       expect(json.success).toBe(true);
-      expect(json.ogImageUrl).toBe(ogImageUrl);
+      expect(json.artworkUrl).toBe(artworkUrl);
 
       // 詳細を取得して確認
       const detailResponse = await SELF.fetch(
         `http://localhost/api/episodes/${id}`
       );
       const detail = await detailResponse.json();
-      expect(detail.ogImageUrl).toBe(ogImageUrl);
+      expect(detail.artworkUrl).toBe(artworkUrl);
     });
 
     it("returns 404 for non-existent episode", async () => {
       const response = await SELF.fetch(
-        "http://localhost/api/episodes/non-existent-id/og-image/upload-complete",
+        "http://localhost/api/episodes/non-existent-id/artwork/upload-complete",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            ogImageUrl: "https://example.com/og-image.jpg",
+            artworkUrl: "https://example.com/artwork.jpg",
           }),
         }
       );
