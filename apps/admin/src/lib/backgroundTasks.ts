@@ -33,12 +33,12 @@ export async function runApplePodcastsAutoFetch(
     return;
   }
 
-  // 公開から1日以上経過 & applePodcastsUrl が未設定のエピソードを抽出
-  const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+  // 公開から1時間以上経過 & applePodcastsUrl が未設定のエピソードを抽出
+  const oneHourAgo = Date.now() - 60 * 60 * 1000;
   const targetEpisodes = episodes.filter((ep) => {
     if (ep.status !== "published" || ep.applePodcastsUrl) return false;
     const publishedAt = ep.publishedAt ? new Date(ep.publishedAt).getTime() : 0;
-    return publishedAt > 0 && publishedAt < oneDayAgo;
+    return publishedAt > 0 && publishedAt < oneHourAgo;
   });
 
   if (targetEpisodes.length === 0) {
