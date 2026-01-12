@@ -38,22 +38,23 @@ Podcast音声の自動文字起こしワーカー。ローカルWindows環境で
 ### ソフトウェア
 
 - Python 3.10以上
+- uv（Pythonパッケージマネージャー）
 - FFmpeg（PATHに追加）
 - CUDA Toolkit 11.8以上（GPU使用時）
 
 ## インストール
 
 ```bash
+# uvインストール（未インストールの場合）
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
 # リポジトリクローン
 git clone https://github.com/sngazm/imagecaster-transcriber.git
 cd imagecaster-transcriber
 
-# 仮想環境作成
-python -m venv venv
-venv\Scripts\activate
-
-# 依存関係インストール
-pip install -r requirements.txt
+# 依存関係インストール（仮想環境も自動作成）
+uv sync
 
 # 設定ファイル作成
 copy config.example.yaml config.yaml
@@ -105,16 +106,17 @@ retry:
 ```
 imagecaster-transcriber/
 ├── src/
-│   ├── __init__.py
-│   ├── main.py              # エントリーポイント
-│   ├── config.py            # 設定読み込み
-│   ├── api_client.py        # imagecaster APIクライアント
-│   ├── transcriber.py       # Whisper文字起こし処理
-│   ├── worker.py            # メインワーカーループ
-│   └── utils/
+│   └── imagecaster_transcriber/
 │       ├── __init__.py
-│       ├── logging.py       # ログ設定
-│       └── retry.py         # リトライ処理
+│       ├── __main__.py          # エントリーポイント
+│       ├── config.py            # 設定読み込み
+│       ├── api_client.py        # imagecaster APIクライアント
+│       ├── transcriber.py       # Whisper文字起こし処理
+│       ├── worker.py            # メインワーカーループ
+│       └── utils/
+│           ├── __init__.py
+│           ├── logging.py       # ログ設定
+│           └── retry.py         # リトライ処理
 ├── tests/
 │   ├── __init__.py
 │   ├── test_api_client.py
@@ -122,7 +124,8 @@ imagecaster-transcriber/
 │   └── test_worker.py
 ├── config.example.yaml
 ├── config.yaml              # .gitignore対象
-├── requirements.txt
+├── pyproject.toml           # プロジェクト設定・依存関係
+├── uv.lock                  # ロックファイル
 ├── README.md
 └── run.bat                  # Windows起動スクリプト
 ```
@@ -319,16 +322,16 @@ class Segment:
 
 ```bash
 # 通常起動（デーモンモード）
-python -m src.main
+uv run imagecaster-transcriber
 
 # 設定ファイル指定
-python -m src.main --config /path/to/config.yaml
+uv run imagecaster-transcriber --config /path/to/config.yaml
 
 # デバッグモード
-python -m src.main --debug
+uv run imagecaster-transcriber --debug
 
 # 一回だけ実行（テスト用）
-python -m src.main --once
+uv run imagecaster-transcriber --once
 ```
 
 ### オプション
@@ -346,8 +349,7 @@ python -m src.main --once
 ```batch
 @echo off
 cd /d "%~dp0"
-call venv\Scripts\activate
-python -m src.main %*
+uv run imagecaster-transcriber %*
 ```
 
 ### タスクスケジューラ登録（自動起動）
@@ -455,41 +457,74 @@ signal.signal(signal.SIGTERM, signal_handler)
 
 ## 依存関係
 
-### requirements.txt
+### pyproject.toml
 
-```
-# Core
-pyyaml>=6.0
-requests>=2.31
-pydantic>=2.0
+```toml
+[project]
+name = "imagecaster-transcriber"
+version = "0.1.0"
+description = "Podcast transcription worker for imagecaster"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    # Core
+    "pyyaml>=6.0",
+    "httpx>=0.27",
+    "pydantic>=2.0",
+    # Whisper
+    "faster-whisper>=1.0.0",
+    # Utilities
+    "colorlog>=6.0",
+]
 
-# Whisper (選択)
-# openai-whisper>=20231117  # 公式Whisper
-faster-whisper>=1.0.0        # faster-whisper（推奨）
+[project.scripts]
+imagecaster-transcriber = "imagecaster_transcriber.__main__:main"
 
-# Utilities
-python-dotenv>=1.0
-colorlog>=6.0
+[tool.uv]
+dev-dependencies = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.8",
+    "mypy>=1.0",
+]
 
-# Development
-pytest>=7.0
-pytest-cov>=4.0
-black>=23.0
-ruff>=0.1
-mypy>=1.0
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/imagecaster_transcriber"]
 ```
 
 ## テスト
 
 ```bash
 # 全テスト実行
-pytest
+uv run pytest
 
 # カバレッジ付き
-pytest --cov=src --cov-report=html
+uv run pytest --cov=src --cov-report=html
 
 # 特定テスト
-pytest tests/test_transcriber.py -v
+uv run pytest tests/test_transcriber.py -v
+
+# リント
+uv run ruff check .
+
+# 型チェック
+uv run mypy src
 ```
 
 ## 将来の拡張予定
