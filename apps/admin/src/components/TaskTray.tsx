@@ -126,7 +126,7 @@ export function TaskTray() {
   const runningCount = tasks.filter((t) => t.status === "running").length;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-80">
+    <div className="task-tray">
       {/* ヘッダー（折りたたみ可能） */}
       <button
         onClick={() => setIsCollapsed(!isCollapsed)}

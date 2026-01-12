@@ -1,6 +1,7 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { BuildStatus } from "./BuildStatus";
 import { useTheme, type ThemeMode } from "../hooks/useTheme";
+import { useMobileMenu } from "../contexts/MobileMenuContext";
 
 interface NavItem {
   to: string;
@@ -63,6 +64,7 @@ const navItems: NavItem[] = [
 export function Sidebar() {
   const location = useLocation();
   const { mode, cycleTheme } = useTheme();
+  const { isOpen, close } = useMobileMenu();
 
   // 新規作成・詳細ページのときもエピソードをアクティブにする
   const isEpisodesActive = location.pathname === "/" ||
@@ -71,89 +73,116 @@ export function Sidebar() {
 
   const currentTheme = themeConfig[mode];
 
+  // ナビゲーション時にモバイルメニューを閉じる
+  const handleNavClick = () => {
+    close();
+  };
+
   return (
-    <aside className="sidebar">
-      {/* Logo / Brand */}
-      <div className="px-4 py-5 border-b border-[var(--color-border)]">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-[var(--color-accent)] flex items-center justify-center">
-            <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-            </svg>
-          </div>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-sm font-semibold text-[var(--color-text-primary)] truncate">
-              Image Cast
-            </h1>
-            <p className="text-xs text-[var(--color-text-muted)] truncate">
-              管理画面
-            </p>
-          </div>
-        </div>
-      </div>
+    <>
+      {/* オーバーレイ（モバイルのみ） */}
+      <div
+        className={`sidebar-overlay ${isOpen ? "open" : ""}`}
+        onClick={close}
+        aria-hidden="true"
+      />
 
-      {/* Navigation */}
-      <nav className="flex-1 py-3 overflow-y-auto">
-        <div className="space-y-1">
-          {navItems.map((item) => {
-            const isActive = item.exact
-              ? isEpisodesActive && item.to === "/"
-              : location.pathname === item.to;
-
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={`sidebar-nav-item ${isActive ? "active" : ""}`}
-              >
-                {item.icon}
-                <span>{item.label}</span>
-              </NavLink>
-            );
-          })}
-        </div>
-
-        {/* New Episode Button */}
-        <div className="px-2 mt-4">
-          <NavLink
-            to="/new"
-            className="flex items-center justify-center gap-2 w-full px-3 py-2 bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white text-sm font-medium rounded-md transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-            新規エピソード
-          </NavLink>
-        </div>
-      </nav>
-
-      {/* Footer */}
-      <div className="border-t border-[var(--color-border)]">
-        {/* Theme Switcher */}
-        <div className="px-4 py-3 border-b border-[var(--color-border)]">
-          <button
-            onClick={cycleTheme}
-            className="flex items-center justify-between w-full group"
-            title="クリックでテーマを切り替え"
-          >
-            <span className="text-xs text-[var(--color-text-muted)]">テーマ</span>
-            <span className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)] group-hover:text-[var(--color-text-primary)] transition-colors">
-              {currentTheme.icon}
-              <span>{currentTheme.label}</span>
-            </span>
-          </button>
-        </div>
-
-        {/* Build Status */}
-        <div className="px-4 py-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-[var(--color-text-muted)]">
-              ビルド状況
-            </span>
-            <BuildStatus />
+      {/* サイドバー */}
+      <aside className={`sidebar ${isOpen ? "open" : ""}`}>
+        {/* Logo / Brand */}
+        <div className="px-4 py-5 border-b border-[var(--color-border)]">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-[var(--color-accent)] flex items-center justify-center">
+              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-sm font-semibold text-[var(--color-text-primary)] truncate">
+                Image Cast
+              </h1>
+              <p className="text-xs text-[var(--color-text-muted)] truncate">
+                管理画面
+              </p>
+            </div>
+            {/* モバイル用閉じるボタン */}
+            <button
+              onClick={close}
+              className="md:hidden p-2 -mr-2 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+              aria-label="メニューを閉じる"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         </div>
-      </div>
-    </aside>
+
+        {/* Navigation */}
+        <nav className="flex-1 py-3 overflow-y-auto">
+          <div className="space-y-1">
+            {navItems.map((item) => {
+              const isActive = item.exact
+                ? isEpisodesActive && item.to === "/"
+                : location.pathname === item.to;
+
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={`sidebar-nav-item ${isActive ? "active" : ""}`}
+                  onClick={handleNavClick}
+                >
+                  {item.icon}
+                  <span>{item.label}</span>
+                </NavLink>
+              );
+            })}
+          </div>
+
+          {/* New Episode Button */}
+          <div className="px-2 mt-4">
+            <NavLink
+              to="/new"
+              className="flex items-center justify-center gap-2 w-full px-3 py-2 bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white text-sm font-medium rounded-md transition-colors"
+              onClick={handleNavClick}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              新規エピソード
+            </NavLink>
+          </div>
+        </nav>
+
+        {/* Footer */}
+        <div className="border-t border-[var(--color-border)]">
+          {/* Theme Switcher */}
+          <div className="px-4 py-3 border-b border-[var(--color-border)]">
+            <button
+              onClick={cycleTheme}
+              className="flex items-center justify-between w-full group"
+              title="クリックでテーマを切り替え"
+            >
+              <span className="text-xs text-[var(--color-text-muted)]">テーマ</span>
+              <span className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)] group-hover:text-[var(--color-text-primary)] transition-colors">
+                {currentTheme.icon}
+                <span>{currentTheme.label}</span>
+              </span>
+            </button>
+          </div>
+
+          {/* Build Status */}
+          <div className="px-4 py-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-[var(--color-text-muted)]">
+                ビルド状況
+              </span>
+              <BuildStatus />
+            </div>
+          </div>
+        </div>
+      </aside>
+    </>
   );
 }

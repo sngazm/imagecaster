@@ -616,10 +616,10 @@ export default function Settings() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 border-b border-[var(--color-border)]">
+      <div className="flex gap-1 mb-6 border-b border-[var(--color-border)] overflow-x-auto scrollbar-hide">
         <button
           onClick={() => setActiveTab("general")}
-          className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+          className={`px-4 py-2.5 text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
             activeTab === "general"
               ? "text-[var(--color-accent)] border-b-2 border-[var(--color-accent)]"
               : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
@@ -629,7 +629,7 @@ export default function Settings() {
         </button>
         <button
           onClick={() => setActiveTab("templates")}
-          className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+          className={`px-4 py-2.5 text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
             activeTab === "templates"
               ? "text-[var(--color-accent)] border-b-2 border-[var(--color-accent)]"
               : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
@@ -639,7 +639,7 @@ export default function Settings() {
         </button>
         <button
           onClick={() => setActiveTab("import")}
-          className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+          className={`px-4 py-2.5 text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
             activeTab === "import"
               ? "text-[var(--color-accent)] border-b-2 border-[var(--color-accent)]"
               : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
@@ -649,7 +649,7 @@ export default function Settings() {
         </button>
         <button
           onClick={() => setActiveTab("backup")}
-          className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+          className={`px-4 py-2.5 text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
             activeTab === "backup"
               ? "text-[var(--color-accent)] border-b-2 border-[var(--color-accent)]"
               : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
@@ -659,7 +659,7 @@ export default function Settings() {
         </button>
         <button
           onClick={() => setActiveTab("danger")}
-          className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+          className={`px-4 py-2.5 text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
             activeTab === "danger"
               ? "text-[var(--color-error)] border-b-2 border-[var(--color-error)]"
               : "text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
