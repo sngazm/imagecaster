@@ -37,7 +37,7 @@ export async function getTranscriptText(transcriptUrl: string): Promise<string> 
   }
 }
 
-const R2_PUBLIC_URL = import.meta.env.R2_PUBLIC_URL || "";
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || "";
 
 // ビルド時キャッシュ（同じデータを何度も取得しないようにする）
 let cachedPodcastIndex: PodcastIndex | null = null;
