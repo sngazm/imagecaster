@@ -136,8 +136,8 @@ export default function EpisodeDetail() {
         updateData.slug = editSlug;
       }
 
-      // skipTranscriptionの変更はdraft/failed状態のみ
-      if ((episode.status === "draft" || episode.status === "failed") && editSkipTranscription !== episode.skipTranscription) {
+      // skipTranscriptionの変更は文字起こしがまだない場合のみ
+      if (!episode.transcriptUrl && editSkipTranscription !== episode.skipTranscription) {
         updateData.skipTranscription = editSkipTranscription;
       }
 
@@ -532,8 +532,8 @@ export default function EpisodeDetail() {
             </h2>
             {isEditing ? (
               <div className="space-y-4">
-                {/* skipTranscription: draft/failed 状態のみ編集可能 */}
-                {(episode.status === "draft" || episode.status === "failed") && (
+                {/* skipTranscription: 文字起こしがまだない場合は編集可能 */}
+                {!episode.transcriptUrl && (
                   <label className="flex items-start gap-3 p-4 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg cursor-pointer hover:border-[var(--color-border-strong)] transition-colors">
                     <input
                       type="checkbox"
@@ -546,7 +546,9 @@ export default function EpisodeDetail() {
                         文字起こしをスキップする
                       </span>
                       <span className="block text-xs text-[var(--color-text-muted)] mt-1">
-                        チェックすると、アップロード後の自動文字起こしが実行されません
+                        {episode.skipTranscription
+                          ? "チェックを外すと文字起こしが開始されます"
+                          : "チェックすると、アップロード後の自動文字起こしが実行されません"}
                       </span>
                     </div>
                   </label>
