@@ -105,6 +105,8 @@ export interface EpisodeMeta {
   applePodcastsUrl: string | null; // エピソード個別URL
   // Spotify
   spotifyUrl: string | null; // エピソード個別URL
+  // 文字起こしロック（ソフトロック、1時間で自動解除）
+  transcriptionLockedAt?: string | null;
 }
 
 /**
@@ -145,6 +147,43 @@ export interface UpdateEpisodeRequest {
 export interface TranscriptionCompleteRequest {
   status: "completed" | "failed";
   duration?: number;
+}
+
+/**
+ * 文字起こしセグメント（Whisper互換 + 話者情報対応）
+ */
+export interface TranscriptSegment {
+  start: number; // 開始時間（秒）
+  end: number; // 終了時間（秒）
+  text: string;
+  speaker?: string; // 話者ID（将来の話者分離用）
+}
+
+/**
+ * 文字起こしJSON形式（R2に保存）
+ */
+export interface TranscriptData {
+  segments: TranscriptSegment[];
+  language?: string;
+}
+
+/**
+ * 文字起こしキューのエピソード情報
+ */
+export interface TranscriptionQueueItem {
+  id: string;
+  slug: string;
+  title: string;
+  audioUrl: string;
+  duration: number;
+  lockedAt: string; // ロック取得時刻
+}
+
+/**
+ * 文字起こしキューレスポンス
+ */
+export interface TranscriptionQueueResponse {
+  episodes: TranscriptionQueueItem[];
 }
 
 /**

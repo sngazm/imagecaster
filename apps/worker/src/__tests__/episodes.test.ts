@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { SELF } from "cloudflare:test";
+import { SELF, env } from "cloudflare:test";
+import type { TranscriptData } from "../types";
 
 /**
  * テスト用ヘルパー: エピソードを作成してIDを返す
@@ -192,6 +193,23 @@ describe("Episodes API - CRUD Operations", () => {
   });
 });
 
+/**
+ * テスト用ヘルパー: transcript.json をR2にアップロード
+ */
+async function uploadTranscriptJson(id: string): Promise<void> {
+  const transcriptData: TranscriptData = {
+    segments: [
+      { start: 0, end: 2.5, text: "テストセグメント" },
+    ],
+    language: "ja",
+  };
+  await env.R2_BUCKET.put(
+    `episodes/${id}/transcript.json`,
+    JSON.stringify(transcriptData),
+    { httpMetadata: { contentType: "application/json" } }
+  );
+}
+
 describe("Episodes API - Transcription", () => {
   describe("POST /api/episodes/:id/transcription-complete", () => {
     it("marks transcription as completed and sets status to scheduled", async () => {
@@ -202,8 +220,8 @@ describe("Episodes API - Transcription", () => {
         skipTranscription: false,
       });
 
-      // 先にステータスを transcribing に設定するため、メタデータを直接操作できないので
-      // transcription-complete は transcribing 状態でなくても動作することをテスト
+      // transcript.json をR2にアップロード
+      await uploadTranscriptJson(id);
 
       const response = await SELF.fetch(
         `http://localhost/api/episodes/${id}/transcription-complete`,
@@ -254,6 +272,9 @@ describe("Episodes API - Transcription", () => {
         title: "Draft After Transcription",
         publishAt: null,
       });
+
+      // transcript.json をR2にアップロード
+      await uploadTranscriptJson(id);
 
       const response = await SELF.fetch(
         `http://localhost/api/episodes/${id}/transcription-complete`,
