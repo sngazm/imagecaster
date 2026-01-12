@@ -56,7 +56,6 @@ function getDefaultPodcastIndex(): PodcastIndex {
       language: "ja",
       category: "Technology",
       artworkUrl: "",
-      ogImageUrl: "",
       websiteUrl: "",
       explicit: false,
     },
