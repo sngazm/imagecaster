@@ -17,6 +17,7 @@ function parseRssXml(xml: string): Array<{
   audioUrl: string;
   fileSize: number;
   guid: string;
+  artworkUrl: string;
 }> {
   const episodes: Array<{
     title: string;
@@ -26,6 +27,7 @@ function parseRssXml(xml: string): Array<{
     audioUrl: string;
     fileSize: number;
     guid: string;
+    artworkUrl: string;
   }> = [];
 
   // <item>タグを抽出
@@ -77,6 +79,10 @@ function parseRssXml(xml: string): Array<{
     const guidMatch = itemContent.match(/<guid[^>]*>([\s\S]*?)<\/guid>/i);
     const guid = guidMatch ? guidMatch[1].trim() : "";
 
+    // アートワークURL (itunes:image href属性)
+    const artworkMatch = itemContent.match(/<itunes:image[^>]*href=["']([^"']+)["']/i);
+    const artworkUrl = artworkMatch ? artworkMatch[1].trim() : "";
+
     if (title && audioUrl) {
       episodes.push({
         title,
@@ -86,6 +92,7 @@ function parseRssXml(xml: string): Array<{
         audioUrl,
         fileSize,
         guid,
+        artworkUrl,
       });
     }
   }
@@ -340,7 +347,7 @@ importRoutes.post("/rss", async (c) => {
       sourceAudioUrl: importAudio ? null : rssEp.audioUrl,
       sourceGuid: rssEp.guid || null, // GUIDを保存（差分インポート用）
       transcriptUrl: null,
-      artworkUrl: null,
+      artworkUrl: rssEp.artworkUrl || null, // RSSからエピソードアートワークを取得
       skipTranscription: true,
       status: "published",
       createdAt: now,
@@ -498,6 +505,8 @@ importRoutes.post("/rss/preview", async (c) => {
       duration: ep.duration,
       fileSize: ep.fileSize,
       hasAudio: !!ep.audioUrl,
+      hasArtwork: !!ep.artworkUrl,
+      artworkUrl: ep.artworkUrl || null,
       slug,
       originalSlug,
       hasConflict,
