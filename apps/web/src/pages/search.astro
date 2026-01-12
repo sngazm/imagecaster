@@ -90,7 +90,9 @@ import Layout from "../layouts/Layout.astro";
       `;
 
       try {
-        const search = await pagefind.search(query);
+        // 日本語検索のためクエリを単語分割
+        const segmentedQuery = segmentSearchQuery(query);
+        const search = await pagefind.search(segmentedQuery);
         const results = await Promise.all(
           search.results.slice(0, 20).map((r) => r.data())
         );
@@ -155,6 +157,31 @@ import Layout from "../layouts/Layout.astro";
     const div = document.createElement("div");
     div.textContent = str;
     return div.innerHTML;
+  }
+
+  // 日本語検索クエリをセグメント化する
+  // Pagefindは検索クエリのセグメンテーションをサポートしていないため、
+  // Intl.Segmenterを使って事前に単語分割する
+  function segmentSearchQuery(query) {
+    // Intl.Segmenterがサポートされていない場合はそのまま返す
+    if (typeof Intl.Segmenter === "undefined") {
+      return query;
+    }
+
+    try {
+      const segmenter = new Intl.Segmenter("ja", { granularity: "word" });
+      const segments = Array.from(segmenter.segment(query));
+
+      // 単語のみを抽出してスペースで結合
+      const words = segments
+        .filter((s) => s.isWordLike)
+        .map((s) => s.segment);
+
+      return words.join(" ");
+    } catch (e) {
+      console.warn("Segmentation failed, using original query:", e);
+      return query;
+    }
   }
 
   // 初回ロード時とView Transitionsでのページ遷移時に実行
