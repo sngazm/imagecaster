@@ -55,10 +55,10 @@ export default function EpisodeDetail() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState("");
 
-  // OGP image upload
-  const [ogImageFile, setOgImageFile] = useState<File | null>(null);
-  const [ogImagePreview, setOgImagePreview] = useState<string | null>(null);
-  const [uploadingOgImage, setUploadingOgImage] = useState(false);
+  // Episode artwork upload
+  const [artworkFile, setArtworkFile] = useState<File | null>(null);
+  const [artworkPreview, setArtworkPreview] = useState<string | null>(null);
+  const [uploadingArtwork, setUploadingArtwork] = useState(false);
 
   // Website URL
   const [baseWebsiteUrl, setBaseWebsiteUrl] = useState<string>("");
@@ -195,37 +195,37 @@ export default function EpisodeDetail() {
     setShowTemplates(false);
   };
 
-  const handleOgImageUpload = async () => {
-    if (!id || !ogImageFile) return;
+  const handleArtworkUpload = async () => {
+    if (!id || !artworkFile) return;
 
-    setUploadingOgImage(true);
+    setUploadingArtwork(true);
     setError(null);
 
     try {
-      const { uploadUrl, ogImageUrl } = await api.getEpisodeOgImageUploadUrl(
+      const { uploadUrl, artworkUrl } = await api.getEpisodeArtworkUploadUrl(
         id,
-        ogImageFile.type,
-        ogImageFile.size
+        artworkFile.type,
+        artworkFile.size
       );
 
-      await uploadToR2(uploadUrl, ogImageFile);
-      await api.completeEpisodeOgImageUpload(id, ogImageUrl);
+      await uploadToR2(uploadUrl, artworkFile);
+      await api.completeEpisodeArtworkUpload(id, artworkUrl);
 
-      setEpisode((prev) => (prev ? { ...prev, ogImageUrl } : null));
-      setOgImageFile(null);
-      setOgImagePreview(null);
+      setEpisode((prev) => (prev ? { ...prev, artworkUrl } : null));
+      setArtworkFile(null);
+      setArtworkPreview(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "OGP画像のアップロードに失敗しました");
+      setError(err instanceof Error ? err.message : "アートワークのアップロードに失敗しました");
     } finally {
-      setUploadingOgImage(false);
+      setUploadingArtwork(false);
     }
   };
 
-  const handleOgImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleArtworkSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setOgImageFile(file);
-      setOgImagePreview(URL.createObjectURL(file));
+      setArtworkFile(file);
+      setArtworkPreview(URL.createObjectURL(file));
     }
   };
 
@@ -537,23 +537,23 @@ export default function EpisodeDetail() {
             )}
           </div>
 
-          {/* OGP画像 */}
+          {/* アートワーク */}
           <div className="card p-6">
             <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-4 flex items-center gap-2">
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
               </svg>
-              OGP画像
+              アートワーク
             </h2>
             <p className="text-xs text-[var(--color-text-muted)] mb-4">
-              SNSでこのエピソードがシェアされた時に表示される画像です。
+              このエピソード専用のアートワークです。未設定の場合はPodcastのアートワークが使用されます。
             </p>
             <div className="flex items-start gap-6">
-              <div className="w-48 h-24 rounded-lg bg-[var(--color-bg-elevated)] overflow-hidden flex-shrink-0">
-                {(ogImagePreview || episode.ogImageUrl) ? (
+              <div className="w-24 h-24 rounded-lg bg-[var(--color-bg-elevated)] overflow-hidden flex-shrink-0">
+                {(artworkPreview || episode.artworkUrl) ? (
                   <img
-                    src={ogImagePreview || episode.ogImageUrl || ""}
-                    alt="OGP image"
+                    src={artworkPreview || episode.artworkUrl || ""}
+                    alt="Episode artwork"
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -568,33 +568,33 @@ export default function EpisodeDetail() {
                 <input
                   type="file"
                   accept="image/jpeg,image/png"
-                  onChange={handleOgImageSelect}
+                  onChange={handleArtworkSelect}
                   className="hidden"
-                  id="episode-og-image-upload"
+                  id="episode-artwork-upload"
                 />
                 <label
-                  htmlFor="episode-og-image-upload"
+                  htmlFor="episode-artwork-upload"
                   className="btn btn-secondary inline-block cursor-pointer"
                 >
                   画像を選択
                 </label>
-                {ogImageFile && (
+                {artworkFile && (
                   <div className="mt-3">
                     <p className="text-sm text-[var(--color-text-secondary)] mb-2">
-                      {ogImageFile.name} ({(ogImageFile.size / 1024 / 1024).toFixed(2)} MB)
+                      {artworkFile.name} ({(artworkFile.size / 1024 / 1024).toFixed(2)} MB)
                     </p>
                     <button
                       type="button"
-                      onClick={handleOgImageUpload}
-                      disabled={uploadingOgImage}
+                      onClick={handleArtworkUpload}
+                      disabled={uploadingArtwork}
                       className="btn btn-primary"
                     >
-                      {uploadingOgImage ? "アップロード中..." : "アップロード"}
+                      {uploadingArtwork ? "アップロード中..." : "アップロード"}
                     </button>
                   </div>
                 )}
                 <p className="text-xs text-[var(--color-text-muted)] mt-2">
-                  推奨: 1200x630px、JPEGまたはPNG、最大5MB
+                  推奨: 1400x1400px以上の正方形、JPEGまたはPNG、最大5MB
                 </p>
               </div>
             </div>

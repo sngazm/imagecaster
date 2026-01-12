@@ -40,7 +40,6 @@ export interface PodcastIndex {
     language: string;
     category: string;
     artworkUrl: string;
-    ogImageUrl: string; // OGP画像URL
     websiteUrl: string;
     explicit: boolean;
     applePodcastsId: string | null; // Apple Podcasts ID (collectionId)
@@ -90,7 +89,7 @@ export interface EpisodeMeta {
   sourceAudioUrl: string | null; // 外部参照の音声URL（インポート時）
   sourceGuid: string | null; // RSSのGUID（差分インポート用）
   transcriptUrl: string | null;
-  ogImageUrl: string | null; // OGP画像URL
+  artworkUrl: string | null; // エピソード固有のアートワーク（nullの場合はPodcastのアートワークを使用）
   skipTranscription: boolean;
   status: EpisodeStatus;
   createdAt: string;

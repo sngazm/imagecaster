@@ -47,11 +47,6 @@ export default function Settings() {
   const [artworkPreview, setArtworkPreview] = useState<string | null>(null);
   const [uploadingArtwork, setUploadingArtwork] = useState(false);
 
-  // OGP image upload
-  const [ogImageFile, setOgImageFile] = useState<File | null>(null);
-  const [ogImagePreview, setOgImagePreview] = useState<string | null>(null);
-  const [uploadingOgImage, setUploadingOgImage] = useState(false);
-
   // Template editing
   const [editingTemplate, setEditingTemplate] = useState<DescriptionTemplate | null>(null);
   const [newTemplateName, setNewTemplateName] = useState("");
@@ -153,41 +148,6 @@ export default function Settings() {
     if (file) {
       setArtworkFile(file);
       setArtworkPreview(URL.createObjectURL(file));
-    }
-  }
-
-  async function handleOgImageUpload() {
-    if (!ogImageFile) return;
-
-    setUploadingOgImage(true);
-    setError(null);
-
-    try {
-      const { uploadUrl, ogImageUrl } = await api.getOgImageUploadUrl(
-        ogImageFile.type,
-        ogImageFile.size
-      );
-
-      await uploadToR2(uploadUrl, ogImageFile);
-      await api.completeOgImageUpload(ogImageUrl);
-
-      setSettings((prev) => (prev ? { ...prev, ogImageUrl } : null));
-      setOgImageFile(null);
-      setOgImagePreview(null);
-      setSuccess("OGP画像をアップロードしました");
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to upload OGP image");
-    } finally {
-      setUploadingOgImage(false);
-    }
-  }
-
-  function handleOgImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) {
-      setOgImageFile(file);
-      setOgImagePreview(URL.createObjectURL(file));
     }
   }
 
@@ -352,10 +312,9 @@ export default function Settings() {
       manifest.episodes.forEach((ep) => {
         if (ep.files.audio) totalFiles++;
         if (ep.files.transcript) totalFiles++;
-        if (ep.files.ogImage) totalFiles++;
+        if (ep.files.artwork) totalFiles++;
       });
       if (manifest.assets.artwork) totalFiles++;
-      if (manifest.assets.ogImage) totalFiles++;
 
       let downloadedFiles = 0;
       setExportProgress({ current: 0, total: totalFiles });
@@ -376,10 +335,10 @@ export default function Settings() {
           downloadedFiles++;
           setExportProgress({ current: downloadedFiles, total: totalFiles });
         }
-        if (ep.files.ogImage) {
-          const response = await fetch(ep.files.ogImage.url);
+        if (ep.files.artwork) {
+          const response = await fetch(ep.files.artwork.url);
           const blob = await response.blob();
-          zip.file(ep.files.ogImage.key, blob);
+          zip.file(ep.files.artwork.key, blob);
           downloadedFiles++;
           setExportProgress({ current: downloadedFiles, total: totalFiles });
         }
@@ -390,13 +349,6 @@ export default function Settings() {
         const response = await fetch(manifest.assets.artwork.url);
         const blob = await response.blob();
         zip.file(manifest.assets.artwork.key, blob);
-        downloadedFiles++;
-        setExportProgress({ current: downloadedFiles, total: totalFiles });
-      }
-      if (manifest.assets.ogImage) {
-        const response = await fetch(manifest.assets.ogImage.url);
-        const blob = await response.blob();
-        zip.file(manifest.assets.ogImage.key, blob);
         downloadedFiles++;
         setExportProgress({ current: downloadedFiles, total: totalFiles });
       }
@@ -452,10 +404,9 @@ export default function Settings() {
           meta: ep.meta,
           hasAudio: !!ep.files.audio,
           hasTranscript: !!ep.files.transcript,
-          hasOgImage: !!ep.files.ogImage,
+          hasArtwork: !!ep.files.artwork,
         })),
         hasArtwork: !!manifest.assets.artwork,
-        hasOgImage: !!manifest.assets.ogImage,
       };
 
       // インポート開始 - アップロードURLを取得
@@ -466,10 +417,9 @@ export default function Settings() {
       importResult.uploadUrls.episodes.forEach((ep) => {
         if (ep.audio) totalFiles++;
         if (ep.transcript) totalFiles++;
-        if (ep.ogImage) totalFiles++;
+        if (ep.artwork) totalFiles++;
       });
       if (importResult.uploadUrls.assets.artwork) totalFiles++;
-      if (importResult.uploadUrls.assets.ogImage) totalFiles++;
 
       let uploadedFiles = 0;
       setImportProgress({ current: 0, total: totalFiles, phase: "ファイルをアップロード中..." });
@@ -505,11 +455,11 @@ export default function Settings() {
             setImportProgress({ current: uploadedFiles, total: totalFiles, phase: "ファイルをアップロード中..." });
           }
         }
-        if (epUrl.ogImage && epData.files.ogImage) {
-          const fileData = zip.file(epData.files.ogImage.key);
+        if (epUrl.artwork && epData.files.artwork) {
+          const fileData = zip.file(epData.files.artwork.key);
           if (fileData) {
             const blob = await fileData.async("blob");
-            await fetch(epUrl.ogImage, {
+            await fetch(epUrl.artwork, {
               method: "PUT",
               body: blob,
               headers: { "Content-Type": "image/jpeg" },
@@ -534,19 +484,6 @@ export default function Settings() {
           setImportProgress({ current: uploadedFiles, total: totalFiles, phase: "ファイルをアップロード中..." });
         }
       }
-      if (importResult.uploadUrls.assets.ogImage && manifest.assets.ogImage) {
-        const fileData = zip.file(manifest.assets.ogImage.key);
-        if (fileData) {
-          const blob = await fileData.async("blob");
-          await fetch(importResult.uploadUrls.assets.ogImage, {
-            method: "PUT",
-            body: blob,
-            headers: { "Content-Type": "image/jpeg" },
-          });
-          uploadedFiles++;
-          setImportProgress({ current: uploadedFiles, total: totalFiles, phase: "ファイルをアップロード中..." });
-        }
-      }
 
       setImportProgress({ current: uploadedFiles, total: totalFiles, phase: "インポートを完了中..." });
 
@@ -556,11 +493,10 @@ export default function Settings() {
           id: ep.meta.id,
           hasAudio: !!ep.files.audio,
           hasTranscript: !!ep.files.transcript,
-          hasOgImage: !!ep.files.ogImage,
+          hasArtwork: !!ep.files.artwork,
           status: ep.meta.status as "draft" | "scheduled" | "published",
         })),
         hasArtwork: !!manifest.assets.artwork,
-        hasOgImage: !!manifest.assets.ogImage,
       });
 
       setSuccess(`${manifest.episodes.length}件のエピソードをインポートしました`);
@@ -722,64 +658,6 @@ export default function Settings() {
                 )}
                 <p className="text-xs text-[var(--color-text-muted)] mt-2">
                   推奨: 3000x3000px、JPEGまたはPNG、最大5MB
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* OGP Image */}
-          <div className="card p-5">
-            <h2 className="text-base font-semibold text-[var(--color-text-primary)] mb-2">OGP画像</h2>
-            <p className="text-sm text-[var(--color-text-muted)] mb-4">
-              SNSでシェアされた時に表示される画像です。
-            </p>
-            <div className="flex items-start gap-5">
-              <div className="w-44 h-24 rounded-lg bg-[var(--color-bg-elevated)] border border-[var(--color-border)] overflow-hidden shrink-0">
-                {(ogImagePreview || settings.ogImageUrl) ? (
-                  <img
-                    src={ogImagePreview || settings.ogImageUrl}
-                    alt="OGP image"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-[var(--color-text-faint)]">
-                    <svg className="w-10 h-10" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
-                    </svg>
-                  </div>
-                )}
-              </div>
-              <div className="flex-1">
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png"
-                  onChange={handleOgImageSelect}
-                  className="hidden"
-                  id="og-image-upload"
-                />
-                <label
-                  htmlFor="og-image-upload"
-                  className="btn btn-secondary text-sm cursor-pointer"
-                >
-                  画像を選択
-                </label>
-                {ogImageFile && (
-                  <div className="mt-3">
-                    <p className="text-sm text-[var(--color-text-secondary)] mb-2">
-                      {ogImageFile.name} ({(ogImageFile.size / 1024 / 1024).toFixed(2)} MB)
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleOgImageUpload}
-                      disabled={uploadingOgImage}
-                      className="btn btn-primary text-sm"
-                    >
-                      {uploadingOgImage ? "アップロード中..." : "アップロード"}
-                    </button>
-                  </div>
-                )}
-                <p className="text-xs text-[var(--color-text-muted)] mt-2">
-                  推奨: 1200x630px、JPEGまたはPNG、最大5MB
                 </p>
               </div>
             </div>
@@ -1627,9 +1505,9 @@ export default function Settings() {
                   この操作を実行すると、R2バケット内の全てのデータが削除されます：
                 </p>
                 <ul className="list-disc list-inside text-[var(--color-text-muted)] space-y-1">
-                  <li>全てのエピソード（音声ファイル、文字起こし、OG画像を含む）</li>
+                  <li>全てのエピソード（音声ファイル、文字起こし、アートワークを含む）</li>
                   <li>Podcast設定（タイトル、説明、著者など）</li>
-                  <li>アートワークとOGP画像</li>
+                  <li>アートワーク</li>
                   <li>説明文テンプレート</li>
                   <li>RSSフィード</li>
                 </ul>

@@ -93,7 +93,7 @@ settings.post("/artwork/upload-url", async (c) => {
   return c.json({
     uploadUrl: signedRequest.url,
     expiresIn: 3600,
-    artworkUrl: `${c.env.WEBSITE_URL}/${key}`,
+    artworkUrl: `${c.env.R2_PUBLIC_URL}/${key}`,
   });
 });
 
@@ -108,65 +108,4 @@ settings.post("/artwork/upload-complete", async (c) => {
   await saveIndex(c.env, index);
 
   return c.json({ success: true, artworkUrl: body.artworkUrl });
-});
-
-/**
- * OGP画像アップロード用のPresigned URL発行
- */
-settings.post("/og-image/upload-url", async (c) => {
-  const body = await c.req.json<{ contentType: string; fileSize: number }>();
-
-  const { contentType, fileSize } = body;
-
-  // 画像形式のバリデーション
-  if (!["image/jpeg", "image/png"].includes(contentType)) {
-    return c.json({ error: "Invalid content type. Use image/jpeg or image/png" }, 400);
-  }
-
-  // ファイルサイズ上限（5MB）
-  if (fileSize > 5 * 1024 * 1024) {
-    return c.json({ error: "File too large. Max 5MB" }, 400);
-  }
-
-  const extension = contentType === "image/png" ? "png" : "jpg";
-  const key = `assets/og-image.${extension}`;
-
-  const r2 = new AwsClient({
-    accessKeyId: c.env.R2_ACCESS_KEY_ID,
-    secretAccessKey: c.env.R2_SECRET_ACCESS_KEY,
-  });
-
-  const url = new URL(
-    `https://${c.env.R2_BUCKET_NAME}.${c.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${key}`
-  );
-
-  url.searchParams.set("X-Amz-Expires", "3600");
-
-  const signedRequest = await r2.sign(
-    new Request(url, {
-      method: "PUT",
-    }),
-    {
-      aws: { signQuery: true },
-    }
-  );
-
-  return c.json({
-    uploadUrl: signedRequest.url,
-    expiresIn: 3600,
-    ogImageUrl: `${c.env.WEBSITE_URL}/${key}`,
-  });
-});
-
-/**
- * OGP画像アップロード完了通知
- */
-settings.post("/og-image/upload-complete", async (c) => {
-  const body = await c.req.json<{ ogImageUrl: string }>();
-  const index = await getIndex(c.env);
-
-  index.podcast.ogImageUrl = body.ogImageUrl;
-  await saveIndex(c.env, index);
-
-  return c.json({ success: true, ogImageUrl: body.ogImageUrl });
 });

@@ -28,9 +28,9 @@ export default function EpisodeNew() {
   const [templates, setTemplates] = useState<DescriptionTemplate[]>([]);
   const [showTemplates, setShowTemplates] = useState(false);
 
-  // OGP image upload
-  const [ogImageFile, setOgImageFile] = useState<File | null>(null);
-  const [ogImagePreview, setOgImagePreview] = useState<string | null>(null);
+  // Artwork upload
+  const [artworkFile, setArtworkFile] = useState<File | null>(null);
+  const [artworkPreview, setArtworkPreview] = useState<string | null>(null);
 
   useEffect(() => {
     api.getTemplates().then((loadedTemplates) => {
@@ -50,11 +50,11 @@ export default function EpisodeNew() {
     }
   };
 
-  const handleOgImageSelect = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleArtworkSelect = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setOgImageFile(file);
-      setOgImagePreview(URL.createObjectURL(file));
+      setArtworkFile(file);
+      setArtworkPreview(URL.createObjectURL(file));
     }
   };
 
@@ -93,16 +93,16 @@ export default function EpisodeNew() {
         referenceLinks,
       });
 
-      // OGP画像をアップロード
-      if (ogImageFile) {
-        setMessage("OGP画像をアップロード中...");
-        const { uploadUrl, ogImageUrl } = await api.getEpisodeOgImageUploadUrl(
+      // アートワークをアップロード
+      if (artworkFile) {
+        setMessage("アートワークをアップロード中...");
+        const { uploadUrl, artworkUrl } = await api.getEpisodeArtworkUploadUrl(
           episode.id,
-          ogImageFile.type,
-          ogImageFile.size
+          artworkFile.type,
+          artworkFile.size
         );
-        await uploadToR2(uploadUrl, ogImageFile);
-        await api.completeEpisodeOgImageUpload(episode.id, ogImageUrl);
+        await uploadToR2(uploadUrl, artworkFile);
+        await api.completeEpisodeArtworkUpload(episode.id, artworkUrl);
       }
 
       // 音声ソースに応じてアップロード
@@ -339,23 +339,23 @@ export default function EpisodeNew() {
               <p className="text-xs text-[var(--color-text-faint)] mt-2">後からアップロードすることもできます</p>
             </div>
 
-            {/* OGP画像 */}
+            {/* アートワーク */}
             <div className="card p-6">
               <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-4 flex items-center gap-2">
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
                 </svg>
-                OGP画像
+                アートワーク
               </h2>
               <p className="text-xs text-[var(--color-text-muted)] mb-4">
-                SNSでこのエピソードがシェアされた時に表示される画像です。
+                このエピソードのカバー画像です。設定しない場合はPodcastのアートワークが使用されます。
               </p>
               <div className="flex items-start gap-6">
-                <div className="w-48 h-24 rounded-lg bg-[var(--color-bg-elevated)] overflow-hidden flex-shrink-0">
-                  {ogImagePreview ? (
+                <div className="w-32 h-32 rounded-lg bg-[var(--color-bg-elevated)] overflow-hidden flex-shrink-0">
+                  {artworkPreview ? (
                     <img
-                      src={ogImagePreview}
-                      alt="OGP image preview"
+                      src={artworkPreview}
+                      alt="Artwork preview"
                       className="w-full h-full object-cover"
                     />
                   ) : (
@@ -370,26 +370,26 @@ export default function EpisodeNew() {
                   <input
                     type="file"
                     accept="image/jpeg,image/png"
-                    onChange={handleOgImageSelect}
+                    onChange={handleArtworkSelect}
                     disabled={isSubmitting || status === "done"}
                     className="hidden"
-                    id="og-image-upload"
+                    id="artwork-upload"
                   />
                   <label
-                    htmlFor="og-image-upload"
+                    htmlFor="artwork-upload"
                     className="btn btn-secondary inline-block cursor-pointer"
                   >
                     画像を選択
                   </label>
-                  {ogImageFile && (
+                  {artworkFile && (
                     <div className="mt-3">
                       <p className="text-sm text-[var(--color-text-secondary)]">
-                        {ogImageFile.name} ({(ogImageFile.size / 1024 / 1024).toFixed(2)} MB)
+                        {artworkFile.name} ({(artworkFile.size / 1024 / 1024).toFixed(2)} MB)
                       </p>
                     </div>
                   )}
                   <p className="text-xs text-[var(--color-text-muted)] mt-2">
-                    推奨: 1200x630px、JPEGまたはPNG、最大5MB
+                    推奨: 1400x1400px、JPEGまたはPNG、最大5MB
                   </p>
                 </div>
               </div>

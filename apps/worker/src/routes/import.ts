@@ -340,7 +340,7 @@ importRoutes.post("/rss", async (c) => {
       sourceAudioUrl: importAudio ? null : rssEp.audioUrl,
       sourceGuid: rssEp.guid || null, // GUIDを保存（差分インポート用）
       transcriptUrl: null,
-      ogImageUrl: null,
+      artworkUrl: null,
       skipTranscription: true,
       status: "published",
       createdAt: now,

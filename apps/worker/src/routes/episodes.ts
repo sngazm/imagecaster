@@ -132,7 +132,7 @@ episodes.post("/", async (c) => {
     sourceAudioUrl: null,
     sourceGuid: null,
     transcriptUrl: null,
-    ogImageUrl: null,
+    artworkUrl: null,
     skipTranscription: body.skipTranscription ?? false,
     status: "draft",
     createdAt: now,

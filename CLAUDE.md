@@ -110,8 +110,8 @@ await jwtVerify(jwt, JWKS, { audience: ACCESS_AUD });
 | POST | /api/episodes/:id/upload-complete | アップロード完了通知 |
 | POST | /api/episodes/:id/upload-from-url | URL から取得 |
 | POST | /api/episodes/:id/transcription-complete | 文字起こし完了 |
-| POST | /api/episodes/:id/og-image/upload-url | OG画像URL発行 |
-| POST | /api/episodes/:id/og-image/upload-complete | OG画像完了通知 |
+| POST | /api/episodes/:id/artwork/upload-url | アートワークURL発行 |
+| POST | /api/episodes/:id/artwork/upload-complete | アートワーク完了通知 |
 
 ### Settings
 | Method | Path | 説明 |
@@ -120,8 +120,6 @@ await jwtVerify(jwt, JWKS, { audience: ACCESS_AUD });
 | PUT | /api/settings | 設定更新 |
 | POST | /api/settings/artwork/upload-url | アートワークURL発行 |
 | POST | /api/settings/artwork/upload-complete | アートワーク完了通知 |
-| POST | /api/settings/og-image/upload-url | OG画像URL発行 |
-| POST | /api/settings/og-image/upload-complete | OG画像完了通知 |
 
 ### Templates
 | Method | Path | 説明 |
@@ -175,13 +173,12 @@ podcast-bucket/
 │       ├── meta.json       # メタデータ
 │       ├── audio.mp3       # 音声
 │       ├── transcript.vtt  # 文字起こし
-│       └── og-image.jpg    # OG画像
+│       └── artwork.jpg     # エピソードアートワーク（任意）
 ├── templates.json          # テンプレート一覧
 ├── index.json              # エピソード一覧 + Podcast設定
 ├── feed.xml                # RSSフィード
 └── assets/
-    ├── artwork.jpg         # カバーアート
-    └── og-image.jpg        # サイトOG画像
+    └── artwork.jpg         # Podcastアートワーク（OGP画像としても使用）
 ```
 
 ## 環境変数

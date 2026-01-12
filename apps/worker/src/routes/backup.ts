@@ -32,12 +32,11 @@ export interface ExportManifest {
     files: {
       audio?: { key: string; url: string };
       transcript?: { key: string; url: string };
-      ogImage?: { key: string; url: string };
+      artwork?: { key: string; url: string };
     };
   }>;
   assets: {
     artwork?: { key: string; url: string };
-    ogImage?: { key: string; url: string };
   };
 }
 
@@ -56,17 +55,16 @@ export interface ImportBackupRequest {
   };
   templates: DescriptionTemplate[];
   episodes: Array<{
-    meta: Omit<EpisodeMeta, "audioUrl" | "transcriptUrl" | "ogImageUrl"> & {
+    meta: Omit<EpisodeMeta, "audioUrl" | "transcriptUrl" | "artworkUrl"> & {
       audioUrl?: string;
       transcriptUrl?: string;
-      ogImageUrl?: string;
+      artworkUrl?: string;
     };
     hasAudio: boolean;
     hasTranscript: boolean;
-    hasOgImage: boolean;
+    hasArtwork: boolean;
   }>;
   hasArtwork: boolean;
-  hasOgImage: boolean;
 }
 
 /**
@@ -79,11 +77,10 @@ export interface ImportBackupResponse {
       id: string;
       audio?: string;
       transcript?: string;
-      ogImage?: string;
+      artwork?: string;
     }>;
     assets: {
       artwork?: string;
-      ogImage?: string;
     };
   };
 }
@@ -180,12 +177,12 @@ backup.get("/export", async (c) => {
         files.transcript = { key: transcriptKey, url: transcriptUrl };
       }
 
-      // OG画像（jpg/pngどちらかを確認）
+      // エピソードアートワーク（jpg/pngどちらかを確認）
       for (const ext of ["jpg", "png"]) {
-        const ogKey = `episodes/${meta.id}/og-image.${ext}`;
-        const ogUrl = await generateDownloadUrl(c.env, ogKey);
-        if (ogUrl) {
-          files.ogImage = { key: ogKey, url: ogUrl };
+        const artworkKey = `episodes/${meta.id}/artwork.${ext}`;
+        const artworkUrl = await generateDownloadUrl(c.env, artworkKey);
+        if (artworkUrl) {
+          files.artwork = { key: artworkKey, url: artworkUrl };
           break;
         }
       }
@@ -206,16 +203,6 @@ backup.get("/export", async (c) => {
     const artworkUrl = await generateDownloadUrl(c.env, artworkKey);
     if (artworkUrl) {
       assets.artwork = { key: artworkKey, url: artworkUrl };
-      break;
-    }
-  }
-
-  // サイトOG画像
-  for (const ext of ["jpg", "png"]) {
-    const ogKey = `assets/og-image.${ext}`;
-    const ogUrl = await generateDownloadUrl(c.env, ogKey);
-    if (ogUrl) {
-      assets.ogImage = { key: ogKey, url: ogUrl };
       break;
     }
   }
@@ -286,7 +273,7 @@ backup.post("/import", async (c) => {
       sourceAudioUrl: ep.meta.sourceAudioUrl,
       sourceGuid: ep.meta.sourceGuid ?? null,
       transcriptUrl: null,
-      ogImageUrl: null,
+      artworkUrl: null,
       skipTranscription: ep.meta.skipTranscription,
       status: "draft", // インポート時は常にdraft
       createdAt: ep.meta.createdAt,
@@ -297,6 +284,7 @@ backup.post("/import", async (c) => {
       blueskyPostedAt: null, // インポート時はリセット
       referenceLinks: ep.meta.referenceLinks || [],
       applePodcastsUrl: null,
+      spotifyUrl: null,
     };
 
     // インデックスに追加（重複チェック）
@@ -326,11 +314,11 @@ backup.post("/import", async (c) => {
       );
     }
 
-    if (ep.hasOgImage) {
-      // OG画像はjpgとして扱う（zipから展開時に拡張子を判定）
-      urls.ogImage = await generateUploadUrl(
+    if (ep.hasArtwork) {
+      // アートワークはjpgとして扱う（zipから展開時に拡張子を判定）
+      urls.artwork = await generateUploadUrl(
         c.env,
-        `episodes/${meta.id}/og-image.jpg`,
+        `episodes/${meta.id}/artwork.jpg`,
         "image/jpeg"
       );
     }
@@ -348,14 +336,6 @@ backup.post("/import", async (c) => {
     assetUrls.artwork = await generateUploadUrl(
       c.env,
       "assets/artwork.jpg",
-      "image/jpeg"
-    );
-  }
-
-  if (body.hasOgImage) {
-    assetUrls.ogImage = await generateUploadUrl(
-      c.env,
-      "assets/og-image.jpg",
       "image/jpeg"
     );
   }
@@ -384,11 +364,10 @@ backup.post("/import/complete", async (c) => {
       id: string;
       hasAudio: boolean;
       hasTranscript: boolean;
-      hasOgImage: boolean;
+      hasArtwork: boolean;
       status: "draft" | "scheduled" | "published";
     }>;
     hasArtwork: boolean;
-    hasOgImage: boolean;
   }>();
 
   const index = await getIndex(c.env);
@@ -406,8 +385,8 @@ backup.post("/import/complete", async (c) => {
         meta.transcriptUrl = `${c.env.R2_PUBLIC_URL}/episodes/${meta.id}/transcript.vtt`;
       }
 
-      if (ep.hasOgImage) {
-        meta.ogImageUrl = `${c.env.R2_PUBLIC_URL}/episodes/${meta.id}/og-image.jpg`;
+      if (ep.hasArtwork) {
+        meta.artworkUrl = `${c.env.R2_PUBLIC_URL}/episodes/${meta.id}/artwork.jpg`;
       }
 
       // ステータスを更新（音声がある場合のみ）
@@ -427,10 +406,6 @@ backup.post("/import/complete", async (c) => {
   // アセットURLを更新
   if (body.hasArtwork) {
     index.podcast.artworkUrl = `${c.env.R2_PUBLIC_URL}/assets/artwork.jpg`;
-  }
-
-  if (body.hasOgImage) {
-    index.podcast.ogImageUrl = `${c.env.R2_PUBLIC_URL}/assets/og-image.jpg`;
   }
 
   await saveIndex(c.env, index);

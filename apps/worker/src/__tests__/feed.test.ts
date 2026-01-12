@@ -12,9 +12,12 @@ describe("generateFeed", () => {
       language: "ja",
       category: "Technology",
       artworkUrl: "https://example.com/artwork.jpg",
-      ogImageUrl: "https://example.com/og.jpg",
       websiteUrl: "https://example.com",
       explicit: false,
+      applePodcastsId: null,
+      applePodcastsAutoFetch: false,
+      spotifyShowId: null,
+      spotifyAutoFetch: false,
     },
     episodes: [],
   };
@@ -30,7 +33,7 @@ describe("generateFeed", () => {
     sourceAudioUrl: null,
     sourceGuid: null,
     transcriptUrl: null,
-    ogImageUrl: null,
+    artworkUrl: null,
     skipTranscription: false,
     status: "published",
     createdAt: "2024-01-01T00:00:00.000Z",
@@ -40,6 +43,8 @@ describe("generateFeed", () => {
     blueskyPostEnabled: false,
     blueskyPostedAt: null,
     referenceLinks: [],
+    applePodcastsUrl: null,
+    spotifyUrl: null,
   };
 
   it("uses slug as guid when sourceGuid is not set", () => {

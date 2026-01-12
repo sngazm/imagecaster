@@ -51,7 +51,7 @@ export interface EpisodeDetail {
   sourceAudioUrl: string | null;
   sourceGuid: string | null;
   transcriptUrl: string | null;
-  ogImageUrl: string | null;
+  artworkUrl: string | null;
   skipTranscription: boolean;
   status: string;
   createdAt: string;
@@ -77,7 +77,6 @@ export interface PodcastSettings {
   language: string;
   category: string;
   artworkUrl: string;
-  ogImageUrl: string;
   websiteUrl: string;
   explicit: boolean;
   applePodcastsId: string | null;
@@ -197,12 +196,11 @@ export interface ExportManifest {
     files: {
       audio?: { key: string; url: string };
       transcript?: { key: string; url: string };
-      ogImage?: { key: string; url: string };
+      artwork?: { key: string; url: string };
     };
   }>;
   assets: {
     artwork?: { key: string; url: string };
-    ogImage?: { key: string; url: string };
   };
 }
 
@@ -221,10 +219,9 @@ export interface ImportBackupRequest {
     meta: EpisodeDetail;
     hasAudio: boolean;
     hasTranscript: boolean;
-    hasOgImage: boolean;
+    hasArtwork: boolean;
   }>;
   hasArtwork: boolean;
-  hasOgImage: boolean;
 }
 
 export interface ImportBackupResponse {
@@ -234,11 +231,10 @@ export interface ImportBackupResponse {
       id: string;
       audio?: string;
       transcript?: string;
-      ogImage?: string;
+      artwork?: string;
     }>;
     assets: {
       artwork?: string;
-      ogImage?: string;
     };
   };
 }
@@ -262,12 +258,6 @@ export interface ArtworkUploadUrlResponse {
   uploadUrl: string;
   expiresIn: number;
   artworkUrl: string;
-}
-
-export interface OgImageUploadUrlResponse {
-  uploadUrl: string;
-  expiresIn: number;
-  ogImageUrl: string;
 }
 
 export const api = {
@@ -355,29 +345,17 @@ export const api = {
       body: JSON.stringify({ artworkUrl }),
     }),
 
-  getOgImageUploadUrl: (contentType: string, fileSize: number) =>
-    request<OgImageUploadUrlResponse>("/api/settings/og-image/upload-url", {
+  // Episode Artwork
+  getEpisodeArtworkUploadUrl: (id: string, contentType: string, fileSize: number) =>
+    request<ArtworkUploadUrlResponse>(`/api/episodes/${id}/artwork/upload-url`, {
       method: "POST",
       body: JSON.stringify({ contentType, fileSize }),
     }),
 
-  completeOgImageUpload: (ogImageUrl: string) =>
-    request<{ success: boolean; ogImageUrl: string }>("/api/settings/og-image/upload-complete", {
+  completeEpisodeArtworkUpload: (id: string, artworkUrl: string) =>
+    request<{ success: boolean; artworkUrl: string }>(`/api/episodes/${id}/artwork/upload-complete`, {
       method: "POST",
-      body: JSON.stringify({ ogImageUrl }),
-    }),
-
-  // Episode OGP image
-  getEpisodeOgImageUploadUrl: (id: string, contentType: string, fileSize: number) =>
-    request<OgImageUploadUrlResponse>(`/api/episodes/${id}/og-image/upload-url`, {
-      method: "POST",
-      body: JSON.stringify({ contentType, fileSize }),
-    }),
-
-  completeEpisodeOgImageUpload: (id: string, ogImageUrl: string) =>
-    request<{ success: boolean; ogImageUrl: string }>(`/api/episodes/${id}/og-image/upload-complete`, {
-      method: "POST",
-      body: JSON.stringify({ ogImageUrl }),
+      body: JSON.stringify({ artworkUrl }),
     }),
 
   // Templates
@@ -450,11 +428,10 @@ export const api = {
       id: string;
       hasAudio: boolean;
       hasTranscript: boolean;
-      hasOgImage: boolean;
+      hasArtwork: boolean;
       status: "draft" | "scheduled" | "published";
     }>;
     hasArtwork: boolean;
-    hasOgImage: boolean;
   }) =>
     request<{ success: boolean }>("/api/backup/import/complete", {
       method: "POST",

@@ -1,23 +1,24 @@
 /**
- * OGP画像パスを解決するユーティリティ
- * Astroで生成される /og/*.jpg を使用
+ * OGP画像URL解決ユーティリティ
+ * アートワークURLを直接OGP画像として使用
  */
 
 /**
  * Podcast全体のOGP画像URLを取得
- * @param siteUrl - サイトのベースURL
+ * @param podcastArtworkUrl - PodcastのアートワークURL
  */
-export function getPodcastOgImageUrl(siteUrl: string): string {
-  const base = siteUrl.replace(/\/$/, "");
-  return `${base}/og/podcast.jpg`;
+export function getPodcastOgImageUrl(podcastArtworkUrl: string): string {
+  return podcastArtworkUrl;
 }
 
 /**
  * エピソードのOGP画像URLを取得
- * @param episodeId - エピソードID
- * @param siteUrl - サイトのベースURL
+ * @param episodeArtworkUrl - エピソード固有のアートワークURL（nullの場合はフォールバック使用）
+ * @param fallbackArtworkUrl - フォールバック用のアートワークURL（PodcastのartworkUrl）
  */
-export function getEpisodeOgImageUrl(episodeId: string, siteUrl: string): string {
-  const base = siteUrl.replace(/\/$/, "");
-  return `${base}/og/episodes/${episodeId}.jpg`;
+export function getEpisodeOgImageUrl(
+  episodeArtworkUrl: string | null,
+  fallbackArtworkUrl: string
+): string {
+  return episodeArtworkUrl || fallbackArtworkUrl;
 }
