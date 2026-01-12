@@ -21,6 +21,7 @@ import {
 import { regenerateFeed } from "../services/feed";
 import { postEpisodeToBluesky } from "../services/bluesky";
 import { triggerWebRebuild } from "../services/deploy";
+import { convertToVtt, validateTranscriptData } from "../services/vtt";
 
 const episodes = new Hono<{ Bindings: Env }>();
 
@@ -297,6 +298,12 @@ episodes.delete("/:id", async (c) => {
 
 /**
  * POST /api/episodes/:id/transcription-complete - 文字起こし完了通知
+ *
+ * 完了時の処理:
+ * 1. R2から transcript.json を読み込み
+ * 2. VTT形式に変換して transcript.vtt として保存
+ * 3. メタデータ更新（transcriptUrl, ステータス変更）
+ * 4. ロック解除
  */
 episodes.post("/:id/transcription-complete", async (c) => {
   const id = c.req.param("id");
@@ -306,6 +313,42 @@ episodes.post("/:id/transcription-complete", async (c) => {
     const meta = await getEpisodeMeta(c.env, id);
 
     if (body.status === "completed") {
+      // R2 から transcript.json を読み込み
+      const jsonKey = `episodes/${meta.id}/transcript.json`;
+      const jsonObj = await c.env.R2_BUCKET.get(jsonKey);
+
+      if (!jsonObj) {
+        return c.json({ error: "Transcript JSON not found in R2. Please upload first." }, 400);
+      }
+
+      const jsonText = await jsonObj.text();
+      let transcriptData: unknown;
+
+      try {
+        transcriptData = JSON.parse(jsonText);
+      } catch {
+        return c.json({ error: "Invalid JSON format in transcript file" }, 400);
+      }
+
+      // バリデーション
+      if (!validateTranscriptData(transcriptData)) {
+        return c.json({ error: "Invalid transcript data structure" }, 400);
+      }
+
+      // VTT に変換
+      const vttContent = convertToVtt(transcriptData);
+
+      // VTT を R2 に保存
+      const vttKey = `episodes/${meta.id}/transcript.vtt`;
+      await c.env.R2_BUCKET.put(vttKey, vttContent, {
+        httpMetadata: {
+          contentType: "text/vtt",
+        },
+      });
+
+      // メタデータ更新
+      meta.transcriptUrl = `${c.env.R2_PUBLIC_URL}/${vttKey}`;
+
       // duration が提供されていれば更新
       if (body.duration !== undefined) {
         meta.duration = body.duration;
@@ -334,6 +377,9 @@ episodes.post("/:id/transcription-complete", async (c) => {
     } else {
       meta.status = "failed";
     }
+
+    // ロック解除
+    meta.transcriptionLockedAt = null;
 
     await saveEpisodeMeta(c.env, meta);
 

@@ -12,6 +12,7 @@ import { podcast } from "./routes/podcast";
 import { backup } from "./routes/backup";
 import { spotify } from "./routes/spotify";
 import { debug } from "./routes/debug";
+import { transcriptionQueue, transcriptionEpisodes } from "./routes/transcription";
 import { getIndex, getEpisodeMeta, saveEpisodeMeta } from "./services/r2";
 import { regenerateFeed } from "./services/feed";
 import { postEpisodeToBluesky } from "./services/bluesky";
@@ -164,6 +165,12 @@ api.route("/spotify", spotify);
 
 // デバッグ用のルートをマウント
 api.route("/debug", debug);
+
+// 文字起こしキュー用のルートをマウント
+api.route("/transcription", transcriptionQueue);
+
+// 文字起こしエピソード関連のルートをマウント（/api/episodes/:id/* の形式）
+api.route("/episodes", transcriptionEpisodes);
 
 // URLからタイトルを取得（microlink.io API経由）
 api.post("/fetch-link-title", async (c) => {
