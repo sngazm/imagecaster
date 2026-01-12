@@ -208,6 +208,10 @@ episodes.put("/:id", async (c) => {
         meta.skipTranscription = body.skipTranscription;
       }
     }
+    // hideTranscription（文字起こしの非表示）はいつでも変更可能
+    if (body.hideTranscription !== undefined) {
+      meta.hideTranscription = body.hideTranscription;
+    }
     // Bluesky 投稿設定
     if (body.blueskyPostText !== undefined) {
       meta.blueskyPostText = body.blueskyPostText;

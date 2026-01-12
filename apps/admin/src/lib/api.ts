@@ -53,6 +53,7 @@ export interface EpisodeDetail {
   transcriptUrl: string | null;
   artworkUrl: string | null;
   skipTranscription: boolean;
+  hideTranscription?: boolean;
   status: string;
   createdAt: string;
   publishAt: string | null;
@@ -289,6 +290,7 @@ export const api = {
     description?: string;
     publishAt?: string | null;
     skipTranscription?: boolean;
+    hideTranscription?: boolean;
     blueskyPostText?: string | null;
     blueskyPostEnabled?: boolean;
     referenceLinks?: ReferenceLink[];
