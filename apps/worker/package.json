@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "wrangler dev --remote",
-    "build": "wrangler deploy --dry-run --outdir=dist",
-    "deploy": "wrangler deploy",
+    "build": "node ../../scripts/log-env.mjs worker && wrangler deploy --dry-run --outdir=dist",
+    "deploy": "node ../../scripts/log-env.mjs worker && wrangler deploy",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"

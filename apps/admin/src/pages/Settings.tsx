@@ -34,7 +34,7 @@ const LANGUAGES = [
 ];
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState<"general" | "templates" | "import" | "backup" | "danger">("general");
+  const [activeTab, setActiveTab] = useState<"general" | "templates" | "import" | "backup" | "environment" | "danger">("general");
   const [settings, setSettings] = useState<PodcastSettings | null>(null);
   const [templates, setTemplates] = useState<DescriptionTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,6 +76,15 @@ export default function Settings() {
   const [importingBackup, setImportingBackup] = useState(false);
   const [importProgress, setImportProgress] = useState<{ current: number; total: number; phase: string } | null>(null);
   const backupFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Environment debug
+  const [envInfo, setEnvInfo] = useState<{
+    timestamp: string;
+    environment: string;
+    r2BucketBound: boolean;
+    variables: Record<string, { value: string; isSet: boolean; isSecret: boolean }>;
+  } | null>(null);
+  const [loadingEnv, setLoadingEnv] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -290,6 +299,24 @@ export default function Settings() {
       setError(err instanceof Error ? err.message : "Failed to reset data");
     } finally {
       setResetting(false);
+    }
+  }
+
+  async function loadEnvInfo() {
+    setLoadingEnv(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/debug/env");
+      if (!response.ok) {
+        throw new Error(`Failed to fetch environment info: ${response.status}`);
+      }
+      const data = await response.json();
+      setEnvInfo(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load environment info");
+    } finally {
+      setLoadingEnv(false);
     }
   }
 
@@ -592,6 +619,19 @@ export default function Settings() {
           }`}
         >
           バックアップ
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab("environment");
+            if (!envInfo) loadEnvInfo();
+          }}
+          className={`px-4 py-2.5 text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
+            activeTab === "environment"
+              ? "text-[var(--color-accent)] border-b-2 border-[var(--color-accent)]"
+              : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+          }`}
+        >
+          環境変数
         </button>
         <button
           onClick={() => setActiveTab("danger")}
@@ -1488,6 +1528,140 @@ export default function Settings() {
                 </>
               )}
             </label>
+          </div>
+        </div>
+      )}
+
+      {/* Environment */}
+      {activeTab === "environment" && (
+        <div className="space-y-4">
+          <div className="card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Worker 環境変数</h2>
+              <button
+                onClick={loadEnvInfo}
+                disabled={loadingEnv}
+                className="btn btn-secondary text-sm"
+              >
+                {loadingEnv ? "読み込み中..." : "再読み込み"}
+              </button>
+            </div>
+
+            {loadingEnv && !envInfo && (
+              <div className="flex items-center justify-center py-8">
+                <div className="w-5 h-5 border-2 border-[var(--color-border-strong)] border-t-[var(--color-accent)] rounded-full animate-spin" />
+              </div>
+            )}
+
+            {envInfo && (
+              <div className="space-y-4">
+                {/* Summary */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="p-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg">
+                    <div className="text-xs text-[var(--color-text-muted)] mb-1">環境</div>
+                    <div className={`font-medium ${envInfo.environment === "development" ? "text-[var(--color-warning)]" : "text-[var(--color-success)]"}`}>
+                      {envInfo.environment}
+                    </div>
+                  </div>
+                  <div className="p-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg">
+                    <div className="text-xs text-[var(--color-text-muted)] mb-1">R2 Bucket</div>
+                    <div className={`font-medium ${envInfo.r2BucketBound ? "text-[var(--color-success)]" : "text-[var(--color-error)]"}`}>
+                      {envInfo.r2BucketBound ? "Bound" : "Not Bound"}
+                    </div>
+                  </div>
+                  <div className="p-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg">
+                    <div className="text-xs text-[var(--color-text-muted)] mb-1">取得時刻</div>
+                    <div className="font-medium text-[var(--color-text-secondary)] text-sm">
+                      {new Date(envInfo.timestamp).toLocaleTimeString()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Variables table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="text-[var(--color-text-muted)] text-left border-b border-[var(--color-border)]">
+                      <tr>
+                        <th className="pb-2 pr-4">変数名</th>
+                        <th className="pb-2 pr-4">値</th>
+                        <th className="pb-2 w-20 text-center">状態</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--color-border)]">
+                      {Object.entries(envInfo.variables).map(([name, info]) => (
+                        <tr key={name}>
+                          <td className="py-2 pr-4">
+                            <code className="text-xs bg-[var(--color-bg-hover)] px-1.5 py-0.5 rounded">
+                              {name}
+                            </code>
+                            {info.isSecret && (
+                              <span className="ml-2 text-xs text-[var(--color-warning)]">secret</span>
+                            )}
+                          </td>
+                          <td className="py-2 pr-4 font-mono text-xs text-[var(--color-text-secondary)] break-all max-w-md">
+                            {info.value}
+                          </td>
+                          <td className="py-2 text-center">
+                            {info.isSet ? (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--color-success-muted)] text-[var(--color-success)]">
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--color-error-muted)] text-[var(--color-error)]">
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  ※ シークレット（secret）の値はマスクされています
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Admin environment info */}
+          <div className="card p-5">
+            <h2 className="text-base font-semibold text-[var(--color-text-primary)] mb-4">Admin 環境情報</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <tbody className="divide-y divide-[var(--color-border)]">
+                  <tr>
+                    <td className="py-2 pr-4 text-[var(--color-text-muted)] w-40">URL</td>
+                    <td className="py-2 font-mono text-xs text-[var(--color-text-secondary)]">
+                      {window.location.origin}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 pr-4 text-[var(--color-text-muted)]">VITE_WEB_BASE</td>
+                    <td className="py-2 font-mono text-xs text-[var(--color-text-secondary)]">
+                      {import.meta.env.VITE_WEB_BASE || "(not set)"}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 pr-4 text-[var(--color-text-muted)]">Mode</td>
+                    <td className="py-2 font-mono text-xs text-[var(--color-text-secondary)]">
+                      {import.meta.env.MODE}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 pr-4 text-[var(--color-text-muted)]">Dev</td>
+                    <td className="py-2 font-mono text-xs text-[var(--color-text-secondary)]">
+                      {import.meta.env.DEV ? "true" : "false"}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
