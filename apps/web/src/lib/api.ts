@@ -101,12 +101,7 @@ export async function getEpisode(id: string): Promise<Episode> {
     throw new Error(`Failed to fetch episode ${id}: ${res.status}`);
   }
 
-  const data = await res.json();
-  // 後方互換性: ogImageUrl → artworkUrl
-  if (data.artworkUrl === undefined && data.ogImageUrl !== undefined) {
-    data.artworkUrl = data.ogImageUrl;
-  }
-  return data;
+  return res.json();
 }
 
 /**
