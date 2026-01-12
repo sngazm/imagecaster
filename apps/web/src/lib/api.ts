@@ -39,6 +39,9 @@ export async function getTranscriptText(transcriptUrl: string): Promise<string> 
 
 const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || "";
 
+// ビルド時に環境変数をログ出力（デバッグ用）
+console.log("[api.ts] R2_PUBLIC_URL:", R2_PUBLIC_URL || "(empty)");
+
 // ビルド時キャッシュ（同じデータを何度も取得しないようにする）
 let cachedPodcastIndex: PodcastIndex | null = null;
 let cachedPublishedEpisodes: Episode[] | null = null;
@@ -70,24 +73,36 @@ function getDefaultPodcastIndex(): PodcastIndex {
  */
 export async function getPodcastIndex(): Promise<PodcastIndex> {
   if (cachedPodcastIndex) {
+    console.log("[getPodcastIndex] Returning cached index");
     return cachedPodcastIndex;
   }
 
   const url = `${R2_PUBLIC_URL}/index.json`;
-  const res = await fetch(url);
+  console.log("[getPodcastIndex] Fetching from:", url);
 
-  if (!res.ok) {
-    if (res.status === 404) {
-      console.warn("Podcast index not found, using default empty index");
-      cachedPodcastIndex = getDefaultPodcastIndex();
-      return cachedPodcastIndex;
+  try {
+    const res = await fetch(url);
+    console.log("[getPodcastIndex] Response status:", res.status);
+
+    if (!res.ok) {
+      if (res.status === 404) {
+        console.warn("[getPodcastIndex] Podcast index not found (404), using default empty index");
+        cachedPodcastIndex = getDefaultPodcastIndex();
+        return cachedPodcastIndex;
+      }
+      throw new Error(`Failed to fetch podcast index: ${res.status}`);
     }
-    throw new Error(`Failed to fetch podcast index: ${res.status}`);
-  }
 
-  const data: PodcastIndex = await res.json();
-  cachedPodcastIndex = data;
-  return data;
+    const data: PodcastIndex = await res.json();
+    console.log("[getPodcastIndex] Fetched episodes count:", data.episodes?.length || 0);
+    cachedPodcastIndex = data;
+    return data;
+  } catch (error) {
+    console.error("[getPodcastIndex] Fetch error:", error);
+    console.warn("[getPodcastIndex] Using default empty index due to error");
+    cachedPodcastIndex = getDefaultPodcastIndex();
+    return cachedPodcastIndex;
+  }
 }
 
 /**
