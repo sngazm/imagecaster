@@ -464,6 +464,16 @@ body {
   text-wrap: balance;
 }
 
+/* スクロールバー非表示（スクロール機能は維持） */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 .animate-in {
   animation: fadeIn var(--transition-slow) var(--ease-out);
 }
