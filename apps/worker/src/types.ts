@@ -255,6 +255,7 @@ export interface UpdatePodcastSettingsRequest {
 export interface ImportRssRequest {
   rssUrl: string;
   importAudio?: boolean; // trueの場合は音声もダウンロード
+  importArtwork?: boolean; // trueの場合はエピソードアートワークもダウンロード
   importPodcastSettings?: boolean; // trueの場合はPodcast設定も上書き
   customSlugs?: Record<string, string>; // インデックス(0始まり) → カスタムslug のマッピング
 }

@@ -17,6 +17,7 @@ function parseRssXml(xml: string): Array<{
   audioUrl: string;
   fileSize: number;
   guid: string;
+  artworkUrl: string;
 }> {
   const episodes: Array<{
     title: string;
@@ -26,6 +27,7 @@ function parseRssXml(xml: string): Array<{
     audioUrl: string;
     fileSize: number;
     guid: string;
+    artworkUrl: string;
   }> = [];
 
   // <item>タグを抽出
@@ -77,6 +79,10 @@ function parseRssXml(xml: string): Array<{
     const guidMatch = itemContent.match(/<guid[^>]*>([\s\S]*?)<\/guid>/i);
     const guid = guidMatch ? guidMatch[1].trim() : "";
 
+    // アートワークURL (itunes:image href属性)
+    const artworkMatch = itemContent.match(/<itunes:image[^>]*href=["']([^"']+)["']/i);
+    const artworkUrl = artworkMatch ? artworkMatch[1].trim() : "";
+
     if (title && audioUrl) {
       episodes.push({
         title,
@@ -86,6 +92,7 @@ function parseRssXml(xml: string): Array<{
         audioUrl,
         fileSize,
         guid,
+        artworkUrl,
       });
     }
   }
@@ -184,6 +191,38 @@ async function downloadAndSaveAudio(
 }
 
 /**
+ * 外部URLからアートワークをダウンロードしてR2に保存
+ */
+async function downloadAndSaveArtwork(
+  env: Env,
+  episodeId: string,
+  artworkUrl: string
+): Promise<string | null> {
+  try {
+    const response = await fetch(artworkUrl);
+    if (!response.ok) {
+      return null;
+    }
+
+    const contentType = response.headers.get("content-type") || "image/jpeg";
+    const extension = contentType.includes("png") ? "png" : "jpg";
+    const artworkData = await response.arrayBuffer();
+
+    const key = `episodes/${episodeId}/artwork.${extension}`;
+    await env.R2_BUCKET.put(key, artworkData, {
+      httpMetadata: {
+        contentType: contentType.includes("png") ? "image/png" : "image/jpeg",
+      },
+    });
+
+    // 公開URLを返す
+    return `${env.R2_PUBLIC_URL}/${key}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * 既存エピソードのGUIDとAudioURLを取得（差分インポート用）
  */
 async function getExistingIdentifiers(
@@ -247,6 +286,7 @@ importRoutes.post("/rss", async (c) => {
   }
 
   const importAudio = body.importAudio ?? false;
+  const importArtwork = body.importArtwork ?? false;
   const importPodcastSettings = body.importPodcastSettings ?? false;
   const customSlugs = body.customSlugs ?? {};
 
@@ -287,6 +327,7 @@ importRoutes.post("/rss", async (c) => {
   const episodesToSave: Array<{
     meta: EpisodeMeta;
     audioUrl: string;
+    artworkUrl: string;
   }> = [];
 
   for (let idx = 0; idx < sortedEpisodes.length; idx++) {
@@ -340,7 +381,7 @@ importRoutes.post("/rss", async (c) => {
       sourceAudioUrl: importAudio ? null : rssEp.audioUrl,
       sourceGuid: rssEp.guid || null, // GUIDを保存（差分インポート用）
       transcriptUrl: null,
-      artworkUrl: null,
+      artworkUrl: importArtwork ? null : (rssEp.artworkUrl || null), // ダウンロードする場合は後で設定
       skipTranscription: true,
       status: "published",
       createdAt: now,
@@ -353,7 +394,7 @@ importRoutes.post("/rss", async (c) => {
       applePodcastsUrl: null,
     };
 
-    episodesToSave.push({ meta, audioUrl: rssEp.audioUrl });
+    episodesToSave.push({ meta, audioUrl: rssEp.audioUrl, artworkUrl: rssEp.artworkUrl });
     existingSlugs.add(slug);
 
     // 新しいGUID/AudioURLをセットに追加（同一RSS内の重複防止）
@@ -377,13 +418,20 @@ importRoutes.post("/rss", async (c) => {
   for (let i = 0; i < episodesToSave.length; i += BATCH_SIZE) {
     const batch = episodesToSave.slice(i, i + BATCH_SIZE);
     await Promise.all(
-      batch.map(async ({ meta, audioUrl }) => {
+      batch.map(async ({ meta, audioUrl, artworkUrl }) => {
         // オーディオをコピーする場合
         if (importAudio) {
           const result = await downloadAndSaveAudio(c.env, meta.id, audioUrl);
           if (result) {
             meta.audioUrl = result.audioUrl;
             meta.fileSize = result.size;
+          }
+        }
+        // アートワークをコピーする場合
+        if (importArtwork && artworkUrl) {
+          const savedArtworkUrl = await downloadAndSaveArtwork(c.env, meta.id, artworkUrl);
+          if (savedArtworkUrl) {
+            meta.artworkUrl = savedArtworkUrl;
           }
         }
         await saveEpisodeMeta(c.env, meta);
@@ -498,6 +546,8 @@ importRoutes.post("/rss/preview", async (c) => {
       duration: ep.duration,
       fileSize: ep.fileSize,
       hasAudio: !!ep.audioUrl,
+      hasArtwork: !!ep.artworkUrl,
+      artworkUrl: ep.artworkUrl || null,
       slug,
       originalSlug,
       hasConflict,
