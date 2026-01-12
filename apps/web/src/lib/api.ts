@@ -74,20 +74,27 @@ export async function getPodcastIndex(): Promise<PodcastIndex> {
   }
 
   const url = `${R2_PUBLIC_URL}/index.json`;
-  const res = await fetch(url);
 
-  if (!res.ok) {
-    if (res.status === 404) {
-      console.warn("Podcast index not found, using default empty index");
-      cachedPodcastIndex = getDefaultPodcastIndex();
-      return cachedPodcastIndex;
+  try {
+    const res = await fetch(url);
+
+    if (!res.ok) {
+      if (res.status === 404) {
+        console.warn("[getPodcastIndex] Podcast index not found (404), using default empty index");
+        cachedPodcastIndex = getDefaultPodcastIndex();
+        return cachedPodcastIndex;
+      }
+      throw new Error(`Failed to fetch podcast index: ${res.status}`);
     }
-    throw new Error(`Failed to fetch podcast index: ${res.status}`);
-  }
 
-  const data: PodcastIndex = await res.json();
-  cachedPodcastIndex = data;
-  return data;
+    const data: PodcastIndex = await res.json();
+    cachedPodcastIndex = data;
+    return data;
+  } catch (error) {
+    console.error("[getPodcastIndex] Fetch error:", error);
+    cachedPodcastIndex = getDefaultPodcastIndex();
+    return cachedPodcastIndex;
+  }
 }
 
 /**
