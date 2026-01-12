@@ -132,6 +132,9 @@
   /* Sidebar */
   --sidebar-width: 240px;
   --sidebar-collapsed-width: 64px;
+
+  /* Mobile */
+  --mobile-header-height: 56px;
 }
 
 /* ==========================================================================
@@ -315,6 +318,29 @@ body {
 }
 
 /* ==========================================================================
+   Mobile Header Styles
+   ========================================================================== */
+
+.mobile-header {
+  display: none;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  height: var(--mobile-header-height);
+  padding: 0 var(--space-4);
+  background: var(--color-bg-base);
+  border-bottom: 1px solid var(--color-border);
+  align-items: center;
+  justify-content: space-between;
+}
+
+@media (max-width: 767px) {
+  .mobile-header {
+    display: flex;
+  }
+}
+
+/* ==========================================================================
    Sidebar Navigation Styles
    ========================================================================== */
 
@@ -328,6 +354,42 @@ body {
   position: fixed;
   left: 0;
   top: 0;
+  z-index: 50;
+  transition: transform var(--transition-slow) var(--ease-out);
+}
+
+/* モバイルでサイドバーを画面外に隠す */
+@media (max-width: 767px) {
+  .sidebar {
+    transform: translateX(-100%);
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+}
+
+/* サイドバーオーバーレイ（モバイル用） */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 45;
+  opacity: 0;
+  transition: opacity var(--transition-slow) var(--ease-out);
+  pointer-events: none;
+}
+
+@media (max-width: 767px) {
+  .sidebar-overlay {
+    display: block;
+  }
+
+  .sidebar-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 .sidebar-nav-item {
@@ -363,6 +425,35 @@ body {
 .main-content {
   margin-left: var(--sidebar-width);
   min-height: 100vh;
+}
+
+/* モバイルではサイドバー分のマージンを削除 */
+@media (max-width: 767px) {
+  .main-content {
+    margin-left: 0;
+    min-height: calc(100vh - var(--mobile-header-height));
+  }
+}
+
+/* ==========================================================================
+   Task Tray Styles
+   ========================================================================== */
+
+.task-tray {
+  position: fixed;
+  bottom: var(--space-4);
+  right: var(--space-4);
+  z-index: 50;
+  width: 320px;
+}
+
+@media (max-width: 767px) {
+  .task-tray {
+    left: var(--space-3);
+    right: var(--space-3);
+    bottom: var(--space-3);
+    width: auto;
+  }
 }
 
 /* ==========================================================================
