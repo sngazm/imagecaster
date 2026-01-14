@@ -202,11 +202,23 @@ episodes.put("/:id", async (c) => {
     if (body.publishAt !== undefined) {
       meta.publishAt = body.publishAt;
     }
-    // skipTranscription は draft または failed 状態のときのみ変更可能
+    // skipTranscription: 文字起こしがまだない場合は変更可能
+    // スキップを解除した場合（false にした場合）、scheduled/published なら transcribing に戻す
     if (body.skipTranscription !== undefined) {
-      if (meta.status === "draft" || meta.status === "failed") {
+      // 文字起こしが完了している場合は変更不可
+      if (!meta.transcriptUrl) {
+        const wasSkipped = meta.skipTranscription;
         meta.skipTranscription = body.skipTranscription;
+
+        // スキップ解除 + scheduled/published → transcribing に戻す
+        if (wasSkipped && !body.skipTranscription && (meta.status === "scheduled" || meta.status === "published")) {
+          meta.status = "transcribing";
+        }
       }
+    }
+    // hideTranscription（文字起こしの非表示）はいつでも変更可能
+    if (body.hideTranscription !== undefined) {
+      meta.hideTranscription = body.hideTranscription;
     }
     // Bluesky 投稿設定
     if (body.blueskyPostText !== undefined) {

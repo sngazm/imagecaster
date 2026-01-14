@@ -45,6 +45,8 @@ export default function EpisodeDetail() {
   const [editReferenceLinks, setEditReferenceLinks] = useState<ReferenceLink[]>([]);
   const [editApplePodcastsUrl, setEditApplePodcastsUrl] = useState("");
   const [editSpotifyUrl, setEditSpotifyUrl] = useState("");
+  const [editSkipTranscription, setEditSkipTranscription] = useState(false);
+  const [editHideTranscription, setEditHideTranscription] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [templates, setTemplates] = useState<DescriptionTemplate[]>([]);
@@ -86,6 +88,8 @@ export default function EpisodeDetail() {
         setEditReferenceLinks(data.referenceLinks || []);
         setEditApplePodcastsUrl(data.applePodcastsUrl || "");
         setEditSpotifyUrl(data.spotifyUrl || "");
+        setEditSkipTranscription(data.skipTranscription);
+        setEditHideTranscription(data.hideTranscription || false);
         setTemplates(templatesData);
 
         // deploymentsはローカル開発環境ではスキップ、失敗しても処理を続行
@@ -124,11 +128,17 @@ export default function EpisodeDetail() {
         referenceLinks: editReferenceLinks,
         applePodcastsUrl: editApplePodcastsUrl.trim() || null,
         spotifyUrl: editSpotifyUrl.trim() || null,
+        hideTranscription: editHideTranscription,
       };
 
       // slugの変更はdraft状態のみ
       if (episode.status === "draft" && editSlug !== episode.slug) {
         updateData.slug = editSlug;
+      }
+
+      // skipTranscriptionの変更は文字起こしがまだない場合のみ
+      if (!episode.transcriptUrl && editSkipTranscription !== episode.skipTranscription) {
+        updateData.skipTranscription = editSkipTranscription;
       }
 
       const updated = await api.updateEpisode(id, updateData);
@@ -241,6 +251,8 @@ export default function EpisodeDetail() {
     setEditReferenceLinks(episode.referenceLinks || []);
     setEditApplePodcastsUrl(episode.applePodcastsUrl || "");
     setEditSpotifyUrl(episode.spotifyUrl || "");
+    setEditSkipTranscription(episode.skipTranscription);
+    setEditHideTranscription(episode.hideTranscription || false);
     setError(null);
   };
 
@@ -518,22 +530,90 @@ export default function EpisodeDetail() {
               </svg>
               文字起こし
             </h2>
-            {episode.skipTranscription ? (
-              <p className="text-[var(--color-text-muted)] text-sm">文字起こしはスキップされました</p>
-            ) : episode.transcriptUrl ? (
-              <a
-                href={episode.transcriptUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] text-sm"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-                文字起こしを表示
-              </a>
+            {isEditing ? (
+              <div className="space-y-4">
+                {/* skipTranscription: 文字起こしがまだない場合は編集可能 */}
+                {!episode.transcriptUrl && (
+                  <label className="flex items-start gap-3 p-4 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg cursor-pointer hover:border-[var(--color-border-strong)] transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={editSkipTranscription}
+                      onChange={(e) => setEditSkipTranscription(e.target.checked)}
+                      className="mt-0.5 w-5 h-5 rounded border-[var(--color-border)] bg-[var(--color-bg-base)] text-[var(--color-accent)] focus:ring-[var(--color-accent)] focus:ring-offset-0"
+                    />
+                    <div>
+                      <span className="block text-sm font-medium text-[var(--color-text-primary)]">
+                        文字起こしをスキップする
+                      </span>
+                      <span className="block text-xs text-[var(--color-text-muted)] mt-1">
+                        {episode.skipTranscription
+                          ? "チェックを外すと文字起こしが開始されます"
+                          : "チェックすると、アップロード後の自動文字起こしが実行されません"}
+                      </span>
+                    </div>
+                  </label>
+                )}
+                {/* hideTranscription: 文字起こしがある場合のみ編集可能 */}
+                {episode.transcriptUrl && (
+                  <label className="flex items-start gap-3 p-4 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg cursor-pointer hover:border-[var(--color-border-strong)] transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={editHideTranscription}
+                      onChange={(e) => setEditHideTranscription(e.target.checked)}
+                      className="mt-0.5 w-5 h-5 rounded border-[var(--color-border)] bg-[var(--color-bg-base)] text-[var(--color-accent)] focus:ring-[var(--color-accent)] focus:ring-offset-0"
+                    />
+                    <div>
+                      <span className="block text-sm font-medium text-[var(--color-text-primary)]">
+                        文字起こしを非表示にする
+                      </span>
+                      <span className="block text-xs text-[var(--color-text-muted)] mt-1">
+                        チェックすると、公開サイトで文字起こしが表示されなくなります
+                      </span>
+                    </div>
+                  </label>
+                )}
+                {/* 現在の状態を表示 */}
+                {episode.status !== "draft" && episode.status !== "failed" && !episode.transcriptUrl && (
+                  <p className="text-[var(--color-text-muted)] text-sm">
+                    {episode.skipTranscription ? "文字起こしはスキップされました" : "文字起こしはまだありません"}
+                  </p>
+                )}
+                {episode.transcriptUrl && (
+                  <a
+                    href={episode.transcriptUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] text-sm"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    文字起こしを表示
+                  </a>
+                )}
+              </div>
             ) : (
-              <p className="text-[var(--color-text-muted)] text-sm">文字起こしはまだありません</p>
+              <>
+                {episode.hideTranscription ? (
+                  <p className="text-[var(--color-text-muted)] text-sm">文字起こしは非表示に設定されています</p>
+                ) : episode.skipTranscription ? (
+                  <p className="text-[var(--color-text-muted)] text-sm">文字起こしはスキップされました</p>
+                ) : episode.transcriptUrl ? (
+                  <a
+                    href={episode.transcriptUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] text-sm"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    文字起こしを表示
+                  </a>
+                ) : (
+                  <p className="text-[var(--color-text-muted)] text-sm">文字起こしはまだありません</p>
+                )}
+              </>
             )}
           </div>
 
