@@ -40,7 +40,7 @@ CF-Access-Client-Secret: <client_secret>
 
 ### GET /api/transcription/queue
 
-文字起こし待ちエピソードを取得（ソフトロック自動付与）。
+文字起こし待ちエピソードを取得（読み取り専用）。
 
 **クエリパラメータ:**
 
@@ -59,16 +59,44 @@ CF-Access-Client-Secret: <client_secret>
       "title": "エピソードタイトル",
       "audioUrl": "https://r2.example.com/episodes/ep-abc123/audio.mp3",
       "duration": 0,
-      "lockedAt": "2024-01-01T00:00:00.000Z"
+      "lockedAt": ""
     }
   ]
 }
 ```
 
+**注意:** GETはロックを付与しない。処理開始前に `POST /api/episodes/:id/transcription-lock` でロックを取得すること。
+
+---
+
+### POST /api/episodes/:id/transcription-lock
+
+文字起こし処理のロックを取得。処理開始前に必ず呼び出す。
+
+**レスポンス（成功時 200）:**
+
+```json
+{
+  "success": true,
+  "lockedAt": "2024-01-01T00:00:00.000Z",
+  "episode": {
+    "id": "ep-abc123",
+    "slug": "ep-abc123",
+    "title": "エピソードタイトル",
+    "audioUrl": "https://r2.example.com/episodes/ep-abc123/audio.mp3",
+    "duration": 0
+  }
+}
+```
+
+**エラー:**
+- 400: エピソードが transcribing 状態でない
+- 409: 既にロック済み
+- 404: エピソードが存在しない
+
 **ソフトロック:**
-- 取得時に自動でロックが付与される
 - ロックは1時間で自動解除
-- ロック中のエピソードは他のリクエストで取得されない
+- ロック中のエピソードはqueueに表示されない
 
 ---
 
@@ -232,52 +260,65 @@ HEADERS = {
 def poll_queue():
     """文字起こしキューをポーリング"""
     while True:
-        # キューから取得
+        # キューから取得（GETは状態を変えない）
         resp = requests.get(f"{API_BASE}/transcription/queue", headers=HEADERS)
         data = resp.json()
 
         if data["episodes"]:
             episode = data["episodes"][0]
-            process_episode(episode)
+            process_episode(episode["id"])
 
         time.sleep(60)  # 1分間隔
 
-def process_episode(episode):
+def process_episode(episode_id):
     """エピソードを処理"""
-    episode_id = episode["id"]
-
     try:
-        # 1. 音声ダウンロードURL取得
+        # 1. ロックを取得
+        resp = requests.post(
+            f"{API_BASE}/episodes/{episode_id}/transcription-lock",
+            headers=HEADERS
+        )
+        if resp.status_code == 409:
+            print(f"Episode {episode_id} is already locked, skipping")
+            return
+        if not resp.ok:
+            print(f"Failed to lock episode {episode_id}: {resp.status_code}")
+            return
+
+        lock_data = resp.json()
+        episode = lock_data["episode"]
+
+        # 2. 音声ダウンロードURL取得
         resp = requests.get(
             f"{API_BASE}/episodes/{episode_id}/audio-url",
             headers=HEADERS
         )
         audio_url = resp.json()["downloadUrl"]
 
-        # 2. 音声ダウンロード
+        # 3. 音声ダウンロード
         audio_resp = requests.get(audio_url)
         audio_path = f"/tmp/{episode_id}.mp3"
         with open(audio_path, "wb") as f:
             f.write(audio_resp.content)
 
-        # 3. Whisperで文字起こし
+        # 4. Whisperで文字起こし
         transcript_data = transcribe_with_whisper(audio_path)
 
-        # 4. JSONアップロードURL取得
+        # 5. JSONアップロードURL取得
         resp = requests.post(
             f"{API_BASE}/episodes/{episode_id}/transcript/upload-url",
             headers=HEADERS
         )
         upload_url = resp.json()["uploadUrl"]
 
-        # 5. JSONアップロード
+        # 6. JSONアップロード
         requests.put(
             upload_url,
             json=transcript_data,
             headers={"Content-Type": "application/json"}
         )
 
-        # 6. 完了通知
+        # 7. 完了通知（ロックも自動解除）
         requests.post(
             f"{API_BASE}/episodes/{episode_id}/transcription-complete",
             headers={**HEADERS, "Content-Type": "application/json"},
@@ -286,7 +327,7 @@ def process_episode(episode):
 
     except Exception as e:
         print(f"Error processing {episode_id}: {e}")
-        # 失敗通知
+        # 失敗通知（ロックも自動解除）
         requests.post(
             f"{API_BASE}/episodes/{episode_id}/transcription-complete",
             headers={**HEADERS, "Content-Type": "application/json"},

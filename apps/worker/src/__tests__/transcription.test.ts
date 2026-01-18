@@ -167,7 +167,7 @@ describe("Transcription Queue API", () => {
       expect(json.episodes).toBeInstanceOf(Array);
     });
 
-    it("returns transcribing episode and applies soft lock", async () => {
+    it("returns transcribing episode without modifying state", async () => {
       const { id } = await createTestEpisode({
         title: "Transcription Queue Test",
         publishAt: new Date(Date.now() + 86400000).toISOString(),
@@ -181,12 +181,17 @@ describe("Transcription Queue API", () => {
 
       expect(response.status).toBe(200);
 
-      const json = (await response.json()) as { episodes: Array<{ id: string; lockedAt: string }> };
+      const json = (await response.json()) as { episodes: Array<{ id: string }> };
       expect(json.episodes.length).toBeGreaterThan(0);
 
       const episode = json.episodes.find((ep) => ep.id === id);
       expect(episode).toBeDefined();
-      expect(episode?.lockedAt).toBeDefined();
+
+      // 再度取得しても同じエピソードが返る（GETは状態を変えない）
+      const response2 = await SELF.fetch("http://localhost/api/transcription/queue");
+      const json2 = (await response2.json()) as { episodes: Array<{ id: string }> };
+      const episode2 = json2.episodes.find((ep) => ep.id === id);
+      expect(episode2).toBeDefined();
     });
 
     it("does not return locked episodes", async () => {
@@ -198,10 +203,12 @@ describe("Transcription Queue API", () => {
 
       await setEpisodeToTranscribing(id);
 
-      // 1回目の取得でロック
-      await SELF.fetch("http://localhost/api/transcription/queue");
+      // POSTでロックを取得
+      await SELF.fetch(`http://localhost/api/episodes/${id}/transcription-lock`, {
+        method: "POST",
+      });
 
-      // 2回目の取得ではロック済みエピソードは返らない
+      // ロック済みエピソードは返らない
       const response = await SELF.fetch("http://localhost/api/transcription/queue");
 
       const json = (await response.json()) as { episodes: Array<{ id: string }> };
@@ -320,6 +327,81 @@ describe("Transcription Episode APIs", () => {
     it("returns 404 for non-existent episode", async () => {
       const response = await SELF.fetch(
         "http://localhost/api/episodes/non-existent-id/transcript/upload-url",
+        { method: "POST" }
+      );
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("POST /api/episodes/:id/transcription-lock", () => {
+    it("acquires lock for transcribing episode", async () => {
+      const { id } = await createTestEpisode({
+        title: "Lock Acquire Test",
+        publishAt: new Date(Date.now() + 86400000).toISOString(),
+        skipTranscription: false,
+      });
+
+      await setEpisodeToTranscribing(id);
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/transcription-lock`,
+        { method: "POST" }
+      );
+
+      expect(response.status).toBe(200);
+
+      const json = (await response.json()) as {
+        success: boolean;
+        lockedAt: string;
+        episode: { id: string };
+      };
+      expect(json.success).toBe(true);
+      expect(json.lockedAt).toBeDefined();
+      expect(json.episode.id).toBe(id);
+    });
+
+    it("returns 409 when already locked", async () => {
+      const { id } = await createTestEpisode({
+        title: "Already Locked Test",
+        publishAt: new Date(Date.now() + 86400000).toISOString(),
+        skipTranscription: false,
+      });
+
+      await setEpisodeToTranscribing(id);
+
+      // 1回目: ロック成功
+      await SELF.fetch(`http://localhost/api/episodes/${id}/transcription-lock`, {
+        method: "POST",
+      });
+
+      // 2回目: 既にロック済みなので409
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/transcription-lock`,
+        { method: "POST" }
+      );
+
+      expect(response.status).toBe(409);
+    });
+
+    it("returns 400 for non-transcribing episode", async () => {
+      const { id } = await createTestEpisode({
+        title: "Draft Episode Lock Test",
+        skipTranscription: false,
+      });
+
+      // draft状態のままロックを試みる
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/transcription-lock`,
+        { method: "POST" }
+      );
+
+      expect(response.status).toBe(400);
+    });
+
+    it("returns 404 for non-existent episode", async () => {
+      const response = await SELF.fetch(
+        "http://localhost/api/episodes/non-existent-id/transcription-lock",
         { method: "POST" }
       );
 

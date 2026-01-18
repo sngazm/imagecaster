@@ -36,7 +36,7 @@ function isLockValid(lockedAt: string | null | undefined): boolean {
 const transcriptionQueue = new Hono<{ Bindings: Env }>();
 
 /**
- * GET /api/transcription/queue - 文字起こし待ちエピソードを取得（ソフトロック付き）
+ * GET /api/transcription/queue - 文字起こし待ちエピソードを取得（読み取り専用）
  *
  * クエリパラメータ:
  * - limit: 取得件数（デフォルト: 1、最大: 10）
@@ -46,7 +46,6 @@ transcriptionQueue.get("/queue", async (c) => {
   const limit = Math.min(Math.max(parseInt(limitParam || "1", 10) || 1, 1), 10);
 
   const index = await getIndex(c.env);
-  const now = new Date().toISOString();
   const queueItems: TranscriptionQueueItem[] = [];
 
   // index.json のステータスで事前フィルタリング（高速化）
@@ -62,19 +61,15 @@ transcriptionQueue.get("/queue", async (c) => {
     try {
       const meta = await getEpisodeMeta(c.env, ref.id);
 
-      // ロックが無効なエピソードのみ取得
+      // ロックが無効なエピソードのみ取得（ロックは付与しない）
       if (meta.status === "transcribing" && !isLockValid(meta.transcriptionLockedAt)) {
-        // ソフトロックを取得
-        meta.transcriptionLockedAt = now;
-        await saveEpisodeMeta(c.env, meta);
-
         queueItems.push({
           id: meta.id,
           slug: meta.slug,
           title: meta.title,
           audioUrl: meta.audioUrl,
           duration: meta.duration,
-          lockedAt: now,
+          lockedAt: meta.transcriptionLockedAt || "",
         });
       }
     } catch {
@@ -177,6 +172,48 @@ transcriptionEpisodes.post("/:id/transcript/upload-url", async (c) => {
     };
 
     return c.json(response);
+  } catch {
+    return c.json({ error: "Episode not found" }, 404);
+  }
+});
+
+/**
+ * POST /api/episodes/:id/transcription-lock - 文字起こしロックを取得
+ *
+ * エピソードの処理を開始する前にロックを取得する
+ */
+transcriptionEpisodes.post("/:id/transcription-lock", async (c) => {
+  const id = c.req.param("id");
+
+  try {
+    const meta = await getEpisodeMeta(c.env, id);
+
+    // transcribing 状態のみ許可
+    if (meta.status !== "transcribing") {
+      return c.json({ error: "Episode is not in transcribing status" }, 400);
+    }
+
+    // 既にロック済みの場合はエラー
+    if (isLockValid(meta.transcriptionLockedAt)) {
+      return c.json({ error: "Episode is already locked" }, 409);
+    }
+
+    // ロックを取得
+    const now = new Date().toISOString();
+    meta.transcriptionLockedAt = now;
+    await saveEpisodeMeta(c.env, meta);
+
+    return c.json({
+      success: true,
+      lockedAt: now,
+      episode: {
+        id: meta.id,
+        slug: meta.slug,
+        title: meta.title,
+        audioUrl: meta.audioUrl,
+        duration: meta.duration,
+      },
+    });
   } catch {
     return c.json({ error: "Episode not found" }, 404);
   }
