@@ -156,7 +156,7 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
             className="fixed inset-0 z-40"
             onClick={() => setIsExpanded(false)}
           />
-          <div className="absolute right-0 top-full mt-2 w-80 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg shadow-xl z-50">
+          <div className="absolute right-0 bottom-full mb-2 w-80 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg shadow-xl z-50">
             <div className="p-3 border-b border-[var(--color-border)]">
               <h3 className="font-medium text-[var(--color-text-primary)]">Web サイトのビルド状況</h3>
               <div className="flex gap-3 mt-2">
