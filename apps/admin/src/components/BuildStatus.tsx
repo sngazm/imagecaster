@@ -118,11 +118,6 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
     return null;
   }
 
-  // 設定されていない場合は何も表示しない
-  if (!configured && !isLoading) {
-    return null;
-  }
-
   if (isLoading) {
     return (
       <div className={`flex items-center gap-2 text-sm text-[var(--color-text-muted)] ${className}`}>
@@ -131,12 +126,8 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
     );
   }
 
-  if (deployments.length === 0) {
-    return null;
-  }
-
-  const latest = deployments[0];
-  const stage = getStageConfig(latest.latestStage.name);
+  const latest = deployments.length > 0 ? deployments[0] : null;
+  const stage = latest ? getStageConfig(latest.latestStage.name) : DEFAULT_STAGE;
 
   const dashboardUrl = accountId && projectName
     ? `https://dash.cloudflare.com/${accountId}/pages/view/${projectName}`
@@ -154,9 +145,9 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
         {isBuilding ? (
           <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
         ) : (
-          <span>{latest.latestStage.status === "failure" ? "✗" : "✓"}</span>
+          <span>{latest?.latestStage.status === "failure" ? "✗" : "✓"}</span>
         )}
-        <span>Web {stage.label}</span>
+        <span>Web {latest ? stage.label : "ビルド"}</span>
       </button>
 
       {isExpanded && (
@@ -192,33 +183,39 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
               </div>
             </div>
             <div className="max-h-80 overflow-y-auto">
-              {deployments.map((deployment) => {
-                const depStage = getStageConfig(deployment.latestStage.name);
-                const depIsBuilding = deployment.latestStage.status === "active";
+              {deployments.length === 0 ? (
+                <div className="p-3 text-sm text-[var(--color-text-muted)]">
+                  {configured ? "デプロイ履歴がありません" : "ビルド状況の取得には環境変数の設定が必要です"}
+                </div>
+              ) : (
+                deployments.map((deployment) => {
+                  const depStage = getStageConfig(deployment.latestStage.name);
+                  const depIsBuilding = deployment.latestStage.status === "active";
 
-                return (
-                  <div
-                    key={deployment.id}
-                    className="p-3 border-b border-[var(--color-border)] last:border-b-0 hover:bg-[var(--color-bg-hover)]"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        {depIsBuilding ? (
-                          <div className={`w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin ${depStage.color.split(" ")[0]}`} />
-                        ) : (
-                          <span className="text-sm">{deployment.latestStage.status === "failure" ? "✗" : "✓"}</span>
-                        )}
-                        <span className={`text-sm font-medium ${depStage.color.split(" ")[0]}`}>
-                          {depStage.label}
+                  return (
+                    <div
+                      key={deployment.id}
+                      className="p-3 border-b border-[var(--color-border)] last:border-b-0 hover:bg-[var(--color-bg-hover)]"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {depIsBuilding ? (
+                            <div className={`w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin ${depStage.color.split(" ")[0]}`} />
+                          ) : (
+                            <span className="text-sm">{deployment.latestStage.status === "failure" ? "✗" : "✓"}</span>
+                          )}
+                          <span className={`text-sm font-medium ${depStage.color.split(" ")[0]}`}>
+                            {depStage.label}
+                          </span>
+                        </div>
+                        <span className="text-xs text-[var(--color-text-muted)]">
+                          {formatRelativeTime(deployment.createdOn)}
                         </span>
                       </div>
-                      <span className="text-xs text-[var(--color-text-muted)]">
-                        {formatRelativeTime(deployment.createdOn)}
-                      </span>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
             <div className="p-2 border-t border-[var(--color-border)] flex gap-2">
               <button
