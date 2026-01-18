@@ -524,3 +524,66 @@ export function utcToLocalDateTimeString(isoString: string): string {
 export function localDateTimeToISOString(localDateTime: string): string {
   return new Date(localDateTime).toISOString();
 }
+
+// Transcript types and functions
+export interface TranscriptSegment {
+  start: string;  // "00:00:05"
+  text: string;
+}
+
+export function parseVttToSegments(vtt: string): TranscriptSegment[] {
+  const lines = vtt.split("\n");
+  const segments: TranscriptSegment[] = [];
+  let currentStart = "";
+  let currentTextLines: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith("WEBVTT") || /^\d+$/.test(trimmed)) {
+      continue;
+    }
+
+    const timestampMatch = trimmed.match(/^(\d{2}:\d{2}:\d{2})\.\d{3}\s*-->/);
+    if (timestampMatch) {
+      currentStart = timestampMatch[1];
+      continue;
+    }
+
+    if (trimmed === "") {
+      if (currentStart && currentTextLines.length > 0) {
+        segments.push({
+          start: currentStart,
+          text: currentTextLines.join(" "),
+        });
+        currentStart = "";
+        currentTextLines = [];
+      }
+      continue;
+    }
+
+    currentTextLines.push(trimmed);
+  }
+
+  if (currentStart && currentTextLines.length > 0) {
+    segments.push({
+      start: currentStart,
+      text: currentTextLines.join(" "),
+    });
+  }
+
+  return segments;
+}
+
+export async function fetchTranscriptSegments(
+  transcriptUrl: string
+): Promise<TranscriptSegment[]> {
+  try {
+    const res = await fetch(transcriptUrl);
+    if (!res.ok) return [];
+    const vtt = await res.text();
+    return parseVttToSegments(vtt);
+  } catch {
+    return [];
+  }
+}

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { api, EpisodeDetail as EpisodeDetailType, formatDuration, formatFileSize, uploadToR2, getAudioDuration, utcToLocalDateTimeString, localDateTimeToISOString } from "../lib/api";
-import type { DescriptionTemplate, ReferenceLink } from "../lib/api";
+import { api, EpisodeDetail as EpisodeDetailType, formatDuration, formatFileSize, uploadToR2, getAudioDuration, utcToLocalDateTimeString, localDateTimeToISOString, fetchTranscriptSegments } from "../lib/api";
+import type { DescriptionTemplate, ReferenceLink, TranscriptSegment } from "../lib/api";
 import { HtmlEditor } from "../components/HtmlEditor";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { BlueskyPostEditor } from "../components/BlueskyPostEditor";
@@ -65,6 +65,10 @@ export default function EpisodeDetail() {
   // Website URL
   const [baseWebsiteUrl, setBaseWebsiteUrl] = useState<string>("");
 
+  // Transcript
+  const [transcriptSegments, setTranscriptSegments] = useState<TranscriptSegment[]>([]);
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
+
   useEffect(() => {
     const fetchData = async () => {
       if (!id) return;
@@ -91,6 +95,11 @@ export default function EpisodeDetail() {
         setEditSkipTranscription(data.skipTranscription);
         setEditHideTranscription(data.hideTranscription || false);
         setTemplates(templatesData);
+
+        // Fetch transcript segments if available
+        if (data.transcriptUrl) {
+          fetchTranscriptSegments(data.transcriptUrl).then(setTranscriptSegments);
+        }
 
         // websiteUrlの取得（settingsから）
         if (env === "local") {
@@ -600,18 +609,40 @@ export default function EpisodeDetail() {
                   <p className="text-[var(--color-text-muted)] text-sm">文字起こしは非表示に設定されています</p>
                 ) : episode.skipTranscription ? (
                   <p className="text-[var(--color-text-muted)] text-sm">文字起こしはスキップされました</p>
+                ) : transcriptSegments.length > 0 ? (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setTranscriptOpen(!transcriptOpen)}
+                      className="inline-flex items-center gap-1.5 text-sm text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] transition-colors"
+                    >
+                      <svg
+                        className={`w-4 h-4 transition-transform ${transcriptOpen ? "rotate-90" : ""}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                      文字起こしを見る
+                    </button>
+                    {transcriptOpen && (
+                      <div className="mt-3 max-h-96 overflow-y-auto overflow-x-hidden divide-y divide-[var(--color-border)]/50">
+                        {transcriptSegments.map((segment, idx) => (
+                          <div key={idx} className="flex gap-3 py-2 first:pt-0 last:pb-0">
+                            <span className="shrink-0 pt-0.5 text-[10px] font-mono text-[var(--color-text-muted)]/70 tabular-nums opacity-60">
+                              {segment.start}
+                            </span>
+                            <p className="text-sm leading-normal text-[var(--color-text-secondary)]">
+                              {segment.text}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 ) : episode.transcriptUrl ? (
-                  <a
-                    href={episode.transcriptUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] text-sm"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                    文字起こしを表示
-                  </a>
+                  <p className="text-[var(--color-text-muted)] text-sm">文字起こしを読み込み中...</p>
                 ) : (
                   <p className="text-[var(--color-text-muted)] text-sm">文字起こしはまだありません</p>
                 )}
