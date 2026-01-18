@@ -141,7 +141,7 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
       {/* ステータスボタン */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${stage.color} hover:opacity-80`}
+        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors whitespace-nowrap ${stage.color} hover:opacity-80`}
       >
         {isBuilding ? (
           <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
