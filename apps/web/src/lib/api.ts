@@ -2,25 +2,43 @@ import type { Episode, PodcastIndex } from "./types";
 
 /**
  * VTT形式の文字起こしをパースしてプレーンテキストを抽出
+ * キューごとに段落として整形
  */
 export function parseVttToText(vtt: string): string {
   const lines = vtt.split("\n");
-  const textLines: string[] = [];
+  const paragraphs: string[] = [];
+  let currentParagraph: string[] = [];
 
   for (const line of lines) {
-    // WEBVTT ヘッダー、タイムスタンプ、空行をスキップ
+    const trimmed = line.trim();
+
+    // WEBVTT ヘッダー、タイムスタンプ、キュー番号をスキップ
     if (
-      line.startsWith("WEBVTT") ||
-      line.includes("-->") ||
-      line.trim() === "" ||
-      /^\d+$/.test(line.trim())
+      trimmed.startsWith("WEBVTT") ||
+      trimmed.includes("-->") ||
+      /^\d+$/.test(trimmed)
     ) {
       continue;
     }
-    textLines.push(line.trim());
+
+    // 空行はキューの区切り
+    if (trimmed === "") {
+      if (currentParagraph.length > 0) {
+        paragraphs.push(currentParagraph.join(" "));
+        currentParagraph = [];
+      }
+      continue;
+    }
+
+    currentParagraph.push(trimmed);
   }
 
-  return textLines.join(" ");
+  // 最後の段落を追加
+  if (currentParagraph.length > 0) {
+    paragraphs.push(currentParagraph.join(" "));
+  }
+
+  return paragraphs.join("\n\n");
 }
 
 /**
