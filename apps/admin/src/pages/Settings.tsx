@@ -57,6 +57,7 @@ export default function Settings() {
   const [importing, setImporting] = useState(false);
   const [importAudio, setImportAudio] = useState(false);
   const [importPodcastSettings, setImportPodcastSettings] = useState(false);
+  const [importSkipTranscription, setImportSkipTranscription] = useState(true);
   const [importPreview, setImportPreview] = useState<Awaited<
     ReturnType<typeof api.previewRssImport>
   > | null>(null);
@@ -262,7 +263,7 @@ export default function Settings() {
     setError(null);
 
     try {
-      const result = await api.importRss(rssUrl, importAudio, importPodcastSettings, Object.keys(customSlugs).length > 0 ? customSlugs : undefined);
+      const result = await api.importRss(rssUrl, importAudio, importPodcastSettings, Object.keys(customSlugs).length > 0 ? customSlugs : undefined, importSkipTranscription);
       setImportResult(result);
       setImportPreview(null);
       setCustomSlugs({});
@@ -1148,6 +1149,19 @@ export default function Settings() {
             </label>
             <p className="text-xs text-[var(--color-text-muted)] mt-1 ml-6">
               チェックすると、RSSフィードの番組情報で現在の設定を上書きします
+            </p>
+
+            <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)] mt-3">
+              <input
+                type="checkbox"
+                checked={importSkipTranscription}
+                onChange={(e) => setImportSkipTranscription(e.target.checked)}
+                className="w-4 h-4 rounded bg-[var(--color-bg-elevated)] border-[var(--color-border)] text-[var(--color-accent)] focus:ring-[var(--color-accent)]"
+              />
+              <span>文字起こしをスキップする</span>
+            </label>
+            <p className="text-xs text-[var(--color-text-muted)] mt-1 ml-6">
+              チェックを外すと、インポート後に文字起こしが自動的に開始されます
             </p>
           </div>
 
