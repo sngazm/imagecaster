@@ -627,7 +627,7 @@ export default function EpisodeDetail() {
                       文字起こしを見る
                     </button>
                     {transcriptOpen && (
-                      <div className="mt-3 max-h-96 overflow-y-auto overflow-x-hidden divide-y divide-[var(--color-border)]/50">
+                      <div className="mt-3 max-h-96 overflow-y-auto overflow-x-hidden divide-y divide-[var(--color-border)]/50 pr-2">
                         {transcriptSegments.map((segment, idx) => (
                           <div key={idx} className="flex gap-3 py-2 first:pt-0 last:pb-0">
                             <span className="shrink-0 pt-0.5 text-[10px] font-mono text-[var(--color-text-muted)]/70 tabular-nums opacity-60">
