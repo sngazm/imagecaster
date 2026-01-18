@@ -17,6 +17,7 @@ import {
   findEpisodeBySlug,
   moveEpisode,
   getAudioFile,
+  syncEpisodeStatusToIndex,
 } from "../services/r2";
 import { regenerateFeed } from "../services/feed";
 import { postEpisodeToBluesky } from "../services/bluesky";
@@ -150,8 +151,8 @@ episodes.post("/", async (c) => {
   // メタデータを保存
   await saveEpisodeMeta(c.env, newMeta);
 
-  // インデックスを更新
-  index.episodes.push({ id: slug });
+  // インデックスを更新（statusも含める）
+  index.episodes.push({ id: slug, status: newMeta.status });
   await saveIndex(c.env, index);
 
   const response: CreateEpisodeResponse = {
@@ -394,6 +395,7 @@ episodes.post("/:id/transcription-complete", async (c) => {
     meta.transcriptionLockedAt = null;
 
     await saveEpisodeMeta(c.env, meta);
+    await syncEpisodeStatusToIndex(c.env, meta.id, meta.status);
 
     // 公開された場合はフィードを再生成してWebをリビルド
     if (meta.status === "published") {

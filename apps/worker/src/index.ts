@@ -13,7 +13,7 @@ import { backup } from "./routes/backup";
 import { spotify } from "./routes/spotify";
 import { debug } from "./routes/debug";
 import { transcriptionQueue, transcriptionEpisodes } from "./routes/transcription";
-import { getIndex, getEpisodeMeta, saveEpisodeMeta } from "./services/r2";
+import { getIndex, getEpisodeMeta, saveEpisodeMeta, syncEpisodeStatusToIndex } from "./services/r2";
 import { regenerateFeed } from "./services/feed";
 import { postEpisodeToBluesky } from "./services/bluesky";
 import { triggerWebRebuild } from "./services/deploy";
@@ -259,6 +259,7 @@ async function handleScheduledPublish(env: Env): Promise<void> {
       }
 
       await saveEpisodeMeta(env, meta);
+      await syncEpisodeStatusToIndex(env, meta.id, meta.status);
       updated = true;
 
       console.log(`Published episode: ${meta.id}`);

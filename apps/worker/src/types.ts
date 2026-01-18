@@ -52,6 +52,7 @@ export interface PodcastIndex {
   };
   episodes: Array<{
     id: string;
+    status?: EpisodeStatus; // キュー検索の高速化用
   }>;
 }
 

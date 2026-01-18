@@ -25,9 +25,9 @@
 
 ### 発行手順
 
-1. Cloudflare Zero Trust Dashboard → Access → Service Auth
-2. 「Create Service Token」をクリック
-3. Client ID と Client Secret をメモ
+1. Cloudflare Zero Trust Dashboard → Access コントロール → サービス資格情報
+2. 「サービストークンを作成」をクリック
+3. Client ID と Client Secret をメモ（**Client Secretは作成時のみ表示**）
 
 ### リクエストヘッダー
 

@@ -90,6 +90,23 @@ export async function saveEpisodeMeta(
 }
 
 /**
+ * エピソードのステータスをindex.jsonにも同期
+ * キュー検索の高速化のため、ステータス変更時に呼び出す
+ */
+export async function syncEpisodeStatusToIndex(
+  env: Env,
+  episodeId: string,
+  status: EpisodeMeta["status"]
+): Promise<void> {
+  const index = await getIndex(env);
+  const episodeRef = index.episodes.find((ep) => ep.id === episodeId);
+  if (episodeRef) {
+    episodeRef.status = status;
+    await saveIndex(env, index);
+  }
+}
+
+/**
  * エピソードを削除（R2からファイルを削除）
  */
 export async function deleteEpisode(env: Env, episodeId: string): Promise<void> {

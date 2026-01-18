@@ -12,6 +12,7 @@ import {
   getEpisodeMeta,
   saveEpisodeMeta,
   saveAudioFile,
+  syncEpisodeStatusToIndex,
 } from "../services/r2";
 import { regenerateFeed } from "../services/feed";
 import { postEpisodeToBluesky } from "../services/bluesky";
@@ -86,6 +87,7 @@ upload.post("/:id/upload-url", async (c) => {
     meta.status = "uploading";
     meta.fileSize = body.fileSize;
     await saveEpisodeMeta(c.env, meta);
+    await syncEpisodeStatusToIndex(c.env, meta.id, meta.status);
 
     const response: UploadUrlResponse = {
       uploadUrl: signed.url,
@@ -163,6 +165,7 @@ upload.post("/:id/upload-complete", async (c) => {
     }
 
     await saveEpisodeMeta(c.env, meta);
+    await syncEpisodeStatusToIndex(c.env, meta.id, meta.status);
 
     // 公開された場合はフィードを再生成してWebをリビルド
     if (meta.status === "published") {
@@ -202,6 +205,7 @@ upload.post("/:id/upload-from-url", async (c) => {
     // ステータスを processing に更新
     meta.status = "processing";
     await saveEpisodeMeta(c.env, meta);
+    await syncEpisodeStatusToIndex(c.env, meta.id, meta.status);
 
     // 音声ファイルをダウンロード（NextCloud共有リンクは自動変換）
     const downloadUrl = convertToDirectDownloadUrl(body.sourceUrl);
@@ -210,6 +214,7 @@ upload.post("/:id/upload-from-url", async (c) => {
     if (!audioResponse.ok) {
       meta.status = "failed";
       await saveEpisodeMeta(c.env, meta);
+      await syncEpisodeStatusToIndex(c.env, meta.id, meta.status);
       return c.json({ error: "Failed to download audio file" }, 400);
     }
 
@@ -246,6 +251,7 @@ upload.post("/:id/upload-from-url", async (c) => {
     }
 
     await saveEpisodeMeta(c.env, meta);
+    await syncEpisodeStatusToIndex(c.env, meta.id, meta.status);
 
     // 公開された場合はフィードを再生成してWebをリビルド
     if (meta.status === "published") {
@@ -260,6 +266,7 @@ upload.post("/:id/upload-from-url", async (c) => {
       const meta = await getEpisodeMeta(c.env, id);
       meta.status = "failed";
       await saveEpisodeMeta(c.env, meta);
+      await syncEpisodeStatusToIndex(c.env, meta.id, meta.status);
     } catch {
       // ignore
     }

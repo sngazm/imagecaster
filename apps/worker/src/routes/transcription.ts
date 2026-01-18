@@ -10,6 +10,7 @@ import {
   getIndex,
   getEpisodeMeta,
   saveEpisodeMeta,
+  syncEpisodeStatusToIndex,
 } from "../services/r2";
 
 /**
@@ -48,7 +49,12 @@ transcriptionQueue.get("/queue", async (c) => {
   const now = new Date().toISOString();
   const queueItems: TranscriptionQueueItem[] = [];
 
-  for (const ref of index.episodes) {
+  // index.json のステータスで事前フィルタリング（高速化）
+  const transcribingRefs = index.episodes.filter(
+    (ref) => ref.status === "transcribing"
+  );
+
+  for (const ref of transcribingRefs) {
     if (queueItems.length >= limit) {
       break;
     }
@@ -56,7 +62,7 @@ transcriptionQueue.get("/queue", async (c) => {
     try {
       const meta = await getEpisodeMeta(c.env, ref.id);
 
-      // transcribing 状態かつロックが無効なエピソードを取得
+      // ロックが無効なエピソードのみ取得
       if (meta.status === "transcribing" && !isLockValid(meta.transcriptionLockedAt)) {
         // ソフトロックを取得
         meta.transcriptionLockedAt = now;
