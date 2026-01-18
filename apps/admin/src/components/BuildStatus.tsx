@@ -44,6 +44,7 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
   const [websiteUrl, setWebsiteUrl] = useState<string | undefined>();
   const [accountId, setAccountId] = useState<string | undefined>();
   const [projectName, setProjectName] = useState<string | undefined>();
+  const [isTriggering, setIsTriggering] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const env = getEnvironment();
 
@@ -67,6 +68,20 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
 
   // ビルド中かどうかを判定
   const isBuilding = deployments.length > 0 && deployments[0].latestStage.status === "active";
+
+  const handleTriggerRebuild = async () => {
+    if (isTriggering || isBuilding) return;
+    setIsTriggering(true);
+    try {
+      await api.triggerDeploy();
+      // 少し待ってからデプロイ状況を更新
+      setTimeout(fetchDeployments, 1000);
+    } catch (err) {
+      console.error("Failed to trigger rebuild:", err);
+    } finally {
+      setIsTriggering(false);
+    }
+  };
 
   useEffect(() => {
     // ローカル開発環境ではdeployments取得をスキップ
@@ -205,14 +220,21 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
                 );
               })}
             </div>
-            <div className="p-2 border-t border-[var(--color-border)]">
+            <div className="p-2 border-t border-[var(--color-border)] flex gap-2">
               <button
                 onClick={() => {
                   fetchDeployments();
                 }}
-                className="w-full text-center text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] py-1"
+                className="flex-1 text-center text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] py-1"
               >
                 更新
+              </button>
+              <button
+                onClick={handleTriggerRebuild}
+                disabled={isTriggering || isBuilding}
+                className="flex-1 text-center text-xs bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed py-1 px-2 rounded"
+              >
+                {isTriggering ? "実行中..." : "再ビルド"}
               </button>
             </div>
           </div>
