@@ -402,8 +402,8 @@ importRoutes.post("/rss", async (c) => {
     if (rssEp.guid) existingGuids.add(rssEp.guid);
     if (rssEp.audioUrl) existingAudioUrls.add(rssEp.audioUrl);
 
-    // インデックスに追加
-    index.episodes.push({ id: slug });
+    // インデックスに追加（statusも設定して文字起こしキューで検索可能に）
+    index.episodes.push({ id: slug, status: meta.status });
 
     results.push({
       title: rssEp.title,
