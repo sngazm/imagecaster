@@ -142,6 +142,8 @@ export interface UpdateEpisodeRequest {
   applePodcastsUrl?: string | null;
   // Spotify（管理画面から編集可能）
   spotifyUrl?: string | null;
+  // ステータス変更（failed → transcribing のリトライ用）
+  status?: EpisodeStatus;
 }
 
 /**

@@ -241,6 +241,24 @@ episodes.put("/:id", async (c) => {
       meta.spotifyUrl = body.spotifyUrl;
     }
 
+    // ステータス変更（リトライ用: failed → transcribing）
+    if (body.status !== undefined) {
+      // failed → transcribing のみ許可（リトライ）
+      if (meta.status === "failed" && body.status === "transcribing") {
+        // 音声ファイルがあることを確認
+        if (!meta.audioUrl && !meta.sourceAudioUrl) {
+          return c.json({ error: "Cannot retry: no audio file available" }, 400);
+        }
+        meta.status = "transcribing";
+        meta.transcriptionLockedAt = null; // ロックをクリア
+      } else {
+        return c.json(
+          { error: `Status change from '${meta.status}' to '${body.status}' is not allowed` },
+          400
+        );
+      }
+    }
+
     // slugが変わる場合はファイルを移動
     if (needsMove) {
       await moveEpisode(c.env, meta.id, newSlug);
