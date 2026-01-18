@@ -92,8 +92,11 @@ export default function EpisodeDetail() {
         setEditHideTranscription(data.hideTranscription || false);
         setTemplates(templatesData);
 
-        // deploymentsはローカル開発環境ではスキップ、失敗しても処理を続行
-        if (env !== "local") {
+        // deploymentsの取得（ローカル開発環境ではスキップ）
+        if (env === "local") {
+          // ローカル環境ではダミー値を設定（getWebsiteUrlがローカルURLに変換する）
+          setBaseWebsiteUrl("local");
+        } else {
           try {
             const deploymentsData = await api.getDeployments();
             if (deploymentsData.websiteUrl) {
