@@ -92,16 +92,18 @@ export default function EpisodeDetail() {
         setEditHideTranscription(data.hideTranscription || false);
         setTemplates(templatesData);
 
-        // deploymentsはローカル開発環境ではスキップ、失敗しても処理を続行
-        if (env !== "local") {
+        // websiteUrlの取得（settingsから）
+        if (env === "local") {
+          // ローカル環境ではダミー値を設定（getWebsiteUrlがローカルURLに変換する）
+          setBaseWebsiteUrl("local");
+        } else {
           try {
-            const deploymentsData = await api.getDeployments();
-            if (deploymentsData.websiteUrl) {
-              setBaseWebsiteUrl(deploymentsData.websiteUrl);
+            const settingsData = await api.getSettings();
+            if (settingsData.websiteUrl) {
+              setBaseWebsiteUrl(settingsData.websiteUrl);
             }
           } catch (err) {
-            console.error("ビルド状況の取得に失敗しました:", err);
-            // deploymentsの取得失敗はエラー表示せず、処理を続行
+            console.error("設定の取得に失敗しました:", err);
           }
         }
       } catch (err) {
