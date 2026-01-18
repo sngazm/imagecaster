@@ -28,6 +28,7 @@ async function createTestEpisode(data: {
  * テスト用にメタデータを直接操作
  */
 async function setEpisodeToTranscribing(id: string): Promise<void> {
+  // meta.json を更新
   const meta = await env.R2_BUCKET.get(`episodes/${id}/meta.json`);
   if (!meta) throw new Error("Episode not found");
 
@@ -38,6 +39,19 @@ async function setEpisodeToTranscribing(id: string): Promise<void> {
   await env.R2_BUCKET.put(`episodes/${id}/meta.json`, JSON.stringify(data), {
     httpMetadata: { contentType: "application/json" },
   });
+
+  // index.json も更新（キュー検索の高速化対応）
+  const indexObj = await env.R2_BUCKET.get("index.json");
+  if (indexObj) {
+    const index = JSON.parse(await indexObj.text());
+    const episodeRef = index.episodes.find((ep: { id: string }) => ep.id === id);
+    if (episodeRef) {
+      episodeRef.status = "transcribing";
+      await env.R2_BUCKET.put("index.json", JSON.stringify(index), {
+        httpMetadata: { contentType: "application/json" },
+      });
+    }
+  }
 }
 
 describe("VTT Conversion Utility", () => {

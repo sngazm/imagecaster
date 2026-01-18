@@ -8,6 +8,7 @@ import {
   saveEpisodeMeta,
   getTemplatesIndex,
   saveTemplatesIndex,
+  syncEpisodeStatusToIndex,
 } from "../services/r2";
 import { regenerateFeed } from "../services/feed";
 
@@ -398,6 +399,12 @@ backup.post("/import/complete", async (c) => {
       }
 
       await saveEpisodeMeta(c.env, meta);
+
+      // indexのstatusも同期
+      const indexEp = index.episodes.find((e) => e.id === ep.id);
+      if (indexEp) {
+        indexEp.status = meta.status;
+      }
     } catch {
       continue;
     }
