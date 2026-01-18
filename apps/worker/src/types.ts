@@ -178,6 +178,7 @@ export interface TranscriptionQueueItem {
   slug: string;
   title: string;
   audioUrl: string;
+  sourceAudioUrl: string | null; // 外部参照URL（RSSインポート時）
   duration: number;
   lockedAt: string; // ロック取得時刻
 }

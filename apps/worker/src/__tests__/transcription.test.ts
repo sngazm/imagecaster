@@ -27,14 +27,25 @@ async function createTestEpisode(data: {
  * 実際のフローでは upload-complete で transcribing になるが、
  * テスト用にメタデータを直接操作
  */
-async function setEpisodeToTranscribing(id: string): Promise<void> {
+async function setEpisodeToTranscribing(id: string, options?: {
+  useExternalAudio?: boolean;
+}): Promise<void> {
   // meta.json を更新
   const meta = await env.R2_BUCKET.get(`episodes/${id}/meta.json`);
   if (!meta) throw new Error("Episode not found");
 
   const data = JSON.parse(await meta.text());
   data.status = "transcribing";
-  data.audioUrl = `https://example.com/episodes/${id}/audio.mp3`;
+
+  if (options?.useExternalAudio) {
+    // 外部参照（RSSインポート時のように音声をダウンロードしない場合）
+    data.audioUrl = "";
+    data.sourceAudioUrl = `https://external.example.com/podcasts/${id}/audio.mp3`;
+  } else {
+    // R2にアップロード済み
+    data.audioUrl = `https://example.com/episodes/${id}/audio.mp3`;
+    data.sourceAudioUrl = null;
+  }
 
   await env.R2_BUCKET.put(`episodes/${id}/meta.json`, JSON.stringify(data), {
     httpMetadata: { contentType: "application/json" },
@@ -167,7 +178,7 @@ describe("Transcription Queue API", () => {
       expect(json.episodes).toBeInstanceOf(Array);
     });
 
-    it("returns transcribing episode and applies soft lock", async () => {
+    it("returns transcribing episode without modifying state", async () => {
       const { id } = await createTestEpisode({
         title: "Transcription Queue Test",
         publishAt: new Date(Date.now() + 86400000).toISOString(),
@@ -181,12 +192,17 @@ describe("Transcription Queue API", () => {
 
       expect(response.status).toBe(200);
 
-      const json = (await response.json()) as { episodes: Array<{ id: string; lockedAt: string }> };
+      const json = (await response.json()) as { episodes: Array<{ id: string }> };
       expect(json.episodes.length).toBeGreaterThan(0);
 
       const episode = json.episodes.find((ep) => ep.id === id);
       expect(episode).toBeDefined();
-      expect(episode?.lockedAt).toBeDefined();
+
+      // 再度取得しても同じエピソードが返る（GETは状態を変えない）
+      const response2 = await SELF.fetch("http://localhost/api/transcription/queue");
+      const json2 = (await response2.json()) as { episodes: Array<{ id: string }> };
+      const episode2 = json2.episodes.find((ep) => ep.id === id);
+      expect(episode2).toBeDefined();
     });
 
     it("does not return locked episodes", async () => {
@@ -198,10 +214,12 @@ describe("Transcription Queue API", () => {
 
       await setEpisodeToTranscribing(id);
 
-      // 1回目の取得でロック
-      await SELF.fetch("http://localhost/api/transcription/queue");
+      // POSTでロックを取得
+      await SELF.fetch(`http://localhost/api/episodes/${id}/transcription-lock`, {
+        method: "POST",
+      });
 
-      // 2回目の取得ではロック済みエピソードは返らない
+      // ロック済みエピソードは返らない
       const response = await SELF.fetch("http://localhost/api/transcription/queue");
 
       const json = (await response.json()) as { episodes: Array<{ id: string }> };
@@ -219,13 +237,40 @@ describe("Transcription Queue API", () => {
       const json = (await response.json()) as { episodes: unknown[] };
       expect(json.episodes.length).toBeLessThanOrEqual(5);
     });
+
+    it("includes sourceAudioUrl in queue response", async () => {
+      const { id } = await createTestEpisode({
+        title: "Queue With External Audio Test",
+        publishAt: new Date(Date.now() + 86400000).toISOString(),
+        skipTranscription: false,
+      });
+
+      // 外部音声参照（RSSインポート時）の状態に設定
+      await setEpisodeToTranscribing(id, { useExternalAudio: true });
+
+      const response = await SELF.fetch("http://localhost/api/transcription/queue");
+
+      expect(response.status).toBe(200);
+
+      const json = (await response.json()) as {
+        episodes: Array<{
+          id: string;
+          audioUrl: string;
+          sourceAudioUrl: string | null;
+        }>;
+      };
+      const episode = json.episodes.find((ep) => ep.id === id);
+      expect(episode).toBeDefined();
+      expect(episode!.audioUrl).toBe("");
+      expect(episode!.sourceAudioUrl).toContain("external.example.com");
+    });
   });
 });
 
 describe("Transcription Episode APIs", () => {
   describe("GET /api/episodes/:id/audio-url", () => {
-    it("returns 400 when audio is not available (route is correctly matched)", async () => {
-      // audioUrlが設定されていないエピソードでルートマッチングを確認
+    it("returns 400 when no audio URL is available", async () => {
+      // audioUrlもsourceAudioUrlも設定されていないエピソードでエラーを確認
       const { id } = await createTestEpisode({
         title: "Audio URL Route Test",
         skipTranscription: false,
@@ -235,11 +280,37 @@ describe("Transcription Episode APIs", () => {
         `http://localhost/api/episodes/${id}/audio-url`
       );
 
-      // audioUrlがないので400が返る（ルートは正しくマッチしている）
+      // どちらもないので400が返る
       expect(response.status).toBe(400);
 
       const json = (await response.json()) as { error: string };
       expect(json.error).toContain("Audio file not available");
+    });
+
+    it("returns external URL when audioUrl is empty but sourceAudioUrl exists", async () => {
+      const { id } = await createTestEpisode({
+        title: "External Audio URL Test",
+        publishAt: new Date(Date.now() + 86400000).toISOString(),
+        skipTranscription: false,
+      });
+
+      // 外部音声参照の状態に設定（RSSインポート時と同様）
+      await setEpisodeToTranscribing(id, { useExternalAudio: true });
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/audio-url`
+      );
+
+      expect(response.status).toBe(200);
+
+      const json = (await response.json()) as {
+        downloadUrl: string;
+        expiresIn: number | null;
+        source: string;
+      };
+      expect(json.downloadUrl).toContain("external.example.com");
+      expect(json.expiresIn).toBeNull();
+      expect(json.source).toBe("external");
     });
 
     // Note: このテストはenv.R2_BUCKETの直接操作がSELF.fetch経由のWorkerと
@@ -320,6 +391,81 @@ describe("Transcription Episode APIs", () => {
     it("returns 404 for non-existent episode", async () => {
       const response = await SELF.fetch(
         "http://localhost/api/episodes/non-existent-id/transcript/upload-url",
+        { method: "POST" }
+      );
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("POST /api/episodes/:id/transcription-lock", () => {
+    it("acquires lock for transcribing episode", async () => {
+      const { id } = await createTestEpisode({
+        title: "Lock Acquire Test",
+        publishAt: new Date(Date.now() + 86400000).toISOString(),
+        skipTranscription: false,
+      });
+
+      await setEpisodeToTranscribing(id);
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/transcription-lock`,
+        { method: "POST" }
+      );
+
+      expect(response.status).toBe(200);
+
+      const json = (await response.json()) as {
+        success: boolean;
+        lockedAt: string;
+        episode: { id: string };
+      };
+      expect(json.success).toBe(true);
+      expect(json.lockedAt).toBeDefined();
+      expect(json.episode.id).toBe(id);
+    });
+
+    it("returns 409 when already locked", async () => {
+      const { id } = await createTestEpisode({
+        title: "Already Locked Test",
+        publishAt: new Date(Date.now() + 86400000).toISOString(),
+        skipTranscription: false,
+      });
+
+      await setEpisodeToTranscribing(id);
+
+      // 1回目: ロック成功
+      await SELF.fetch(`http://localhost/api/episodes/${id}/transcription-lock`, {
+        method: "POST",
+      });
+
+      // 2回目: 既にロック済みなので409
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/transcription-lock`,
+        { method: "POST" }
+      );
+
+      expect(response.status).toBe(409);
+    });
+
+    it("returns 400 for non-transcribing episode", async () => {
+      const { id } = await createTestEpisode({
+        title: "Draft Episode Lock Test",
+        skipTranscription: false,
+      });
+
+      // draft状態のままロックを試みる
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/transcription-lock`,
+        { method: "POST" }
+      );
+
+      expect(response.status).toBe(400);
+    });
+
+    it("returns 404 for non-existent episode", async () => {
+      const response = await SELF.fetch(
+        "http://localhost/api/episodes/non-existent-id/transcription-lock",
         { method: "POST" }
       );
 
