@@ -174,12 +174,7 @@ export function Sidebar() {
 
           {/* Build Status */}
           <div className="px-4 py-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-[var(--color-text-muted)]">
-                ビルド状況
-              </span>
-              <BuildStatus />
-            </div>
+            <BuildStatus label="ビルド状況" />
           </div>
         </div>
       </aside>
