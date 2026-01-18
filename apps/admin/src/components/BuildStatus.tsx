@@ -34,9 +34,10 @@ function formatRelativeTime(dateString: string): string {
 
 interface BuildStatusProps {
   className?: string;
+  label?: string;
 }
 
-export function BuildStatus({ className = "" }: BuildStatusProps) {
+export function BuildStatus({ className = "", label }: BuildStatusProps) {
   const [deployments, setDeployments] = useState<Deployment[]>([]);
   const [configured, setConfigured] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
@@ -138,27 +139,34 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
 
   return (
     <div className={className}>
-      {/* ステータスボタン */}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors whitespace-nowrap ${stage.color} hover:opacity-80`}
-      >
-        {isBuilding ? (
-          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-        ) : (
-          <span>{latest?.latestStage.status === "failure" ? "✗" : "✓"}</span>
+      {/* ヘッダー（ラベル + ステータスボタン） */}
+      <div className="flex items-center justify-between">
+        {label && (
+          <span className="text-xs text-[var(--color-text-muted)]">
+            {label}
+          </span>
         )}
-        <span>{latest ? stage.label : "ビルド"}</span>
-        <svg
-          className={`w-3 h-3 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors whitespace-nowrap ${stage.color} hover:opacity-80`}
         >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
+          {isBuilding ? (
+            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <span>{latest?.latestStage.status === "failure" ? "✗" : "✓"}</span>
+          )}
+          <span>{latest ? stage.label : "ビルド"}</span>
+          <svg
+            className={`w-3 h-3 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      </div>
 
       {/* 展開コンテンツ */}
       {isExpanded && (
