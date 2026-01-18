@@ -137,6 +137,80 @@ describe("Episodes API - CRUD Operations", () => {
       const json = await response.json();
       expect(json.error).toBe("Episode not found");
     });
+
+    it("allows status change from failed to transcribing for retry", async () => {
+      const { id } = await createTestEpisode({
+        title: "Failed Episode",
+        skipTranscription: false,
+      });
+
+      // meta.json を直接操作して failed 状態にする
+      const meta = await env.R2_BUCKET.get(`episodes/${id}/meta.json`);
+      const data = JSON.parse(await meta!.text());
+      data.status = "failed";
+      data.audioUrl = "https://example.com/audio.mp3";
+      await env.R2_BUCKET.put(`episodes/${id}/meta.json`, JSON.stringify(data), {
+        httpMetadata: { contentType: "application/json" },
+      });
+
+      // ステータスを transcribing に変更（リトライ）
+      const response = await SELF.fetch(`http://localhost/api/episodes/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "transcribing" }),
+      });
+
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      expect(json.status).toBe("transcribing");
+    });
+
+    it("rejects status change from draft to transcribing", async () => {
+      const { id } = await createTestEpisode({
+        title: "Draft Episode",
+        skipTranscription: false,
+      });
+
+      const response = await SELF.fetch(`http://localhost/api/episodes/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "transcribing" }),
+      });
+
+      expect(response.status).toBe(400);
+
+      const json = await response.json();
+      expect(json.error).toContain("not allowed");
+    });
+
+    it("rejects retry when no audio file available", async () => {
+      const { id } = await createTestEpisode({
+        title: "Failed Episode No Audio",
+        skipTranscription: false,
+      });
+
+      // meta.json を直接操作して failed 状態にする（音声なし）
+      const meta = await env.R2_BUCKET.get(`episodes/${id}/meta.json`);
+      const data = JSON.parse(await meta!.text());
+      data.status = "failed";
+      data.audioUrl = "";
+      data.sourceAudioUrl = null;
+      await env.R2_BUCKET.put(`episodes/${id}/meta.json`, JSON.stringify(data), {
+        httpMetadata: { contentType: "application/json" },
+      });
+
+      const response = await SELF.fetch(`http://localhost/api/episodes/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "transcribing" }),
+      });
+
+      expect(response.status).toBe(400);
+
+      const json = await response.json();
+      expect(json.error).toContain("no audio file");
+    });
   });
 
   describe("DELETE /api/episodes/:id", () => {
