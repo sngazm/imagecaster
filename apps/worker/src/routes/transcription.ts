@@ -68,6 +68,7 @@ transcriptionQueue.get("/queue", async (c) => {
           slug: meta.slug,
           title: meta.title,
           audioUrl: meta.audioUrl,
+          sourceAudioUrl: meta.sourceAudioUrl,
           duration: meta.duration,
           lockedAt: meta.transcriptionLockedAt || "",
         });
@@ -91,7 +92,9 @@ transcriptionQueue.get("/queue", async (c) => {
 const transcriptionEpisodes = new Hono<{ Bindings: Env }>();
 
 /**
- * GET /api/episodes/:id/audio-url - 音声ファイルダウンロード用Presigned URL発行
+ * GET /api/episodes/:id/audio-url - 音声ファイルダウンロード用URL発行
+ *
+ * R2にファイルがある場合はPresigned URL、外部参照の場合はsourceAudioUrlを返す
  */
 transcriptionEpisodes.get("/:id/audio-url", async (c) => {
   const id = c.req.param("id");
@@ -99,34 +102,44 @@ transcriptionEpisodes.get("/:id/audio-url", async (c) => {
   try {
     const meta = await getEpisodeMeta(c.env, id);
 
-    // 音声ファイルが存在するか確認
-    if (!meta.audioUrl) {
-      return c.json({ error: "Audio file not available" }, 400);
+    // R2に音声ファイルがある場合はPresigned URLを発行
+    if (meta.audioUrl) {
+      const r2 = new AwsClient({
+        accessKeyId: c.env.R2_ACCESS_KEY_ID,
+        secretAccessKey: c.env.R2_SECRET_ACCESS_KEY,
+      });
+
+      const key = `episodes/${meta.id}/audio.mp3`;
+      const url = new URL(
+        `https://${c.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${c.env.R2_BUCKET_NAME}/${key}`
+      );
+      url.searchParams.set("X-Amz-Expires", "3600");
+
+      const signed = await r2.sign(
+        new Request(url, {
+          method: "GET",
+        }),
+        { aws: { signQuery: true } }
+      );
+
+      return c.json({
+        downloadUrl: signed.url,
+        expiresIn: 3600,
+        source: "r2",
+      });
     }
 
-    // Presigned URL 生成
-    const r2 = new AwsClient({
-      accessKeyId: c.env.R2_ACCESS_KEY_ID,
-      secretAccessKey: c.env.R2_SECRET_ACCESS_KEY,
-    });
+    // 外部参照の音声URLがある場合はそのまま返す
+    if (meta.sourceAudioUrl) {
+      return c.json({
+        downloadUrl: meta.sourceAudioUrl,
+        expiresIn: null,
+        source: "external",
+      });
+    }
 
-    const key = `episodes/${meta.id}/audio.mp3`;
-    const url = new URL(
-      `https://${c.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${c.env.R2_BUCKET_NAME}/${key}`
-    );
-    url.searchParams.set("X-Amz-Expires", "3600");
-
-    const signed = await r2.sign(
-      new Request(url, {
-        method: "GET",
-      }),
-      { aws: { signQuery: true } }
-    );
-
-    return c.json({
-      downloadUrl: signed.url,
-      expiresIn: 3600,
-    });
+    // どちらもない場合はエラー
+    return c.json({ error: "Audio file not available" }, 400);
   } catch {
     return c.json({ error: "Episode not found" }, 404);
   }

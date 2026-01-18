@@ -58,12 +58,24 @@ CF-Access-Client-Secret: <client_secret>
       "slug": "ep-abc123",
       "title": "エピソードタイトル",
       "audioUrl": "https://r2.example.com/episodes/ep-abc123/audio.mp3",
+      "sourceAudioUrl": null,
       "duration": 0,
       "lockedAt": ""
     }
   ]
 }
 ```
+
+**フィールド説明:**
+
+| フィールド | 説明 |
+|-----------|------|
+| audioUrl | R2にアップロード済みの音声URL |
+| sourceAudioUrl | 外部参照URL（RSSインポート時、音声をダウンロードしなかった場合） |
+
+**注意:**
+- 音声のダウンロードには `audioUrl` または `sourceAudioUrl` のいずれかを使用
+- `audioUrl` が空で `sourceAudioUrl` がある場合は外部URLから直接ダウンロード
 
 **注意:** GETはロックを付与しない。処理開始前に `POST /api/episodes/:id/transcription-lock` でロックを取得すること。
 
@@ -102,16 +114,31 @@ CF-Access-Client-Secret: <client_secret>
 
 ### GET /api/episodes/:id/audio-url
 
-音声ファイルダウンロード用のPresigned URLを発行。
+音声ファイルダウンロード用のURLを発行。R2にファイルがある場合はPresigned URL、外部参照の場合はそのまま返す。
 
-**レスポンス:**
+**レスポンス（R2の場合）:**
 
 ```json
 {
   "downloadUrl": "https://xxx.r2.cloudflarestorage.com/...",
-  "expiresIn": 3600
+  "expiresIn": 3600,
+  "source": "r2"
 }
 ```
+
+**レスポンス（外部参照の場合）:**
+
+```json
+{
+  "downloadUrl": "https://external.example.com/audio.mp3",
+  "expiresIn": null,
+  "source": "external"
+}
+```
+
+**注意:**
+- `source: "r2"` の場合は署名付きURL（有効期限あり）
+- `source: "external"` の場合は外部URLをそのまま返す（有効期限なし）
 
 ---
 
@@ -289,13 +316,16 @@ def process_episode(episode_id):
         episode = lock_data["episode"]
 
         # 2. 音声ダウンロードURL取得
+        # R2の場合はPresigned URL、外部参照の場合はそのまま返される
         resp = requests.get(
             f"{API_BASE}/episodes/{episode_id}/audio-url",
             headers=HEADERS
         )
-        audio_url = resp.json()["downloadUrl"]
+        audio_data = resp.json()
+        audio_url = audio_data["downloadUrl"]
+        # audio_data["source"] は "r2" または "external"
 
-        # 3. 音声ダウンロード
+        # 3. 音声ダウンロード（R2でも外部URLでも同じ処理）
         audio_resp = requests.get(audio_url)
         audio_path = f"/tmp/{episode_id}.mp3"
         with open(audio_path, "wb") as f:
