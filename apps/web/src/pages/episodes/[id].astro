@@ -209,7 +209,7 @@ const ogImageUrl = getEpisodeOgImageUrl(episode.artworkUrl, podcastArtworkUrl);
             </svg>
             文字起こしを見る
           </summary>
-          <div class="mt-3 space-y-3">
+          <div class="mt-3 max-h-96 overflow-y-auto space-y-3 pr-2">
             {transcriptSegments.map((segment) => (
               <div class="flex gap-3">
                 <span class="shrink-0 text-xs font-mono text-text-muted dark:text-text-muted-dark tabular-nums">
