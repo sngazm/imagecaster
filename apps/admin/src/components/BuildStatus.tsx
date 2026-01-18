@@ -148,7 +148,7 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
         ) : (
           <span>{latest?.latestStage.status === "failure" ? "✗" : "✓"}</span>
         )}
-        <span>Web {latest ? stage.label : "ビルド"}</span>
+        <span>{latest ? stage.label : "ビルド"}</span>
         <svg
           className={`w-3 h-3 transition-transform ${isExpanded ? "rotate-180" : ""}`}
           fill="none"
