@@ -49,12 +49,15 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
 
   const fetchDeployments = async () => {
     try {
-      const data = await api.getDeployments();
+      const [data, settings] = await Promise.all([
+        api.getDeployments(),
+        api.getSettings(),
+      ]);
       setDeployments(data.deployments);
       setConfigured(data.configured);
-      setWebsiteUrl(data.websiteUrl);
       setAccountId(data.accountId);
       setProjectName(data.projectName);
+      setWebsiteUrl(settings.websiteUrl);
     } catch (err) {
       console.error("Failed to fetch deployments:", err);
     } finally {
