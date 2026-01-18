@@ -248,9 +248,16 @@ episodes.put("/:id", async (c) => {
       const indexEntry = index.episodes.find((ep) => ep.id === meta.id);
       if (indexEntry) {
         indexEntry.id = newSlug;
+        indexEntry.status = meta.status; // statusも同期
       }
       meta.id = newSlug;
       meta.slug = newSlug;
+    } else {
+      // slugが変わらない場合もstatusを同期
+      const indexEntry = index.episodes.find((ep) => ep.id === meta.id);
+      if (indexEntry) {
+        indexEntry.status = meta.status;
+      }
     }
 
     await saveEpisodeMeta(c.env, meta);
