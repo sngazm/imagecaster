@@ -1,57 +1,76 @@
-import type { Episode, PodcastIndex } from "./types";
+import type { Episode, PodcastIndex, TranscriptSegment } from "./types";
 
 /**
- * VTT形式の文字起こしをパースしてプレーンテキストを抽出
- * キューごとに段落として整形
+ * VTT形式の文字起こしをパースしてセグメント配列に変換
  */
-export function parseVttToText(vtt: string): string {
+export function parseVttToSegments(vtt: string): TranscriptSegment[] {
   const lines = vtt.split("\n");
-  const paragraphs: string[] = [];
-  let currentParagraph: string[] = [];
+  const segments: TranscriptSegment[] = [];
+  let currentStart = "";
+  let currentTextLines: string[] = [];
 
   for (const line of lines) {
     const trimmed = line.trim();
 
-    // WEBVTT ヘッダー、タイムスタンプ、キュー番号をスキップ
-    if (
-      trimmed.startsWith("WEBVTT") ||
-      trimmed.includes("-->") ||
-      /^\d+$/.test(trimmed)
-    ) {
+    // WEBVTT ヘッダー、キュー番号をスキップ
+    if (trimmed.startsWith("WEBVTT") || /^\d+$/.test(trimmed)) {
+      continue;
+    }
+
+    // タイムスタンプ行からstart時間を抽出
+    const timestampMatch = trimmed.match(/^(\d{2}:\d{2}:\d{2})\.\d{3}\s*-->/);
+    if (timestampMatch) {
+      currentStart = timestampMatch[1];
       continue;
     }
 
     // 空行はキューの区切り
     if (trimmed === "") {
-      if (currentParagraph.length > 0) {
-        paragraphs.push(currentParagraph.join(" "));
-        currentParagraph = [];
+      if (currentStart && currentTextLines.length > 0) {
+        segments.push({
+          start: currentStart,
+          text: currentTextLines.join(" "),
+        });
+        currentStart = "";
+        currentTextLines = [];
       }
       continue;
     }
 
-    currentParagraph.push(trimmed);
+    currentTextLines.push(trimmed);
   }
 
-  // 最後の段落を追加
-  if (currentParagraph.length > 0) {
-    paragraphs.push(currentParagraph.join(" "));
+  // 最後のセグメントを追加
+  if (currentStart && currentTextLines.length > 0) {
+    segments.push({
+      start: currentStart,
+      text: currentTextLines.join(" "),
+    });
   }
 
-  return paragraphs.join("\n\n");
+  return segments;
 }
 
 /**
- * 文字起こしテキストを取得
+ * セグメント配列からプレーンテキストを抽出（検索用）
  */
-export async function getTranscriptText(transcriptUrl: string): Promise<string> {
+export function segmentsToText(segments: TranscriptSegment[]): string {
+  return segments.map((s) => s.text).join(" ");
+}
+
+/**
+ * 文字起こしセグメントを取得
+ */
+export async function getTranscriptSegments(
+  transcriptUrl: string
+): Promise<TranscriptSegment[]> {
   try {
     const res = await fetch(transcriptUrl);
-    if (!res.ok) return "";
+    if (!res.ok) return [];
     const vtt = await res.text();
-    return parseVttToText(vtt);
+    return parseVttToSegments(vtt);
   } catch {
-    return "";
+    return [];
   }
 }
 

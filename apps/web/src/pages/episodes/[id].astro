@@ -1,8 +1,8 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import { getPublishedEpisodes, getEpisode, formatDuration, formatDate, formatFileSize, processDescription, getPodcastIndex, getTranscriptText } from "../../lib/api";
+import { getPublishedEpisodes, getEpisode, formatDuration, formatDate, formatFileSize, processDescription, getPodcastIndex, getTranscriptSegments, segmentsToText } from "../../lib/api";
 import { getEpisodeOgImageUrl } from "../../lib/og";
-import type { Episode } from "../../lib/types";
+import type { Episode, TranscriptSegment } from "../../lib/types";
 
 // 前後エピソードのナビゲーション用
 interface EpisodeNav {
@@ -22,9 +22,10 @@ export async function getStaticPaths() {
 
   return Promise.all(
     episodes.map(async (episode, idx) => {
-      const transcriptText = episode.transcriptUrl
-        ? await getTranscriptText(episode.transcriptUrl)
-        : "";
+      const transcriptSegments = episode.transcriptUrl
+        ? await getTranscriptSegments(episode.transcriptUrl)
+        : [];
+      const transcriptText = segmentsToText(transcriptSegments);
       // エピソードは新しい順なので: index小=新しい, index大=古い
       // 前のエピソード = より古い（index + 1）
       // 次のエピソード = より新しい（index - 1）
@@ -36,7 +37,7 @@ export async function getStaticPaths() {
         : null;
       return {
         params: { id: episode.id },
-        props: { episode, websiteUrl, transcriptText, podcastArtworkUrl, prevEpisode, nextEpisode, spotifyUrl },
+        props: { episode, websiteUrl, transcriptSegments, transcriptText, podcastArtworkUrl, prevEpisode, nextEpisode, spotifyUrl },
       };
     })
   );
@@ -46,7 +47,8 @@ export async function getStaticPaths() {
 const { id } = Astro.params;
 let episode: Episode;
 let websiteUrl: string;
-let transcriptText: string;
+let transcriptSegments: TranscriptSegment[] = [];
+let transcriptText: string = "";
 let podcastArtworkUrl: string;
 let prevEpisode: EpisodeNav | null = null;
 let nextEpisode: EpisodeNav | null = null;
@@ -56,6 +58,7 @@ if (Astro.props.episode) {
   // SSGモード: getStaticPathsからpropsが渡される
   episode = Astro.props.episode;
   websiteUrl = Astro.props.websiteUrl;
+  transcriptSegments = Astro.props.transcriptSegments || [];
   transcriptText = Astro.props.transcriptText || "";
   podcastArtworkUrl = Astro.props.podcastArtworkUrl || "";
   prevEpisode = Astro.props.prevEpisode || null;
@@ -72,9 +75,10 @@ if (Astro.props.episode) {
   websiteUrl = index.podcast.websiteUrl;
   podcastArtworkUrl = index.podcast.artworkUrl;
   spotifyUrl = index.podcast.spotifyUrl || null;
-  transcriptText = episode.transcriptUrl
-    ? await getTranscriptText(episode.transcriptUrl)
-    : "";
+  transcriptSegments = episode.transcriptUrl
+    ? await getTranscriptSegments(episode.transcriptUrl)
+    : [];
+  transcriptText = segmentsToText(transcriptSegments);
   // 前後のエピソードを探す
   const currentIdx = allEpisodes.findIndex(e => e.id === id);
   if (currentIdx !== -1) {
@@ -197,7 +201,7 @@ const ogImageUrl = getEpisodeOgImageUrl(episode.artworkUrl, podcastArtworkUrl);
       </h2>
       <div class="prose prose-sm prose-zinc dark:prose-invert max-w-none text-text-secondary dark:text-text-secondary-dark" set:html={description} />
 
-      {transcriptText && (
+      {transcriptSegments.length > 0 && (
         <details class="mt-4 border-t border-border pt-4 dark:border-border-dark group">
           <summary class="cursor-pointer list-none inline-flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent-hover select-none">
             <svg class="h-4 w-4 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -205,8 +209,17 @@ const ogImageUrl = getEpisodeOgImageUrl(episode.artworkUrl, podcastArtworkUrl);
             </svg>
             文字起こしを見る
           </summary>
-          <div class="mt-3 text-sm leading-relaxed text-text-secondary dark:text-text-secondary-dark whitespace-pre-wrap">
-            {transcriptText}
+          <div class="mt-3 space-y-3">
+            {transcriptSegments.map((segment) => (
+              <div class="flex gap-3">
+                <span class="shrink-0 text-xs font-mono text-text-muted dark:text-text-muted-dark tabular-nums">
+                  {segment.start}
+                </span>
+                <p class="text-sm leading-relaxed text-text-secondary dark:text-text-secondary-dark">
+                  {segment.text}
+                </p>
+              </div>
+            ))}
           </div>
         </details>
       )}

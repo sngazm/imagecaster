@@ -3,6 +3,11 @@ export interface ReferenceLink {
   title: string;
 }
 
+export interface TranscriptSegment {
+  start: string;  // "00:00:05"
+  text: string;
+}
+
 export interface Episode {
   id: string;
   slug: string;
