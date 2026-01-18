@@ -388,10 +388,10 @@ export const api = {
       body: JSON.stringify({ rssUrl }),
     }),
 
-  importRss: (rssUrl: string, importAudio: boolean = false, importPodcastSettings: boolean = false, customSlugs?: Record<string, string>) =>
+  importRss: (rssUrl: string, importAudio: boolean = false, importPodcastSettings: boolean = false, customSlugs?: Record<string, string>, skipTranscription: boolean = true) =>
     request<RssImportResponse>("/api/import/rss", {
       method: "POST",
-      body: JSON.stringify({ rssUrl, importAudio, importPodcastSettings, customSlugs }),
+      body: JSON.stringify({ rssUrl, importAudio, importPodcastSettings, customSlugs, skipTranscription }),
     }),
 
   // Deployments

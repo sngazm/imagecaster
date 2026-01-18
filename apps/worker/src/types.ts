@@ -303,6 +303,7 @@ export interface ImportRssRequest {
   importArtwork?: boolean; // trueの場合はエピソードアートワークもダウンロード
   importPodcastSettings?: boolean; // trueの場合はPodcast設定も上書き
   customSlugs?: Record<string, string>; // インデックス(0始まり) → カスタムslug のマッピング
+  skipTranscription?: boolean; // trueの場合は文字起こしをスキップ（デフォルト: true）
 }
 
 /**

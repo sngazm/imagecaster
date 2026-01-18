@@ -289,6 +289,7 @@ importRoutes.post("/rss", async (c) => {
   const importArtwork = body.importArtwork ?? false;
   const importPodcastSettings = body.importPodcastSettings ?? false;
   const customSlugs = body.customSlugs ?? {};
+  const skipTranscription = body.skipTranscription ?? true; // デフォルトはスキップ
 
   // RSSフィードを取得
   let rssXml: string;
@@ -382,8 +383,8 @@ importRoutes.post("/rss", async (c) => {
       sourceGuid: rssEp.guid || null, // GUIDを保存（差分インポート用）
       transcriptUrl: null,
       artworkUrl: importArtwork ? null : (rssEp.artworkUrl || null), // ダウンロードする場合は後で設定
-      skipTranscription: true,
-      status: "published",
+      skipTranscription,
+      status: skipTranscription ? "published" : "transcribing",
       createdAt: now,
       publishAt: pubDate,
       publishedAt: pubDate,
