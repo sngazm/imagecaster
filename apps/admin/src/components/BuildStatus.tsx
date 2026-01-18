@@ -137,7 +137,8 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
   const displayWebsiteUrl = websiteUrl ? getWebsiteUrl(websiteUrl) : undefined;
 
   return (
-    <div className={`relative ${className}`}>
+    <div className={className}>
+      {/* ステータスボタン */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${stage.color} hover:opacity-80`}
@@ -148,94 +149,96 @@ export function BuildStatus({ className = "" }: BuildStatusProps) {
           <span>{latest?.latestStage.status === "failure" ? "✗" : "✓"}</span>
         )}
         <span>Web {latest ? stage.label : "ビルド"}</span>
+        <svg
+          className={`w-3 h-3 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
       </button>
 
+      {/* 展開コンテンツ */}
       {isExpanded && (
-        <>
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setIsExpanded(false)}
-          />
-          <div className="absolute left-0 bottom-full mb-2 w-80 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg shadow-xl z-50">
-            <div className="p-3 border-b border-[var(--color-border)]">
-              <h3 className="font-medium text-[var(--color-text-primary)]">Web サイトのビルド状況</h3>
-              <div className="flex gap-3 mt-2">
-                {displayWebsiteUrl && (
-                  <a
-                    href={displayWebsiteUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-[var(--color-accent)] hover:underline"
-                  >
-                    サイトを開く{env === "preview" ? " (プレビュー)" : ""} →
-                  </a>
-                )}
-                {dashboardUrl && (
-                  <a
-                    href={dashboardUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-                  >
-                    デプロイ管理画面 →
-                  </a>
-                )}
-              </div>
-            </div>
-            <div className="max-h-80 overflow-y-auto">
-              {deployments.length === 0 ? (
-                <div className="p-3 text-sm text-[var(--color-text-muted)]">
-                  {configured ? "デプロイ履歴がありません" : "ビルド状況の取得には環境変数の設定が必要です"}
-                </div>
-              ) : (
-                deployments.map((deployment) => {
-                  const depStage = getStageConfig(deployment.latestStage.name);
-                  const depIsBuilding = deployment.latestStage.status === "active";
-
-                  return (
-                    <div
-                      key={deployment.id}
-                      className="p-3 border-b border-[var(--color-border)] last:border-b-0 hover:bg-[var(--color-bg-hover)]"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          {depIsBuilding ? (
-                            <div className={`w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin ${depStage.color.split(" ")[0]}`} />
-                          ) : (
-                            <span className="text-sm">{deployment.latestStage.status === "failure" ? "✗" : "✓"}</span>
-                          )}
-                          <span className={`text-sm font-medium ${depStage.color.split(" ")[0]}`}>
-                            {depStage.label}
-                          </span>
-                        </div>
-                        <span className="text-xs text-[var(--color-text-muted)]">
-                          {formatRelativeTime(deployment.createdOn)}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-            <div className="p-2 border-t border-[var(--color-border)] flex gap-2">
-              <button
-                onClick={() => {
-                  fetchDeployments();
-                }}
-                className="flex-1 text-center text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] py-1"
+        <div className="mt-3 space-y-3">
+          {/* リンク */}
+          <div className="flex flex-wrap gap-x-3 gap-y-1">
+            {displayWebsiteUrl && (
+              <a
+                href={displayWebsiteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-[var(--color-accent)] hover:underline"
               >
-                更新
-              </button>
-              <button
-                onClick={handleTriggerRebuild}
-                disabled={isTriggering || isBuilding}
-                className="flex-1 text-center text-xs bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed py-1 px-2 rounded"
+                サイトを開く{env === "preview" ? " (プレビュー)" : ""} →
+              </a>
+            )}
+            {dashboardUrl && (
+              <a
+                href={dashboardUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
               >
-                {isTriggering ? "実行中..." : "再ビルド"}
-              </button>
-            </div>
+                デプロイ管理 →
+              </a>
+            )}
           </div>
-        </>
+
+          {/* デプロイ履歴 */}
+          <div className="space-y-1">
+            {deployments.length === 0 ? (
+              <p className="text-xs text-[var(--color-text-muted)]">
+                {configured ? "履歴なし" : "環境変数の設定が必要"}
+              </p>
+            ) : (
+              deployments.slice(0, 3).map((deployment) => {
+                const depStage = getStageConfig(deployment.latestStage.name);
+                const depIsBuilding = deployment.latestStage.status === "active";
+
+                return (
+                  <div
+                    key={deployment.id}
+                    className="flex items-center justify-between text-xs"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      {depIsBuilding ? (
+                        <div className={`w-2.5 h-2.5 border-2 border-current border-t-transparent rounded-full animate-spin ${depStage.color.split(" ")[0]}`} />
+                      ) : (
+                        <span>{deployment.latestStage.status === "failure" ? "✗" : "✓"}</span>
+                      )}
+                      <span className={depStage.color.split(" ")[0]}>
+                        {depStage.label}
+                      </span>
+                    </div>
+                    <span className="text-[var(--color-text-muted)]">
+                      {formatRelativeTime(deployment.createdOn)}
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* アクションボタン */}
+          <div className="flex gap-2">
+            <button
+              onClick={fetchDeployments}
+              className="flex-1 text-center text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] py-1.5 border border-[var(--color-border)] rounded"
+            >
+              更新
+            </button>
+            <button
+              onClick={handleTriggerRebuild}
+              disabled={isTriggering || isBuilding}
+              className="flex-1 text-center text-xs bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed py-1.5 px-2 rounded"
+            >
+              {isTriggering ? "実行中..." : "再ビルド"}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

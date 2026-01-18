@@ -174,7 +174,7 @@ export function Sidebar() {
 
           {/* Build Status */}
           <div className="px-4 py-3">
-            <div className="flex items-center justify-between">
+            <div className="space-y-2">
               <span className="text-xs text-[var(--color-text-muted)]">
                 ビルド状況
               </span>
