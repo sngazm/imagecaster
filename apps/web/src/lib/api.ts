@@ -170,7 +170,7 @@ export async function getPublishedEpisodes(): Promise<Episode[]> {
   );
 
   cachedPublishedEpisodes = episodes
-    .filter((ep): ep is Episode => ep !== null && ep.status === "published")
+    .filter((ep): ep is Episode => ep !== null && ep.publishStatus === "published")
     .sort((a, b) => new Date(b.publishAt).getTime() - new Date(a.publishAt).getTime());
 
   return cachedPublishedEpisodes;

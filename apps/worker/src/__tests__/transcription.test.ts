@@ -24,7 +24,7 @@ async function createTestEpisode(data: {
 
 /**
  * テスト用ヘルパー: エピソードをtranscribing状態にする
- * 実際のフローでは upload-complete で transcribing になるが、
+ * 実際のフローでは upload-complete 後にキューから取得されて transcribing になるが、
  * テスト用にメタデータを直接操作
  */
 async function setEpisodeToTranscribing(id: string, options?: {
@@ -35,7 +35,8 @@ async function setEpisodeToTranscribing(id: string, options?: {
   if (!meta) throw new Error("Episode not found");
 
   const data = JSON.parse(await meta.text());
-  data.status = "transcribing";
+  data.publishStatus = "draft";
+  data.transcribeStatus = "transcribing";
 
   if (options?.useExternalAudio) {
     // 外部参照（RSSインポート時のように音声をダウンロードしない場合）
@@ -57,7 +58,8 @@ async function setEpisodeToTranscribing(id: string, options?: {
     const index = JSON.parse(await indexObj.text());
     const episodeRef = index.episodes.find((ep: { id: string }) => ep.id === id);
     if (episodeRef) {
-      episodeRef.status = "transcribing";
+      episodeRef.publishStatus = "draft";
+      episodeRef.transcribeStatus = "transcribing";
       await env.R2_BUCKET.put("index.json", JSON.stringify(index), {
         httpMetadata: { contentType: "application/json" },
       });
@@ -350,7 +352,7 @@ describe("Transcription Episode APIs", () => {
         title: "Non-transcribing Test",
       });
 
-      // draft状態のまま - ルートマッチングを確認
+      // new状態のまま - ルートマッチングを確認
 
       const response = await SELF.fetch(
         `http://localhost/api/episodes/${id}/transcript/upload-url`,
@@ -360,7 +362,7 @@ describe("Transcription Episode APIs", () => {
       expect(response.status).toBe(400);
 
       const json = (await response.json()) as { error: string };
-      expect(json.error).toContain("not in transcribing status");
+      expect(json.error).toContain("not in pending or transcribing status");
     });
 
     // Note: このテストはenv.R2_BUCKETの直接操作がSELF.fetch経由のWorkerと
@@ -521,7 +523,7 @@ describe("Transcription Complete with JSON", () => {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "completed" }),
+          body: JSON.stringify({ transcribeStatus: "completed" }),
         }
       );
 
@@ -561,15 +563,16 @@ describe("Transcription Complete with JSON", () => {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "completed", duration: 300 }),
+          body: JSON.stringify({ transcribeStatus: "completed", duration: 300 }),
         }
       );
 
       expect(response.status).toBe(200);
 
-      const json = (await response.json()) as { success: boolean; status: string };
+      const json = (await response.json()) as { success: boolean; publishStatus: string; transcribeStatus: string };
       expect(json.success).toBe(true);
-      expect(json.status).toBe("scheduled");
+      expect(json.publishStatus).toBe("scheduled");
+      expect(json.transcribeStatus).toBe("completed");
 
       // VTTファイルが作成されたことを確認
       const vttObj = await env.R2_BUCKET.get(`episodes/${id}/transcript.vtt`);
@@ -609,7 +612,7 @@ describe("Transcription Complete with JSON", () => {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "completed" }),
+          body: JSON.stringify({ transcribeStatus: "completed" }),
         }
       );
 
@@ -633,15 +636,15 @@ describe("Transcription Complete with JSON", () => {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "failed" }),
+          body: JSON.stringify({ transcribeStatus: "failed" }),
         }
       );
 
       expect(response.status).toBe(200);
 
-      const json = (await response.json()) as { success: boolean; status: string };
+      const json = (await response.json()) as { success: boolean; transcribeStatus: string };
       expect(json.success).toBe(true);
-      expect(json.status).toBe("failed");
+      expect(json.transcribeStatus).toBe("failed");
 
       // ロックが解除されたことを確認
       const metaObj = await env.R2_BUCKET.get(`episodes/${id}/meta.json`);

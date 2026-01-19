@@ -1,4 +1,4 @@
-import type { Env, PodcastIndex, EpisodeMeta, TemplatesIndex, DescriptionTemplate } from "../types";
+import type { Env, PodcastIndex, EpisodeMeta, TemplatesIndex, DescriptionTemplate, PublishStatus, TranscribeStatus } from "../types";
 
 /**
  * デフォルトの Podcast インデックス
@@ -96,12 +96,14 @@ export async function saveEpisodeMeta(
 export async function syncEpisodeStatusToIndex(
   env: Env,
   episodeId: string,
-  status: EpisodeMeta["status"]
+  publishStatus: PublishStatus,
+  transcribeStatus: TranscribeStatus
 ): Promise<void> {
   const index = await getIndex(env);
   const episodeRef = index.episodes.find((ep) => ep.id === episodeId);
   if (episodeRef) {
-    episodeRef.status = status;
+    episodeRef.publishStatus = publishStatus;
+    episodeRef.transcribeStatus = transcribeStatus;
     await saveIndex(env, index);
   }
 }
@@ -180,7 +182,7 @@ export async function getPublishedEpisodes(env: Env): Promise<EpisodeMeta[]> {
   );
 
   return episodes
-    .filter((ep) => ep.status === "published")
+    .filter((ep) => ep.publishStatus === "published")
     .sort(
       (a, b) =>
         new Date(b.publishedAt!).getTime() - new Date(a.publishedAt!).getTime()

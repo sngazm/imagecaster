@@ -49,8 +49,9 @@ transcriptionQueue.get("/queue", async (c) => {
   const queueItems: TranscriptionQueueItem[] = [];
 
   // index.json のステータスで事前フィルタリング（高速化）
+  // pending または transcribing（ロック切れの再取得用）を対象
   const transcribingRefs = index.episodes.filter(
-    (ref) => ref.status === "transcribing"
+    (ref) => ref.transcribeStatus === "pending" || ref.transcribeStatus === "transcribing"
   );
 
   for (const ref of transcribingRefs) {
@@ -61,8 +62,9 @@ transcriptionQueue.get("/queue", async (c) => {
     try {
       const meta = await getEpisodeMeta(c.env, ref.id);
 
-      // ロックが無効なエピソードのみ取得（ロックは付与しない）
-      if (meta.status === "transcribing" && !isLockValid(meta.transcriptionLockedAt)) {
+      // pending または transcribing でロックが無効なエピソードのみ取得
+      const isPendingOrTranscribing = meta.transcribeStatus === "pending" || meta.transcribeStatus === "transcribing";
+      if (isPendingOrTranscribing && !isLockValid(meta.transcriptionLockedAt)) {
         queueItems.push({
           id: meta.id,
           slug: meta.slug,
@@ -154,9 +156,9 @@ transcriptionEpisodes.post("/:id/transcript/upload-url", async (c) => {
   try {
     const meta = await getEpisodeMeta(c.env, id);
 
-    // transcribing 状態のみ許可
-    if (meta.status !== "transcribing") {
-      return c.json({ error: "Episode is not in transcribing status" }, 400);
+    // pending または transcribing 状態のみ許可
+    if (meta.transcribeStatus !== "pending" && meta.transcribeStatus !== "transcribing") {
+      return c.json({ error: "Episode is not in pending or transcribing status" }, 400);
     }
 
     // Presigned URL 生成
@@ -201,9 +203,9 @@ transcriptionEpisodes.post("/:id/transcription-lock", async (c) => {
   try {
     const meta = await getEpisodeMeta(c.env, id);
 
-    // transcribing 状態のみ許可
-    if (meta.status !== "transcribing") {
-      return c.json({ error: "Episode is not in transcribing status" }, 400);
+    // pending または transcribing 状態のみ許可
+    if (meta.transcribeStatus !== "pending" && meta.transcribeStatus !== "transcribing") {
+      return c.json({ error: "Episode is not in pending or transcribing status" }, 400);
     }
 
     // 既にロック済みの場合はエラー
@@ -211,10 +213,12 @@ transcriptionEpisodes.post("/:id/transcription-lock", async (c) => {
       return c.json({ error: "Episode is already locked" }, 409);
     }
 
-    // ロックを取得
+    // ロックを取得し、transcribeStatus を transcribing に更新
     const now = new Date().toISOString();
     meta.transcriptionLockedAt = now;
+    meta.transcribeStatus = "transcribing";
     await saveEpisodeMeta(c.env, meta);
+    await syncEpisodeStatusToIndex(c.env, meta.id, meta.publishStatus, meta.transcribeStatus);
 
     return c.json({
       success: true,

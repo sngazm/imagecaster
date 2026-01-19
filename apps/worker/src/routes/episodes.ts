@@ -39,7 +39,8 @@ episodes.get("/", async (c) => {
         id: meta.id,
         slug: meta.slug || meta.id,
         title: meta.title,
-        status: meta.status,
+        publishStatus: meta.publishStatus,
+        transcribeStatus: meta.transcribeStatus,
         publishAt: meta.publishAt,
         publishedAt: meta.publishedAt,
         sourceGuid: meta.sourceGuid || null,
@@ -136,7 +137,8 @@ episodes.post("/", async (c) => {
     transcriptUrl: null,
     artworkUrl: null,
     skipTranscription: body.skipTranscription ?? false,
-    status: "draft",
+    publishStatus: "new",
+    transcribeStatus: "none",
     createdAt: now,
     publishAt: body.publishAt ?? null,
     publishedAt: null,
@@ -151,14 +153,19 @@ episodes.post("/", async (c) => {
   // メタデータを保存
   await saveEpisodeMeta(c.env, newMeta);
 
-  // インデックスを更新（statusも含める）
-  index.episodes.push({ id: slug, status: newMeta.status });
+  // インデックスを更新（ステータスも含める）
+  index.episodes.push({
+    id: slug,
+    publishStatus: newMeta.publishStatus,
+    transcribeStatus: newMeta.transcribeStatus,
+  });
   await saveIndex(c.env, index);
 
   const response: CreateEpisodeResponse = {
     id: slug,
     slug,
-    status: "draft",
+    publishStatus: "new",
+    transcribeStatus: "none",
   };
 
   return c.json(response, 201);
@@ -177,9 +184,9 @@ episodes.put("/:id", async (c) => {
     let needsMove = false;
     let newSlug = meta.slug || meta.id;
 
-    // slugの更新（ドラフト状態のみ）
+    // slugの更新（new状態のみ）
     if (body.slug !== undefined && body.slug !== meta.slug) {
-      if (meta.status !== "draft") {
+      if (meta.publishStatus !== "new") {
         return c.json({ error: "Cannot change slug after upload started" }, 400);
       }
       if (!isValidSlug(body.slug)) {
@@ -204,16 +211,16 @@ episodes.put("/:id", async (c) => {
       meta.publishAt = body.publishAt;
     }
     // skipTranscription: 文字起こしがまだない場合は変更可能
-    // スキップを解除した場合（false にした場合）、scheduled/published なら transcribing に戻す
+    // スキップを解除した場合（false にした場合）、transcribeStatus を pending に戻す
     if (body.skipTranscription !== undefined) {
       // 文字起こしが完了している場合は変更不可
       if (!meta.transcriptUrl) {
         const wasSkipped = meta.skipTranscription;
         meta.skipTranscription = body.skipTranscription;
 
-        // スキップ解除 + scheduled/published → transcribing に戻す
-        if (wasSkipped && !body.skipTranscription && (meta.status === "scheduled" || meta.status === "published")) {
-          meta.status = "transcribing";
+        // スキップ解除 → transcribeStatus を pending に戻す
+        if (wasSkipped && !body.skipTranscription && meta.transcribeStatus === "skipped") {
+          meta.transcribeStatus = "pending";
         }
       }
     }
@@ -241,19 +248,19 @@ episodes.put("/:id", async (c) => {
       meta.spotifyUrl = body.spotifyUrl;
     }
 
-    // ステータス変更（リトライ用: failed → transcribing）
-    if (body.status !== undefined) {
-      // failed → transcribing のみ許可（リトライ）
-      if (meta.status === "failed" && body.status === "transcribing") {
+    // 文字起こしリトライ（failed → pending）
+    if (body.transcribeStatus !== undefined) {
+      // failed → pending のみ許可（リトライ）
+      if (meta.transcribeStatus === "failed" && body.transcribeStatus === "pending") {
         // 音声ファイルがあることを確認
         if (!meta.audioUrl && !meta.sourceAudioUrl) {
           return c.json({ error: "Cannot retry: no audio file available" }, 400);
         }
-        meta.status = "transcribing";
+        meta.transcribeStatus = "pending";
         meta.transcriptionLockedAt = null; // ロックをクリア
       } else {
         return c.json(
-          { error: `Status change from '${meta.status}' to '${body.status}' is not allowed` },
+          { error: `TranscribeStatus change from '${meta.transcribeStatus}' to '${body.transcribeStatus}' is not allowed` },
           400
         );
       }
@@ -266,15 +273,17 @@ episodes.put("/:id", async (c) => {
       const indexEntry = index.episodes.find((ep) => ep.id === meta.id);
       if (indexEntry) {
         indexEntry.id = newSlug;
-        indexEntry.status = meta.status; // statusも同期
+        indexEntry.publishStatus = meta.publishStatus;
+        indexEntry.transcribeStatus = meta.transcribeStatus;
       }
       meta.id = newSlug;
       meta.slug = newSlug;
     } else {
-      // slugが変わらない場合もstatusを同期
+      // slugが変わらない場合もステータスを同期
       const indexEntry = index.episodes.find((ep) => ep.id === meta.id);
       if (indexEntry) {
-        indexEntry.status = meta.status;
+        indexEntry.publishStatus = meta.publishStatus;
+        indexEntry.transcribeStatus = meta.transcribeStatus;
       }
     }
 
@@ -294,7 +303,7 @@ episodes.put("/:id", async (c) => {
       body.referenceLinks === undefined &&
       body.slug === undefined;
 
-    if (meta.status === "published" && !isPlatformUrlOnlyUpdate) {
+    if (meta.publishStatus === "published" && !isPlatformUrlOnlyUpdate) {
       await regenerateFeed(c.env);
       await triggerWebRebuild(c.env);
     }
@@ -313,7 +322,7 @@ episodes.delete("/:id", async (c) => {
 
   try {
     const meta = await getEpisodeMeta(c.env, id);
-    const wasPublished = meta.status === "published";
+    const wasPublished = meta.publishStatus === "published";
 
     await deleteEpisode(c.env, id);
 
@@ -350,7 +359,7 @@ episodes.post("/:id/transcription-complete", async (c) => {
   try {
     const meta = await getEpisodeMeta(c.env, id);
 
-    if (body.status === "completed") {
+    if (body.transcribeStatus === "completed") {
       // R2 から transcript.json を読み込み
       const jsonKey = `episodes/${meta.id}/transcript.json`;
       const jsonObj = await c.env.R2_BUCKET.get(jsonKey);
@@ -386,6 +395,7 @@ episodes.post("/:id/transcription-complete", async (c) => {
 
       // メタデータ更新
       meta.transcriptUrl = `${c.env.R2_PUBLIC_URL}/${vttKey}`;
+      meta.transcribeStatus = "completed";
 
       // duration が提供されていれば更新
       if (body.duration !== undefined) {
@@ -394,12 +404,12 @@ episodes.post("/:id/transcription-complete", async (c) => {
 
       // publishAt がnullなら下書きのまま
       if (meta.publishAt === null) {
-        meta.status = "draft";
+        meta.publishStatus = "draft";
       } else {
         // publishAt が過去なら即座に published に
         const now = new Date();
         if (new Date(meta.publishAt) <= now) {
-          meta.status = "published";
+          meta.publishStatus = "published";
           // 既に publishedAt が設定されている場合は維持（RSSインポートなど）
           if (!meta.publishedAt) {
             meta.publishedAt = now.toISOString();
@@ -412,26 +422,30 @@ episodes.post("/:id/transcription-complete", async (c) => {
             meta.blueskyPostedAt = now.toISOString();
           }
         } else {
-          meta.status = "scheduled";
+          meta.publishStatus = "scheduled";
         }
       }
     } else {
-      meta.status = "failed";
+      meta.transcribeStatus = "failed";
     }
 
     // ロック解除
     meta.transcriptionLockedAt = null;
 
     await saveEpisodeMeta(c.env, meta);
-    await syncEpisodeStatusToIndex(c.env, meta.id, meta.status);
+    await syncEpisodeStatusToIndex(c.env, meta.id, meta.publishStatus, meta.transcribeStatus);
 
     // 公開された場合はフィードを再生成してWebをリビルド
-    if (meta.status === "published") {
+    if (meta.publishStatus === "published") {
       await regenerateFeed(c.env);
       await triggerWebRebuild(c.env);
     }
 
-    return c.json({ success: true, status: meta.status });
+    return c.json({
+      success: true,
+      publishStatus: meta.publishStatus,
+      transcribeStatus: meta.transcribeStatus,
+    });
   } catch {
     return c.json({ error: "Episode not found" }, 404);
   }

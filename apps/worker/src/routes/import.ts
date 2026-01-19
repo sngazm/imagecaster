@@ -384,7 +384,8 @@ importRoutes.post("/rss", async (c) => {
       transcriptUrl: null,
       artworkUrl: importArtwork ? null : (rssEp.artworkUrl || null), // ダウンロードする場合は後で設定
       skipTranscription,
-      status: skipTranscription ? "published" : "transcribing",
+      publishStatus: "published",
+      transcribeStatus: skipTranscription ? "skipped" : "pending",
       createdAt: now,
       publishAt: pubDate,
       publishedAt: pubDate,
@@ -393,6 +394,7 @@ importRoutes.post("/rss", async (c) => {
       blueskyPostedAt: null,
       referenceLinks: [],
       applePodcastsUrl: null,
+      spotifyUrl: null,
     };
 
     episodesToSave.push({ meta, audioUrl: rssEp.audioUrl, artworkUrl: rssEp.artworkUrl });
@@ -402,8 +404,12 @@ importRoutes.post("/rss", async (c) => {
     if (rssEp.guid) existingGuids.add(rssEp.guid);
     if (rssEp.audioUrl) existingAudioUrls.add(rssEp.audioUrl);
 
-    // インデックスに追加（statusも設定して文字起こしキューで検索可能に）
-    index.episodes.push({ id: slug, status: meta.status });
+    // インデックスに追加（ステータスも設定して文字起こしキューで検索可能に）
+    index.episodes.push({
+      id: slug,
+      publishStatus: meta.publishStatus,
+      transcribeStatus: meta.transcribeStatus,
+    });
 
     results.push({
       title: rssEp.title,
