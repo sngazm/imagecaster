@@ -384,7 +384,7 @@ importRoutes.post("/rss", async (c) => {
       transcriptUrl: null,
       artworkUrl: importArtwork ? null : (rssEp.artworkUrl || null), // ダウンロードする場合は後で設定
       skipTranscription,
-      status: skipTranscription ? "published" : "transcribing",
+      status: "published", // インポートしたエピソードは公開済み（文字起こし待ちはキュー側で判定）
       createdAt: now,
       publishAt: pubDate,
       publishedAt: pubDate,

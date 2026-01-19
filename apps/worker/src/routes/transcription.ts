@@ -49,11 +49,13 @@ transcriptionQueue.get("/queue", async (c) => {
   const queueItems: TranscriptionQueueItem[] = [];
 
   // index.json のステータスで事前フィルタリング（高速化）
-  const transcribingRefs = index.episodes.filter(
-    (ref) => ref.status === "transcribing"
+  // - transcribing: 通常の文字起こし待ち
+  // - published: インポート済みで文字起こし待ちの可能性あり
+  const candidateRefs = index.episodes.filter(
+    (ref) => ref.status === "transcribing" || ref.status === "published"
   );
 
-  for (const ref of transcribingRefs) {
+  for (const ref of candidateRefs) {
     if (queueItems.length >= limit) {
       break;
     }
@@ -61,8 +63,19 @@ transcriptionQueue.get("/queue", async (c) => {
     try {
       const meta = await getEpisodeMeta(c.env, ref.id);
 
-      // ロックが無効なエピソードのみ取得（ロックは付与しない）
-      if (meta.status === "transcribing" && !isLockValid(meta.transcriptionLockedAt)) {
+      // ロックが有効な場合はスキップ
+      if (isLockValid(meta.transcriptionLockedAt)) {
+        continue;
+      }
+
+      // 文字起こしが必要かどうかを判定
+      const needsTranscription =
+        // 通常の文字起こし待ち
+        meta.status === "transcribing" ||
+        // 公開済みだが文字起こしスキップでなく、文字起こしがまだない（インポート時など）
+        (meta.status === "published" && !meta.skipTranscription && !meta.transcriptUrl);
+
+      if (needsTranscription) {
         queueItems.push({
           id: meta.id,
           slug: meta.slug,
