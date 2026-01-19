@@ -23,11 +23,15 @@ async function request<T>(
   return res.json();
 }
 
+export type PublishStatus = "new" | "uploading" | "draft" | "scheduled" | "published";
+export type TranscribeStatus = "none" | "pending" | "transcribing" | "completed" | "failed" | "skipped";
+
 export interface Episode {
   id: string;
   slug: string;
   title: string;
-  status: string;
+  publishStatus: PublishStatus;
+  transcribeStatus: TranscribeStatus;
   publishAt: string | null;
   publishedAt: string | null;
   sourceGuid: string | null;
@@ -54,7 +58,8 @@ export interface EpisodeDetail {
   artworkUrl: string | null;
   skipTranscription: boolean;
   hideTranscription?: boolean;
-  status: string;
+  publishStatus: PublishStatus;
+  transcribeStatus: TranscribeStatus;
   createdAt: string;
   publishAt: string | null;
   publishedAt: string | null;
@@ -247,7 +252,8 @@ export interface EpisodesListResponse {
 export interface CreateEpisodeResponse {
   id: string;
   slug: string;
-  status: string;
+  publishStatus: PublishStatus;
+  transcribeStatus: TranscribeStatus;
 }
 
 export interface UploadUrlResponse {
@@ -314,13 +320,13 @@ export const api = {
     }),
 
   completeUpload: (id: string, duration: number, fileSize: number) =>
-    request<{ id: string; status: string }>(`/api/episodes/${id}/upload-complete`, {
+    request<{ id: string; publishStatus: PublishStatus; transcribeStatus: TranscribeStatus }>(`/api/episodes/${id}/upload-complete`, {
       method: "POST",
       body: JSON.stringify({ duration, fileSize }),
     }),
 
   uploadFromUrl: (id: string, sourceUrl: string) =>
-    request<{ id: string; status: string }>(`/api/episodes/${id}/upload-from-url`, {
+    request<{ id: string; publishStatus: PublishStatus; transcribeStatus: TranscribeStatus }>(`/api/episodes/${id}/upload-from-url`, {
       method: "POST",
       body: JSON.stringify({ sourceUrl }),
     }),

@@ -1,16 +1,24 @@
 import { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { api, Episode } from "../lib/api";
+import { api, Episode, PublishStatus, TranscribeStatus } from "../lib/api";
 
-// Status badge configuration using design tokens
-const STATUS_CONFIG: Record<string, { label: string; badgeClass: string }> = {
-  draft: { label: "下書き", badgeClass: "badge badge-default" },
+// PublishStatus badge configuration
+const PUBLISH_STATUS_CONFIG: Record<PublishStatus, { label: string; badgeClass: string }> = {
+  new: { label: "新規", badgeClass: "badge badge-default" },
   uploading: { label: "アップロード中", badgeClass: "badge badge-warning" },
-  processing: { label: "処理中", badgeClass: "badge badge-warning" },
-  transcribing: { label: "文字起こし中", badgeClass: "badge badge-warning" },
+  draft: { label: "下書き", badgeClass: "badge badge-default" },
   scheduled: { label: "予約済み", badgeClass: "badge badge-info" },
   published: { label: "公開済み", badgeClass: "badge badge-success" },
-  failed: { label: "エラー", badgeClass: "badge badge-error" },
+};
+
+// TranscribeStatus badge configuration (shown as secondary badge)
+const TRANSCRIBE_STATUS_CONFIG: Record<TranscribeStatus, { label: string; badgeClass: string } | null> = {
+  none: null, // 表示しない
+  pending: { label: "文字起こし待ち", badgeClass: "badge badge-default" },
+  transcribing: { label: "文字起こし中", badgeClass: "badge badge-warning" },
+  completed: null, // 表示しない
+  failed: { label: "文字起こし失敗", badgeClass: "badge badge-error" },
+  skipped: null, // 表示しない
 };
 
 function formatDate(dateString: string | null): string {
@@ -124,7 +132,8 @@ export default function EpisodeList() {
       {!isLoading && !error && episodes.length > 0 && (
         <div className="space-y-2">
           {currentEpisodes.map((ep) => {
-            const status = STATUS_CONFIG[ep.status] || { label: ep.status, badgeClass: "badge badge-default" };
+            const publishStatus = PUBLISH_STATUS_CONFIG[ep.publishStatus];
+            const transcribeStatus = TRANSCRIBE_STATUS_CONFIG[ep.transcribeStatus];
             return (
               <Link
                 key={ep.id}
@@ -136,16 +145,23 @@ export default function EpisodeList() {
                     {ep.title}
                   </h3>
                   <p className="text-xs text-[var(--color-text-muted)] mt-1 font-mono">
-                    {ep.status === "scheduled" && ep.publishAt
+                    {ep.publishStatus === "scheduled" && ep.publishAt
                       ? `公開予定: ${formatDate(ep.publishAt)}`
                       : ep.publishAt
                         ? formatDate(ep.publishAt)
                         : "—"}
                   </p>
                 </div>
-                <span className={status.badgeClass}>
-                  {status.label}
-                </span>
+                <div className="flex items-center gap-2">
+                  {transcribeStatus && (
+                    <span className={transcribeStatus.badgeClass}>
+                      {transcribeStatus.label}
+                    </span>
+                  )}
+                  <span className={publishStatus.badgeClass}>
+                    {publishStatus.label}
+                  </span>
+                </div>
                 <svg className="w-4 h-4 text-[var(--color-text-faint)] group-hover:text-[var(--color-text-secondary)] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>

@@ -522,7 +522,7 @@ export default function Settings() {
           hasAudio: !!ep.files.audio,
           hasTranscript: !!ep.files.transcript,
           hasArtwork: !!ep.files.artwork,
-          status: ep.meta.status as "draft" | "scheduled" | "published",
+          status: ep.meta.publishStatus as "draft" | "scheduled" | "published",
         })),
         hasArtwork: !!manifest.assets.artwork,
       });

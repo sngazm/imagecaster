@@ -52,12 +52,34 @@ export interface PodcastIndex {
   };
   episodes: Array<{
     id: string;
-    status?: EpisodeStatus; // キュー検索の高速化用
+    publishStatus?: PublishStatus;
+    transcribeStatus?: TranscribeStatus;
   }>;
 }
 
 /**
- * エピソードのステータス
+ * 公開ステータス
+ */
+export type PublishStatus =
+  | "new"        // エピソード作成直後、音声なし
+  | "uploading"  // 音声アップロード/ダウンロード中
+  | "draft"      // 音声あり、公開予約なし
+  | "scheduled"  // 公開予約済み
+  | "published"; // 公開済み
+
+/**
+ * 文字起こしステータス
+ */
+export type TranscribeStatus =
+  | "none"         // 文字起こし未開始
+  | "pending"      // キュー待ち
+  | "transcribing" // 文字起こし中
+  | "completed"    // 完了
+  | "failed"       // 失敗
+  | "skipped";     // スキップ
+
+/**
+ * @deprecated 後方互換性のため残す。新コードでは PublishStatus と TranscribeStatus を使用
  */
 export type EpisodeStatus =
   | "draft"
@@ -93,7 +115,8 @@ export interface EpisodeMeta {
   artworkUrl: string | null; // エピソード固有のアートワーク（nullの場合はPodcastのアートワークを使用）
   skipTranscription: boolean;
   hideTranscription?: boolean; // 文字起こしを非表示にするか
-  status: EpisodeStatus;
+  publishStatus: PublishStatus;
+  transcribeStatus: TranscribeStatus;
   createdAt: string;
   publishAt: string | null; // nullの場合はドラフト
   publishedAt: string | null;
@@ -142,15 +165,15 @@ export interface UpdateEpisodeRequest {
   applePodcastsUrl?: string | null;
   // Spotify（管理画面から編集可能）
   spotifyUrl?: string | null;
-  // ステータス変更（failed → transcribing のリトライ用）
-  status?: EpisodeStatus;
+  // 文字起こしリトライ用（failed → pending）
+  transcribeStatus?: TranscribeStatus;
 }
 
 /**
  * 文字起こし完了通知リクエスト
  */
 export interface TranscriptionCompleteRequest {
-  status: "completed" | "failed";
+  transcribeStatus: "completed" | "failed";
   duration?: number;
 }
 
@@ -230,7 +253,8 @@ export interface EpisodesListResponse {
   episodes: Array<{
     id: string;
     title: string;
-    status: EpisodeStatus;
+    publishStatus: PublishStatus;
+    transcribeStatus: TranscribeStatus;
     publishAt: string | null;
     publishedAt: string | null;
   }>;
@@ -242,7 +266,8 @@ export interface EpisodesListResponse {
 export interface CreateEpisodeResponse {
   id: string;
   slug: string;
-  status: EpisodeStatus;
+  publishStatus: PublishStatus;
+  transcribeStatus: TranscribeStatus;
 }
 
 /**

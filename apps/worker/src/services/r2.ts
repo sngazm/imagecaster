@@ -1,4 +1,4 @@
-import type { Env, PodcastIndex, EpisodeMeta, TemplatesIndex, DescriptionTemplate } from "../types";
+import type { Env, PodcastIndex, EpisodeMeta, TemplatesIndex, DescriptionTemplate, PublishStatus, TranscribeStatus } from "../types";
 
 /**
  * デフォルトの Podcast インデックス
@@ -64,8 +64,50 @@ export async function getEpisodeMeta(
   const data = JSON.parse(text);
 
   // 後方互換性のため、存在しないフィールドにデフォルト値を設定
+  // 古いstatusフィールドからpublishStatus/transcribeStatusへの移行
+  let publishStatus = data.publishStatus;
+  let transcribeStatus = data.transcribeStatus;
+
+  if (!publishStatus && data.status) {
+    // 古いstatus形式からの移行
+    const oldStatus = data.status as string;
+    if (oldStatus === "transcribing") {
+      publishStatus = "draft";
+      transcribeStatus = "transcribing";
+    } else if (["draft", "uploading", "scheduled", "published"].includes(oldStatus)) {
+      publishStatus = oldStatus;
+      // transcribeStatusを推測
+      if (data.transcriptUrl) {
+        transcribeStatus = "completed";
+      } else if (data.skipTranscription) {
+        transcribeStatus = "skipped";
+      } else {
+        transcribeStatus = "none";
+      }
+    } else {
+      publishStatus = "new";
+      transcribeStatus = "none";
+    }
+  }
+
+  // デフォルト値
+  if (!publishStatus) {
+    publishStatus = "new";
+  }
+  if (!transcribeStatus) {
+    if (data.transcriptUrl) {
+      transcribeStatus = "completed";
+    } else if (data.skipTranscription) {
+      transcribeStatus = "skipped";
+    } else {
+      transcribeStatus = "none";
+    }
+  }
+
   return {
     ...data,
+    publishStatus,
+    transcribeStatus,
     referenceLinks: data.referenceLinks ?? [],
     sourceGuid: data.sourceGuid ?? null,
   } as EpisodeMeta;
@@ -96,12 +138,14 @@ export async function saveEpisodeMeta(
 export async function syncEpisodeStatusToIndex(
   env: Env,
   episodeId: string,
-  status: EpisodeMeta["status"]
+  publishStatus: PublishStatus,
+  transcribeStatus: TranscribeStatus
 ): Promise<void> {
   const index = await getIndex(env);
   const episodeRef = index.episodes.find((ep) => ep.id === episodeId);
   if (episodeRef) {
-    episodeRef.status = status;
+    episodeRef.publishStatus = publishStatus;
+    episodeRef.transcribeStatus = transcribeStatus;
     await saveIndex(env, index);
   }
 }
@@ -180,7 +224,7 @@ export async function getPublishedEpisodes(env: Env): Promise<EpisodeMeta[]> {
   );
 
   return episodes
-    .filter((ep) => ep.status === "published")
+    .filter((ep) => ep.publishStatus === "published")
     .sort(
       (a, b) =>
         new Date(b.publishedAt!).getTime() - new Date(a.publishedAt!).getTime()

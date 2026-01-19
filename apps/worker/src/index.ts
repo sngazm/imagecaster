@@ -247,9 +247,9 @@ async function handleScheduledPublish(env: Env): Promise<void> {
       continue;
     }
 
-    if (meta.status === "scheduled" && meta.publishAt && new Date(meta.publishAt) <= now) {
+    if (meta.publishStatus === "scheduled" && meta.publishAt && new Date(meta.publishAt) <= now) {
       // 公開処理
-      meta.status = "published";
+      meta.publishStatus = "published";
       meta.publishedAt = now.toISOString();
 
       // Bluesky に投稿（OGP画像のフォールバックとしてartworkUrlを渡す）
@@ -259,7 +259,7 @@ async function handleScheduledPublish(env: Env): Promise<void> {
       }
 
       await saveEpisodeMeta(env, meta);
-      await syncEpisodeStatusToIndex(env, meta.id, meta.status);
+      await syncEpisodeStatusToIndex(env, meta.id, meta.publishStatus, meta.transcribeStatus);
       updated = true;
 
       console.log(`Published episode: ${meta.id}`);

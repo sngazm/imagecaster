@@ -138,35 +138,36 @@ describe("Episodes API - CRUD Operations", () => {
       expect(json.error).toBe("Episode not found");
     });
 
-    it("allows status change from failed to transcribing for retry", async () => {
+    it("allows transcribeStatus change from failed to pending for retry", async () => {
       const { id } = await createTestEpisode({
         title: "Failed Episode",
         skipTranscription: false,
       });
 
-      // meta.json を直接操作して failed 状態にする
+      // meta.json を直接操作して transcribeStatus を failed 状態にする
       const meta = await env.R2_BUCKET.get(`episodes/${id}/meta.json`);
       const data = JSON.parse(await meta!.text());
-      data.status = "failed";
+      data.publishStatus = "draft";
+      data.transcribeStatus = "failed";
       data.audioUrl = "https://example.com/audio.mp3";
       await env.R2_BUCKET.put(`episodes/${id}/meta.json`, JSON.stringify(data), {
         httpMetadata: { contentType: "application/json" },
       });
 
-      // ステータスを transcribing に変更（リトライ）
+      // transcribeStatus を pending に変更（リトライ）
       const response = await SELF.fetch(`http://localhost/api/episodes/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "transcribing" }),
+        body: JSON.stringify({ transcribeStatus: "pending" }),
       });
 
       expect(response.status).toBe(200);
 
       const json = await response.json();
-      expect(json.status).toBe("transcribing");
+      expect(json.transcribeStatus).toBe("pending");
     });
 
-    it("rejects status change from draft to transcribing", async () => {
+    it("rejects transcribeStatus change from none to pending (not failed)", async () => {
       const { id } = await createTestEpisode({
         title: "Draft Episode",
         skipTranscription: false,
@@ -175,7 +176,7 @@ describe("Episodes API - CRUD Operations", () => {
       const response = await SELF.fetch(`http://localhost/api/episodes/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "transcribing" }),
+        body: JSON.stringify({ transcribeStatus: "pending" }),
       });
 
       expect(response.status).toBe(400);
@@ -190,10 +191,11 @@ describe("Episodes API - CRUD Operations", () => {
         skipTranscription: false,
       });
 
-      // meta.json を直接操作して failed 状態にする（音声なし）
+      // meta.json を直接操作して transcribeStatus を failed 状態にする（音声なし）
       const meta = await env.R2_BUCKET.get(`episodes/${id}/meta.json`);
       const data = JSON.parse(await meta!.text());
-      data.status = "failed";
+      data.publishStatus = "draft";
+      data.transcribeStatus = "failed";
       data.audioUrl = "";
       data.sourceAudioUrl = null;
       await env.R2_BUCKET.put(`episodes/${id}/meta.json`, JSON.stringify(data), {
@@ -203,7 +205,7 @@ describe("Episodes API - CRUD Operations", () => {
       const response = await SELF.fetch(`http://localhost/api/episodes/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "transcribing" }),
+        body: JSON.stringify({ transcribeStatus: "pending" }),
       });
 
       expect(response.status).toBe(400);
@@ -262,7 +264,8 @@ describe("Episodes API - CRUD Operations", () => {
       expect(json.id).toBe(id);
       expect(json.title).toBe("Get Test Episode");
       expect(json.description).toBe("Test description");
-      expect(json.status).toBe("draft");
+      expect(json.publishStatus).toBe("new");
+      expect(json.transcribeStatus).toBe("none");
     });
   });
 });
@@ -286,7 +289,7 @@ async function uploadTranscriptJson(id: string): Promise<void> {
 
 describe("Episodes API - Transcription", () => {
   describe("POST /api/episodes/:id/transcription-complete", () => {
-    it("marks transcription as completed and sets status to scheduled", async () => {
+    it("marks transcription as completed and sets publishStatus to scheduled", async () => {
       const futureDate = new Date(Date.now() + 86400000).toISOString();
       const { id } = await createTestEpisode({
         title: "Transcription Test",
@@ -303,7 +306,7 @@ describe("Episodes API - Transcription", () => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            status: "completed",
+            transcribeStatus: "completed",
             duration: 3600,
           }),
         }
@@ -314,7 +317,8 @@ describe("Episodes API - Transcription", () => {
       const json = await response.json();
       expect(json.success).toBe(true);
       // publishAtが未来なのでscheduledになる
-      expect(json.status).toBe("scheduled");
+      expect(json.publishStatus).toBe("scheduled");
+      expect(json.transcribeStatus).toBe("completed");
     });
 
     it("marks transcription as failed", async () => {
@@ -329,7 +333,7 @@ describe("Episodes API - Transcription", () => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            status: "failed",
+            transcribeStatus: "failed",
           }),
         }
       );
@@ -338,10 +342,10 @@ describe("Episodes API - Transcription", () => {
 
       const json = await response.json();
       expect(json.success).toBe(true);
-      expect(json.status).toBe("failed");
+      expect(json.transcribeStatus).toBe("failed");
     });
 
-    it("sets status to draft when publishAt is null", async () => {
+    it("sets publishStatus to draft when publishAt is null", async () => {
       const { id } = await createTestEpisode({
         title: "Draft After Transcription",
         publishAt: null,
@@ -356,7 +360,7 @@ describe("Episodes API - Transcription", () => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            status: "completed",
+            transcribeStatus: "completed",
           }),
         }
       );
@@ -364,7 +368,8 @@ describe("Episodes API - Transcription", () => {
       expect(response.status).toBe(200);
 
       const json = await response.json();
-      expect(json.status).toBe("draft");
+      expect(json.publishStatus).toBe("draft");
+      expect(json.transcribeStatus).toBe("completed");
     });
 
     it("returns 404 for non-existent episode", async () => {

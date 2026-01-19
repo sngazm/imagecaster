@@ -1,21 +1,30 @@
 import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { api, EpisodeDetail as EpisodeDetailType, formatDuration, formatFileSize, uploadToR2, getAudioDuration, utcToLocalDateTimeString, localDateTimeToISOString, fetchTranscriptSegments } from "../lib/api";
-import type { DescriptionTemplate, ReferenceLink, TranscriptSegment } from "../lib/api";
+import type { DescriptionTemplate, ReferenceLink, TranscriptSegment, PublishStatus, TranscribeStatus } from "../lib/api";
 import { HtmlEditor } from "../components/HtmlEditor";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { BlueskyPostEditor } from "../components/BlueskyPostEditor";
 import { ReferenceLinksEditor } from "../components/ReferenceLinksEditor";
 import { getWebsiteUrl, getEnvironment } from "../lib/env";
 
-const STATUS_CONFIG: Record<string, { label: string; badgeClass: string }> = {
-  draft: { label: "下書き", badgeClass: "badge badge-default" },
+// PublishStatus badge configuration
+const PUBLISH_STATUS_CONFIG: Record<PublishStatus, { label: string; badgeClass: string }> = {
+  new: { label: "新規", badgeClass: "badge badge-default" },
   uploading: { label: "アップロード中", badgeClass: "badge badge-warning" },
-  processing: { label: "処理中", badgeClass: "badge badge-warning" },
-  transcribing: { label: "文字起こし中", badgeClass: "badge badge-warning" },
+  draft: { label: "下書き", badgeClass: "badge badge-default" },
   scheduled: { label: "予約済み", badgeClass: "badge badge-info" },
   published: { label: "公開済み", badgeClass: "badge badge-success" },
-  failed: { label: "エラー", badgeClass: "badge badge-error" },
+};
+
+// TranscribeStatus badge configuration
+const TRANSCRIBE_STATUS_CONFIG: Record<TranscribeStatus, { label: string; badgeClass: string }> = {
+  none: { label: "文字起こし未", badgeClass: "badge badge-default" },
+  pending: { label: "文字起こし待ち", badgeClass: "badge badge-default" },
+  transcribing: { label: "文字起こし中", badgeClass: "badge badge-warning" },
+  completed: { label: "文字起こし完了", badgeClass: "badge badge-success" },
+  failed: { label: "文字起こし失敗", badgeClass: "badge badge-error" },
+  skipped: { label: "スキップ済み", badgeClass: "badge badge-default" },
 };
 
 function formatDate(dateString: string | null): string {
@@ -142,8 +151,8 @@ export default function EpisodeDetail() {
         hideTranscription: editHideTranscription,
       };
 
-      // slugの変更はdraft状態のみ
-      if (episode.status === "draft" && editSlug !== episode.slug) {
+      // slugの変更はnew状態のみ
+      if (episode.publishStatus === "new" && editSlug !== episode.slug) {
         updateData.slug = editSlug;
       }
 
@@ -294,11 +303,12 @@ export default function EpisodeDetail() {
     );
   }
 
-  const status = STATUS_CONFIG[episode.status] || { label: episode.status, badgeClass: "badge badge-default" };
+  const publishStatus = PUBLISH_STATUS_CONFIG[episode.publishStatus];
+  const transcribeStatus = TRANSCRIBE_STATUS_CONFIG[episode.transcribeStatus];
   const audioUrl = episode.audioUrl || episode.sourceAudioUrl;
-  const canEditSlug = episode.status === "draft";
+  const canEditSlug = episode.publishStatus === "new";
   const episodeWebUrl = baseWebsiteUrl ? getWebsiteUrl(baseWebsiteUrl, episode.slug || episode.id) : null;
-  const canShowWebLink = episode.status === "published" || episode.status === "scheduled";
+  const canShowWebLink = episode.publishStatus === "published" || episode.publishStatus === "scheduled";
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-10">
@@ -351,9 +361,19 @@ export default function EpisodeDetail() {
               </div>
             )}
           </div>
-          <span className={status.badgeClass}>
-            {status.label}
-          </span>
+          <div className="flex items-center gap-2">
+            {/* 文字起こし状態を表示（特定の状態のみ） */}
+            {(episode.transcribeStatus === "pending" ||
+              episode.transcribeStatus === "transcribing" ||
+              episode.transcribeStatus === "failed") && (
+              <span className={transcribeStatus.badgeClass}>
+                {transcribeStatus.label}
+              </span>
+            )}
+            <span className={publishStatus.badgeClass}>
+              {publishStatus.label}
+            </span>
+          </div>
         </div>
       </header>
 
@@ -434,10 +454,10 @@ export default function EpisodeDetail() {
               </div>
               <div className="bg-[var(--color-bg-elevated)] rounded-lg p-4">
                 <div className="text-xs text-[var(--color-text-muted)] mb-1">
-                  {episode.status === "scheduled" ? "公開予定日" : "公開日"}
+                  {episode.publishStatus === "scheduled" ? "公開予定日" : "公開日"}
                 </div>
                 <div className="text-[var(--color-text-primary)] font-medium">
-                  {episode.status === "scheduled"
+                  {episode.publishStatus === "scheduled"
                     ? formatDate(episode.publishAt)
                     : formatDate(episode.publishedAt)}
                 </div>
@@ -584,7 +604,7 @@ export default function EpisodeDetail() {
                   </label>
                 )}
                 {/* 現在の状態を表示 */}
-                {episode.status !== "draft" && episode.status !== "failed" && !episode.transcriptUrl && (
+                {episode.publishStatus !== "new" && episode.transcribeStatus !== "failed" && !episode.transcriptUrl && (
                   <p className="text-[var(--color-text-muted)] text-sm">
                     {episode.skipTranscription ? "文字起こしはスキップされました" : "文字起こしはまだありません"}
                   </p>

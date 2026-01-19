@@ -63,10 +63,11 @@ describe("Episodes API", () => {
       expect(response.status).toBe(201);
 
       const json = await response.json();
-      // POST レスポンスは { id, slug, status } のみ
+      // POST レスポンスは { id, slug, publishStatus, transcribeStatus } のみ
       expect(json).toHaveProperty("id");
       expect(json).toHaveProperty("slug");
-      expect(json.status).toBe("draft");
+      expect(json.publishStatus).toBe("new");
+      expect(json.transcribeStatus).toBe("none");
     });
 
     it("returns 400 when title is missing", async () => {

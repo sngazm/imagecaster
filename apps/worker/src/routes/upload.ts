@@ -55,10 +55,10 @@ upload.post("/:id/upload-url", async (c) => {
     const meta = await getEpisodeMeta(c.env, id);
     console.log(`[upload-url] Found episode:`, meta);
 
-    // draft または failed 状態のみ許可
-    if (meta.status !== "draft" && meta.status !== "failed") {
+    // new 状態のみ許可
+    if (meta.publishStatus !== "new") {
       return c.json(
-        { error: "Episode is not in draft or failed status" },
+        { error: "Episode is not in new status" },
         400
       );
     }
@@ -84,10 +84,10 @@ upload.post("/:id/upload-url", async (c) => {
     );
 
     // ステータス更新
-    meta.status = "uploading";
+    meta.publishStatus = "uploading";
     meta.fileSize = body.fileSize;
     await saveEpisodeMeta(c.env, meta);
-    await syncEpisodeStatusToIndex(c.env, meta.id, meta.status);
+    await syncEpisodeStatusToIndex(c.env, meta.id, meta.publishStatus, meta.transcribeStatus);
 
     const response: UploadUrlResponse = {
       uploadUrl: signed.url,
@@ -110,11 +110,11 @@ upload.post("/:id/upload-complete", async (c) => {
 
   try {
     const meta = await getEpisodeMeta(c.env, id);
-    console.log(`[upload-complete] Episode ${id} status: ${meta.status}`);
+    console.log(`[upload-complete] Episode ${id} publishStatus: ${meta.publishStatus}`);
 
     // uploading 状態のみ許可
-    if (meta.status !== "uploading") {
-      console.log(`[upload-complete] Rejected: status is ${meta.status}, expected uploading`);
+    if (meta.publishStatus !== "uploading") {
+      console.log(`[upload-complete] Rejected: publishStatus is ${meta.publishStatus}, expected uploading`);
       return c.json({ error: "Episode is not in uploading status" }, 400);
     }
 
@@ -141,14 +141,20 @@ upload.post("/:id/upload-complete", async (c) => {
     meta.fileSize = fileSize;
     meta.audioUrl = `${c.env.R2_PUBLIC_URL}/${audioKey}`;
 
+    // transcribeStatus を設定
+    if (meta.skipTranscription) {
+      meta.transcribeStatus = "skipped";
+    } else {
+      meta.transcribeStatus = "pending";
+    }
+
     // publishAt がnullの場合はdraft状態を維持（下書き保存）
     if (meta.publishAt === null) {
-      meta.status = "draft";
-    } else if (meta.skipTranscription) {
-      // skipTranscription に応じてステータスを設定
+      meta.publishStatus = "draft";
+    } else {
       const now = new Date();
       if (new Date(meta.publishAt) <= now) {
-        meta.status = "published";
+        meta.publishStatus = "published";
         // 既に publishedAt が設定されている場合は維持（RSSインポートなど）
         if (!meta.publishedAt) {
           meta.publishedAt = now.toISOString();
@@ -161,22 +167,24 @@ upload.post("/:id/upload-complete", async (c) => {
           meta.blueskyPostedAt = now.toISOString();
         }
       } else {
-        meta.status = "scheduled";
+        meta.publishStatus = "scheduled";
       }
-    } else {
-      meta.status = "transcribing";
     }
 
     await saveEpisodeMeta(c.env, meta);
-    await syncEpisodeStatusToIndex(c.env, meta.id, meta.status);
+    await syncEpisodeStatusToIndex(c.env, meta.id, meta.publishStatus, meta.transcribeStatus);
 
     // 公開された場合はフィードを再生成してWebをリビルド
-    if (meta.status === "published") {
+    if (meta.publishStatus === "published") {
       await regenerateFeed(c.env);
       await triggerWebRebuild(c.env);
     }
 
-    return c.json({ id: meta.id, status: meta.status });
+    return c.json({
+      id: meta.id,
+      publishStatus: meta.publishStatus,
+      transcribeStatus: meta.transcribeStatus,
+    });
   } catch {
     return c.json({ error: "Episode not found" }, 404);
   }
@@ -197,27 +205,28 @@ upload.post("/:id/upload-from-url", async (c) => {
   try {
     const meta = await getEpisodeMeta(c.env, id);
 
-    // draft または failed 状態のみ許可
-    if (meta.status !== "draft" && meta.status !== "failed") {
+    // new 状態のみ許可
+    if (meta.publishStatus !== "new") {
       return c.json(
-        { error: "Episode is not in draft or failed status" },
+        { error: "Episode is not in new status" },
         400
       );
     }
 
-    // ステータスを processing に更新
-    meta.status = "processing";
+    // ステータスを uploading に更新
+    meta.publishStatus = "uploading";
     await saveEpisodeMeta(c.env, meta);
-    await syncEpisodeStatusToIndex(c.env, meta.id, meta.status);
+    await syncEpisodeStatusToIndex(c.env, meta.id, meta.publishStatus, meta.transcribeStatus);
 
     // 音声ファイルをダウンロード（NextCloud共有リンクは自動変換）
     const downloadUrl = convertToDirectDownloadUrl(body.sourceUrl);
     const audioResponse = await fetch(downloadUrl);
 
     if (!audioResponse.ok) {
-      meta.status = "failed";
+      // 失敗時は new に戻す
+      meta.publishStatus = "new";
       await saveEpisodeMeta(c.env, meta);
-      await syncEpisodeStatusToIndex(c.env, meta.id, meta.status);
+      await syncEpisodeStatusToIndex(c.env, meta.id, meta.publishStatus, meta.transcribeStatus);
       return c.json({ error: "Failed to download audio file" }, 400);
     }
 
@@ -230,14 +239,20 @@ upload.post("/:id/upload-from-url", async (c) => {
     meta.fileSize = size;
     meta.audioUrl = `${c.env.R2_PUBLIC_URL}/episodes/${id}/audio.mp3`;
 
+    // transcribeStatus を設定
+    if (meta.skipTranscription) {
+      meta.transcribeStatus = "skipped";
+    } else {
+      meta.transcribeStatus = "pending";
+    }
+
     // publishAt がnullの場合はdraft状態を維持（下書き保存）
     if (meta.publishAt === null) {
-      meta.status = "draft";
-    } else if (meta.skipTranscription) {
-      // skipTranscription に応じてステータスを設定
+      meta.publishStatus = "draft";
+    } else {
       const now = new Date();
       if (new Date(meta.publishAt) <= now) {
-        meta.status = "published";
+        meta.publishStatus = "published";
         // 既に publishedAt が設定されている場合は維持（RSSインポートなど）
         if (!meta.publishedAt) {
           meta.publishedAt = now.toISOString();
@@ -250,29 +265,31 @@ upload.post("/:id/upload-from-url", async (c) => {
           meta.blueskyPostedAt = now.toISOString();
         }
       } else {
-        meta.status = "scheduled";
+        meta.publishStatus = "scheduled";
       }
-    } else {
-      meta.status = "transcribing";
     }
 
     await saveEpisodeMeta(c.env, meta);
-    await syncEpisodeStatusToIndex(c.env, meta.id, meta.status);
+    await syncEpisodeStatusToIndex(c.env, meta.id, meta.publishStatus, meta.transcribeStatus);
 
     // 公開された場合はフィードを再生成してWebをリビルド
-    if (meta.status === "published") {
+    if (meta.publishStatus === "published") {
       await regenerateFeed(c.env);
       await triggerWebRebuild(c.env);
     }
 
-    return c.json({ id: meta.id, status: meta.status });
+    return c.json({
+      id: meta.id,
+      publishStatus: meta.publishStatus,
+      transcribeStatus: meta.transcribeStatus,
+    });
   } catch (error) {
-    // エラー時は failed に
+    // エラー時は new に戻す
     try {
       const meta = await getEpisodeMeta(c.env, id);
-      meta.status = "failed";
+      meta.publishStatus = "new";
       await saveEpisodeMeta(c.env, meta);
-      await syncEpisodeStatusToIndex(c.env, meta.id, meta.status);
+      await syncEpisodeStatusToIndex(c.env, meta.id, meta.publishStatus, meta.transcribeStatus);
     } catch {
       // ignore
     }
@@ -348,7 +365,7 @@ upload.post("/:id/artwork/upload-complete", async (c) => {
     await saveEpisodeMeta(c.env, meta);
 
     // 公開済みの場合はフィードを再生成（<itunes:image>が変わる）
-    if (meta.status === "published") {
+    if (meta.publishStatus === "published") {
       await regenerateFeed(c.env);
       await triggerWebRebuild(c.env);
     }

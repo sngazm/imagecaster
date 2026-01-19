@@ -8,6 +8,9 @@ export interface TranscriptSegment {
   text: string;
 }
 
+export type PublishStatus = "new" | "uploading" | "draft" | "scheduled" | "published";
+export type TranscribeStatus = "none" | "pending" | "transcribing" | "completed" | "failed" | "skipped";
+
 export interface Episode {
   id: string;
   slug: string;
@@ -19,7 +22,8 @@ export interface Episode {
   sourceAudioUrl: string | null; // 外部参照の音声URL（RSSインポート時）
   transcriptUrl: string | null;
   artworkUrl: string | null;
-  status: string;
+  publishStatus: PublishStatus;
+  transcribeStatus: TranscribeStatus;
   createdAt: string;
   publishAt: string;
   publishedAt: string | null;
