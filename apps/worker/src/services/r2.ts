@@ -64,8 +64,50 @@ export async function getEpisodeMeta(
   const data = JSON.parse(text);
 
   // 後方互換性のため、存在しないフィールドにデフォルト値を設定
+  // 古いstatusフィールドからpublishStatus/transcribeStatusへの移行
+  let publishStatus = data.publishStatus;
+  let transcribeStatus = data.transcribeStatus;
+
+  if (!publishStatus && data.status) {
+    // 古いstatus形式からの移行
+    const oldStatus = data.status as string;
+    if (oldStatus === "transcribing") {
+      publishStatus = "draft";
+      transcribeStatus = "transcribing";
+    } else if (["draft", "uploading", "scheduled", "published"].includes(oldStatus)) {
+      publishStatus = oldStatus;
+      // transcribeStatusを推測
+      if (data.transcriptUrl) {
+        transcribeStatus = "completed";
+      } else if (data.skipTranscription) {
+        transcribeStatus = "skipped";
+      } else {
+        transcribeStatus = "none";
+      }
+    } else {
+      publishStatus = "new";
+      transcribeStatus = "none";
+    }
+  }
+
+  // デフォルト値
+  if (!publishStatus) {
+    publishStatus = "new";
+  }
+  if (!transcribeStatus) {
+    if (data.transcriptUrl) {
+      transcribeStatus = "completed";
+    } else if (data.skipTranscription) {
+      transcribeStatus = "skipped";
+    } else {
+      transcribeStatus = "none";
+    }
+  }
+
   return {
     ...data,
+    publishStatus,
+    transcribeStatus,
     referenceLinks: data.referenceLinks ?? [],
     sourceGuid: data.sourceGuid ?? null,
   } as EpisodeMeta;
