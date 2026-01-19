@@ -149,7 +149,10 @@ upload.post("/:id/upload-complete", async (c) => {
       const now = new Date();
       if (new Date(meta.publishAt) <= now) {
         meta.status = "published";
-        meta.publishedAt = now.toISOString();
+        // 既に publishedAt が設定されている場合は維持（RSSインポートなど）
+        if (!meta.publishedAt) {
+          meta.publishedAt = now.toISOString();
+        }
 
         // Bluesky に投稿（OGP画像のフォールバックとしてartworkUrlを渡す）
         const index = await getIndex(c.env);
@@ -235,7 +238,10 @@ upload.post("/:id/upload-from-url", async (c) => {
       const now = new Date();
       if (new Date(meta.publishAt) <= now) {
         meta.status = "published";
-        meta.publishedAt = now.toISOString();
+        // 既に publishedAt が設定されている場合は維持（RSSインポートなど）
+        if (!meta.publishedAt) {
+          meta.publishedAt = now.toISOString();
+        }
 
         // Bluesky に投稿（OGP画像のフォールバックとしてartworkUrlを渡す）
         const index = await getIndex(c.env);
