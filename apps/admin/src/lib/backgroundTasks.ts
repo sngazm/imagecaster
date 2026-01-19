@@ -36,7 +36,7 @@ export async function runApplePodcastsAutoFetch(
   // 公開から1時間以上経過 & applePodcastsUrl が未設定のエピソードを抽出
   const oneHourAgo = Date.now() - 60 * 60 * 1000;
   const targetEpisodes = episodes.filter((ep) => {
-    if (ep.status !== "published" || ep.applePodcastsUrl) return false;
+    if (ep.publishStatus !== "published" || ep.applePodcastsUrl) return false;
     const publishedAt = ep.publishedAt ? new Date(ep.publishedAt).getTime() : 0;
     return publishedAt > 0 && publishedAt < oneHourAgo;
   });
@@ -122,7 +122,7 @@ export async function runSpotifyAutoFetch(
   // 公開から1日以上経過 & spotifyUrl が未設定のエピソードがあるか確認
   const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
   const targetEpisodes = episodes.filter((ep) => {
-    if (ep.status !== "published" || ep.spotifyUrl) return false;
+    if (ep.publishStatus !== "published" || ep.spotifyUrl) return false;
     const publishedAt = ep.publishedAt ? new Date(ep.publishedAt).getTime() : 0;
     return publishedAt > 0 && publishedAt < oneDayAgo;
   });
