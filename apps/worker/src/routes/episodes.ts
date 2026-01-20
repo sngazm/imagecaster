@@ -22,7 +22,7 @@ import {
 import { regenerateFeed } from "../services/feed";
 import { postEpisodeToBluesky } from "../services/bluesky";
 import { triggerWebRebuild } from "../services/deploy";
-import { convertToVtt, validateTranscriptData } from "../services/vtt";
+import { validateTranscriptData } from "../services/vtt";
 
 const episodes = new Hono<{ Bindings: Env }>();
 
@@ -382,19 +382,8 @@ episodes.post("/:id/transcription-complete", async (c) => {
         return c.json({ error: "Invalid transcript data structure" }, 400);
       }
 
-      // VTT に変換
-      const vttContent = convertToVtt(transcriptData);
-
-      // VTT を R2 に保存
-      const vttKey = `episodes/${meta.id}/transcript.vtt`;
-      await c.env.R2_BUCKET.put(vttKey, vttContent, {
-        httpMetadata: {
-          contentType: "text/vtt",
-        },
-      });
-
-      // メタデータ更新
-      meta.transcriptUrl = `${c.env.R2_PUBLIC_URL}/${vttKey}`;
+      // メタデータ更新（JSONをそのまま使用、VTT変換は不要）
+      meta.transcriptUrl = `${c.env.R2_PUBLIC_URL}/${jsonKey}`;
       meta.transcribeStatus = "completed";
 
       // duration が提供されていれば更新

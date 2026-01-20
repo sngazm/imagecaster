@@ -1,54 +1,23 @@
-import type { Episode, PodcastIndex, TranscriptSegment } from "./types";
+import type { Episode, PodcastIndex, TranscriptSegment, TranscriptJson } from "./types";
 
 /**
- * VTT形式の文字起こしをパースしてセグメント配列に変換
+ * 秒数を "HH:MM:SS" 形式に変換
  */
-export function parseVttToSegments(vtt: string): TranscriptSegment[] {
-  const lines = vtt.split("\n");
-  const segments: TranscriptSegment[] = [];
-  let currentStart = "";
-  let currentTextLines: string[] = [];
+function formatTime(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
 
-  for (const line of lines) {
-    const trimmed = line.trim();
-
-    // WEBVTT ヘッダー、キュー番号をスキップ
-    if (trimmed.startsWith("WEBVTT") || /^\d+$/.test(trimmed)) {
-      continue;
-    }
-
-    // タイムスタンプ行からstart時間を抽出
-    const timestampMatch = trimmed.match(/^(\d{2}:\d{2}:\d{2})\.\d{3}\s*-->/);
-    if (timestampMatch) {
-      currentStart = timestampMatch[1];
-      continue;
-    }
-
-    // 空行はキューの区切り
-    if (trimmed === "") {
-      if (currentStart && currentTextLines.length > 0) {
-        segments.push({
-          start: currentStart,
-          text: currentTextLines.join(" "),
-        });
-        currentStart = "";
-        currentTextLines = [];
-      }
-      continue;
-    }
-
-    currentTextLines.push(trimmed);
-  }
-
-  // 最後のセグメントを追加
-  if (currentStart && currentTextLines.length > 0) {
-    segments.push({
-      start: currentStart,
-      text: currentTextLines.join(" "),
-    });
-  }
-
-  return segments;
+/**
+ * JSONの文字起こしデータをパースしてセグメント配列に変換
+ */
+export function parseTranscriptJson(data: TranscriptJson): TranscriptSegment[] {
+  return data.segments.map((segment) => ({
+    start: formatTime(segment.start),
+    text: segment.text,
+  }));
 }
 
 /**
@@ -67,11 +36,65 @@ export async function getTranscriptSegments(
   try {
     const res = await fetch(transcriptUrl);
     if (!res.ok) return [];
-    const vtt = await res.text();
-    return parseVttToSegments(vtt);
+    const json: TranscriptJson = await res.json();
+    return parseTranscriptJson(json);
   } catch {
     return [];
   }
+}
+
+/**
+ * JSONの文字起こしデータを取得（VTT変換用の生データ）
+ */
+export async function getTranscriptJson(
+  transcriptUrl: string
+): Promise<TranscriptJson | null> {
+  try {
+    const res = await fetch(transcriptUrl);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * TranscriptJsonをVTT形式に変換（オーディオタグの字幕用）
+ */
+export function convertJsonToVtt(data: TranscriptJson): string {
+  const lines: string[] = ["WEBVTT", ""];
+
+  for (let i = 0; i < data.segments.length; i++) {
+    const segment = data.segments[i];
+    const startTime = formatVttTime(segment.start);
+    const endTime = formatVttTime(segment.end);
+
+    lines.push(`${i + 1}`);
+    lines.push(`${startTime} --> ${endTime}`);
+
+    if (segment.speaker) {
+      lines.push(`<v ${segment.speaker}>${segment.text}</v>`);
+    } else {
+      lines.push(segment.text);
+    }
+
+    lines.push("");
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * 秒数をVTT形式のタイムスタンプに変換
+ * 例: 125.5 -> "00:02:05.500"
+ */
+function formatVttTime(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  const ms = Math.round((seconds % 1) * 1000);
+
+  return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}.${ms.toString().padStart(3, "0")}`;
 }
 
 const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || "";

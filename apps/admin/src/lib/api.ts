@@ -537,48 +537,36 @@ export interface TranscriptSegment {
   text: string;
 }
 
-export function parseVttToSegments(vtt: string): TranscriptSegment[] {
-  const lines = vtt.split("\n");
-  const segments: TranscriptSegment[] = [];
-  let currentStart = "";
-  let currentTextLines: string[] = [];
+interface TranscriptJsonSegment {
+  start: number;
+  end: number;
+  text: string;
+  speaker?: string;
+}
 
-  for (const line of lines) {
-    const trimmed = line.trim();
+interface TranscriptJson {
+  segments: TranscriptJsonSegment[];
+  language?: string;
+}
 
-    if (trimmed.startsWith("WEBVTT") || /^\d+$/.test(trimmed)) {
-      continue;
-    }
+/**
+ * 秒数を "HH:MM:SS" 形式に変換
+ */
+function formatTime(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
 
-    const timestampMatch = trimmed.match(/^(\d{2}:\d{2}:\d{2})\.\d{3}\s*-->/);
-    if (timestampMatch) {
-      currentStart = timestampMatch[1];
-      continue;
-    }
-
-    if (trimmed === "") {
-      if (currentStart && currentTextLines.length > 0) {
-        segments.push({
-          start: currentStart,
-          text: currentTextLines.join(" "),
-        });
-        currentStart = "";
-        currentTextLines = [];
-      }
-      continue;
-    }
-
-    currentTextLines.push(trimmed);
-  }
-
-  if (currentStart && currentTextLines.length > 0) {
-    segments.push({
-      start: currentStart,
-      text: currentTextLines.join(" "),
-    });
-  }
-
-  return segments;
+/**
+ * JSONの文字起こしデータをパースしてセグメント配列に変換
+ */
+export function parseTranscriptJson(data: TranscriptJson): TranscriptSegment[] {
+  return data.segments.map((segment) => ({
+    start: formatTime(segment.start),
+    text: segment.text,
+  }));
 }
 
 export async function fetchTranscriptSegments(
@@ -587,8 +575,8 @@ export async function fetchTranscriptSegments(
   try {
     const res = await fetch(transcriptUrl);
     if (!res.ok) return [];
-    const vtt = await res.text();
-    return parseVttToSegments(vtt);
+    const json: TranscriptJson = await res.json();
+    return parseTranscriptJson(json);
   } catch {
     return [];
   }

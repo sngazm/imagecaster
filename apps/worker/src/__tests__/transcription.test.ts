@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { SELF, env } from "cloudflare:test";
-import { convertToVtt, validateTranscriptData } from "../services/vtt";
+import { validateTranscriptData } from "../services/vtt";
 import type { TranscriptData } from "../types";
 
 /**
@@ -67,53 +67,7 @@ async function setEpisodeToTranscribing(id: string, options?: {
   }
 }
 
-describe("VTT Conversion Utility", () => {
-  describe("convertToVtt", () => {
-    it("converts simple segments to VTT format", () => {
-      const data: TranscriptData = {
-        segments: [
-          { start: 0, end: 2.5, text: "こんにちは" },
-          { start: 2.5, end: 5.0, text: "今日は良い天気ですね" },
-        ],
-        language: "ja",
-      };
-
-      const vtt = convertToVtt(data);
-
-      expect(vtt).toContain("WEBVTT");
-      expect(vtt).toContain("00:00:00.000 --> 00:00:02.500");
-      expect(vtt).toContain("こんにちは");
-      expect(vtt).toContain("00:00:02.500 --> 00:00:05.000");
-      expect(vtt).toContain("今日は良い天気ですね");
-    });
-
-    it("includes speaker tags when speaker is provided", () => {
-      const data: TranscriptData = {
-        segments: [
-          { start: 0, end: 2.5, text: "こんにちは", speaker: "speaker_0" },
-          { start: 2.5, end: 5.0, text: "こんにちは！", speaker: "speaker_1" },
-        ],
-      };
-
-      const vtt = convertToVtt(data);
-
-      expect(vtt).toContain("<v speaker_0>こんにちは</v>");
-      expect(vtt).toContain("<v speaker_1>こんにちは！</v>");
-    });
-
-    it("handles long timestamps correctly", () => {
-      const data: TranscriptData = {
-        segments: [
-          { start: 3661.5, end: 3665.123, text: "1時間以上経過" },
-        ],
-      };
-
-      const vtt = convertToVtt(data);
-
-      expect(vtt).toContain("01:01:01.500 --> 01:01:05.123");
-    });
-  });
-
+describe("Transcript Data Validation", () => {
   describe("validateTranscriptData", () => {
     it("validates correct transcript data", () => {
       const data = {
@@ -533,7 +487,7 @@ describe("Transcription Complete with JSON", () => {
       expect(json.error).toContain("Transcript JSON not found");
     });
 
-    it("converts JSON to VTT and saves both", async () => {
+    it("processes JSON and sets transcriptUrl to JSON file", async () => {
       const { id } = await createTestEpisode({
         title: "Full Transcription Flow Test",
         publishAt: new Date(Date.now() + 86400000).toISOString(),
@@ -574,19 +528,10 @@ describe("Transcription Complete with JSON", () => {
       expect(json.publishStatus).toBe("scheduled");
       expect(json.transcribeStatus).toBe("completed");
 
-      // VTTファイルが作成されたことを確認
-      const vttObj = await env.R2_BUCKET.get(`episodes/${id}/transcript.vtt`);
-      expect(vttObj).not.toBeNull();
-
-      const vttContent = await vttObj!.text();
-      expect(vttContent).toContain("WEBVTT");
-      expect(vttContent).toContain("テストセグメント1");
-      expect(vttContent).toContain("テストセグメント2");
-
-      // メタデータのtranscriptUrlが更新されたことを確認
+      // メタデータのtranscriptUrlがJSONを指すことを確認
       const metaObj = await env.R2_BUCKET.get(`episodes/${id}/meta.json`);
       const meta = JSON.parse(await metaObj!.text());
-      expect(meta.transcriptUrl).toContain("transcript.vtt");
+      expect(meta.transcriptUrl).toContain("transcript.json");
       expect(meta.duration).toBe(300);
       expect(meta.transcriptionLockedAt).toBeNull();
     });

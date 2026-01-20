@@ -8,6 +8,18 @@ export interface TranscriptSegment {
   text: string;
 }
 
+export interface TranscriptJsonSegment {
+  start: number;
+  end: number;
+  text: string;
+  speaker?: string;
+}
+
+export interface TranscriptJson {
+  segments: TranscriptJsonSegment[];
+  language?: string;
+}
+
 export type PublishStatus = "new" | "uploading" | "draft" | "scheduled" | "published";
 export type TranscribeStatus = "none" | "pending" | "transcribing" | "completed" | "failed" | "skipped";
 
