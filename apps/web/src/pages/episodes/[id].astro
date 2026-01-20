@@ -137,10 +137,23 @@ const ogImageUrl = getEpisodeOgImageUrl(episode.artworkUrl, podcastArtworkUrl);
     <!-- オーディオプレイヤー -->
     {/* audioUrlがあればそれを使い、なければsourceAudioUrl（RSSインポート時の外部URL）を使用 */}
     <div class="mb-6 rounded-lg border border-border bg-bg-elevated p-4 dark:border-border-dark dark:bg-bg-elevated-dark">
-      <audio controls class="mb-3 w-full" preload="metadata">
-        <source src={episode.audioUrl || episode.sourceAudioUrl || ""} type="audio/mpeg" />
-        お使いのブラウザはオーディオ再生に対応していません。
-      </audio>
+      <div class="relative">
+        <audio id="audio-player" controls class="mb-3 w-full" preload="metadata">
+          <source src={episode.audioUrl || episode.sourceAudioUrl || ""} type="audio/mpeg" />
+          お使いのブラウザはオーディオ再生に対応していません。
+        </audio>
+        <button
+          id="stop-button"
+          type="button"
+          class="absolute -top-1 -right-1 hidden rounded-full bg-red-500 p-1.5 text-white shadow-md transition-all hover:bg-red-600 hover:scale-110"
+          aria-label="停止"
+          title="停止"
+        >
+          <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
+            <rect x="6" y="6" width="12" height="12" rx="1" />
+          </svg>
+        </button>
+      </div>
 
       <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-text-muted dark:text-text-muted-dark">
         <span class="flex items-center gap-1">
@@ -209,16 +222,20 @@ const ogImageUrl = getEpisodeOgImageUrl(episode.artworkUrl, podcastArtworkUrl);
             </svg>
             文字起こしを見る
           </summary>
-          <div class="mt-3 max-h-96 overflow-y-auto overflow-x-hidden divide-y divide-border/50 dark:divide-border-dark/50 pr-2">
+          <div id="transcript-container" class="mt-3 max-h-96 overflow-y-auto overflow-x-hidden divide-y divide-border/50 dark:divide-border-dark/50 pr-2">
             {transcriptSegments.map((segment) => (
-              <div class="group flex gap-3 py-2 first:pt-0 last:pb-0">
-                <span class="shrink-0 pt-0.5 text-[10px] font-mono text-text-muted/70 dark:text-text-muted-dark/70 tabular-nums opacity-60 group-hover:opacity-100 transition-opacity">
+              <button
+                type="button"
+                class="transcript-segment group flex w-full gap-3 py-2 first:pt-0 last:pb-0 text-left rounded transition-colors hover:bg-accent/10 dark:hover:bg-accent/20 cursor-pointer"
+                data-time={segment.start}
+              >
+                <span class="shrink-0 pt-0.5 text-[10px] font-mono text-accent/70 dark:text-accent/80 tabular-nums group-hover:text-accent transition-colors">
                   {segment.start}
                 </span>
-                <p class="text-sm leading-normal text-text-secondary dark:text-text-secondary-dark">
+                <span class="text-sm leading-normal text-text-secondary dark:text-text-secondary-dark group-hover:text-text dark:group-hover:text-text-dark transition-colors">
                   {segment.text}
-                </p>
-              </div>
+                </span>
+              </button>
             ))}
           </div>
         </details>
@@ -301,3 +318,55 @@ const ogImageUrl = getEpisodeOgImageUrl(episode.artworkUrl, podcastArtworkUrl);
     )}
   </article>
 </Layout>
+
+<script>
+  // タイムスタンプ（HH:MM:SS）を秒数に変換
+  function timeToSeconds(time: string): number {
+    const parts = time.split(':').map(Number);
+    if (parts.length === 3) {
+      return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    } else if (parts.length === 2) {
+      return parts[0] * 60 + parts[1];
+    }
+    return 0;
+  }
+
+  const audio = document.getElementById('audio-player') as HTMLAudioElement | null;
+  const stopButton = document.getElementById('stop-button') as HTMLButtonElement | null;
+  const transcriptSegments = document.querySelectorAll('.transcript-segment');
+
+  if (audio && stopButton) {
+    // 再生中は停止ボタンを表示
+    audio.addEventListener('play', () => {
+      stopButton.classList.remove('hidden');
+    });
+
+    // 停止・一時停止で非表示
+    audio.addEventListener('pause', () => {
+      stopButton.classList.add('hidden');
+    });
+
+    audio.addEventListener('ended', () => {
+      stopButton.classList.add('hidden');
+    });
+
+    // 停止ボタンのクリックで再生停止＆先頭に戻す
+    stopButton.addEventListener('click', () => {
+      audio.pause();
+      audio.currentTime = 0;
+    });
+  }
+
+  // トランスクリプトセグメントのクリックで再生位置を変更
+  if (audio) {
+    transcriptSegments.forEach((segment) => {
+      segment.addEventListener('click', () => {
+        const time = segment.getAttribute('data-time');
+        if (time) {
+          audio.currentTime = timeToSeconds(time);
+          audio.play();
+        }
+      });
+    });
+  }
+</script>
