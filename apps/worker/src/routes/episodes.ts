@@ -43,6 +43,7 @@ episodes.get("/", async (c) => {
         transcribeStatus: meta.transcribeStatus,
         publishAt: meta.publishAt,
         publishedAt: meta.publishedAt,
+        createdAt: meta.createdAt,
         sourceGuid: meta.sourceGuid || null,
         applePodcastsUrl: meta.applePodcastsUrl || null,
         spotifyUrl: meta.spotifyUrl || null,
@@ -50,12 +51,11 @@ episodes.get("/", async (c) => {
     })
   );
 
-  // publishAt降順でソート（nullは最後）
+  // publishAt降順でソート（publishAtがない場合はcreatedAtで代替）
   episodeList.sort((a, b) => {
-    if (!a.publishAt && !b.publishAt) return 0;
-    if (!a.publishAt) return 1;
-    if (!b.publishAt) return -1;
-    return new Date(b.publishAt).getTime() - new Date(a.publishAt).getTime();
+    const dateA = a.publishAt || a.createdAt;
+    const dateB = b.publishAt || b.createdAt;
+    return new Date(dateB).getTime() - new Date(dateA).getTime();
   });
 
   return c.json({ episodes: episodeList });

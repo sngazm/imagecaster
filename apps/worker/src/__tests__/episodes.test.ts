@@ -387,6 +387,73 @@ describe("Episodes API - Transcription", () => {
   });
 });
 
+describe("Episodes API - Sort Order", () => {
+  describe("GET /api/episodes", () => {
+    it("sorts episodes by publishAt, falling back to createdAt for drafts", async () => {
+      // 3つのエピソードを作成
+      const { id: idA } = await createTestEpisode({ title: "Episode A" });
+      const { id: idB } = await createTestEpisode({ title: "Episode B" });
+      const { id: idC } = await createTestEpisode({ title: "Episode C" });
+
+      // meta.json を直接操作して日付を設定
+      // A: publishAt あり（中間の日付）
+      const metaA = await env.R2_BUCKET.get(`episodes/${idA}/meta.json`);
+      const dataA = JSON.parse(await metaA!.text());
+      dataA.publishAt = "2024-01-15T00:00:00.000Z";
+      dataA.createdAt = "2024-01-01T00:00:00.000Z";
+      await env.R2_BUCKET.put(`episodes/${idA}/meta.json`, JSON.stringify(dataA), {
+        httpMetadata: { contentType: "application/json" },
+      });
+
+      // B: publishAt なし（下書き）、createdAt が最新
+      const metaB = await env.R2_BUCKET.get(`episodes/${idB}/meta.json`);
+      const dataB = JSON.parse(await metaB!.text());
+      dataB.publishAt = null;
+      dataB.createdAt = "2024-01-20T00:00:00.000Z";
+      await env.R2_BUCKET.put(`episodes/${idB}/meta.json`, JSON.stringify(dataB), {
+        httpMetadata: { contentType: "application/json" },
+      });
+
+      // C: publishAt あり（一番古い日付）
+      const metaC = await env.R2_BUCKET.get(`episodes/${idC}/meta.json`);
+      const dataC = JSON.parse(await metaC!.text());
+      dataC.publishAt = "2024-01-10T00:00:00.000Z";
+      dataC.createdAt = "2024-01-01T00:00:00.000Z";
+      await env.R2_BUCKET.put(`episodes/${idC}/meta.json`, JSON.stringify(dataC), {
+        httpMetadata: { contentType: "application/json" },
+      });
+
+      // 一覧を取得
+      const response = await SELF.fetch("http://localhost/api/episodes");
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      const ids = json.episodes.map((ep: { id: string }) => ep.id);
+
+      // B(createdAt: 1/20) → A(publishAt: 1/15) → C(publishAt: 1/10) の順
+      const indexA = ids.indexOf(idA);
+      const indexB = ids.indexOf(idB);
+      const indexC = ids.indexOf(idC);
+
+      expect(indexB).toBeLessThan(indexA);
+      expect(indexA).toBeLessThan(indexC);
+    });
+
+    it("includes createdAt in episode list response", async () => {
+      const { id } = await createTestEpisode({ title: "CreatedAt Test" });
+
+      const response = await SELF.fetch("http://localhost/api/episodes");
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      const episode = json.episodes.find((ep: { id: string }) => ep.id === id);
+      expect(episode).toBeDefined();
+      expect(episode.createdAt).toBeDefined();
+      expect(typeof episode.createdAt).toBe("string");
+    });
+  });
+});
+
 describe("Episodes API - Validation", () => {
   describe("POST /api/episodes", () => {
     it("creates episode with custom slug", async () => {

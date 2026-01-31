@@ -257,6 +257,7 @@ export interface EpisodesListResponse {
     transcribeStatus: TranscribeStatus;
     publishAt: string | null;
     publishedAt: string | null;
+    createdAt: string;
   }>;
 }
 
