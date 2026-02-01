@@ -186,7 +186,7 @@ export async function regenerateFeed(env: Env): Promise<void> {
 
   await env.R2_BUCKET.put("feed.xml", feedXml, {
     httpMetadata: {
-      contentType: "application/xml; charset=utf-8",
+      contentType: "application/rss+xml; charset=utf-8",
     },
   });
 }
