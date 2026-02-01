@@ -95,77 +95,109 @@ debug.get("/env", (c) => {
  *
  * 旧形式（R2パス = episodes/{slug}/...）から新形式（episodes/{slug}-{random}/...）に移行
  * storageKey が slug と同一のエピソードを検出し、新しい storageKey でファイルを移動
+ *
+ * Workers の subrequest 上限（1000回）を超えないよう、バッチ処理で実行。
+ * body.limit でバッチサイズを指定可能（デフォルト5、最大10）。
+ * migrated > 0 の場合は再度呼び出すこと。migrated === 0 になったら完了。
  */
 debug.post("/migrate-storage-keys", async (c) => {
-  const allEpisodes = await listAllEpisodes(c.env);
-  const migrated: Array<{ id: string; oldStorageKey: string; newStorageKey: string }> = [];
-  const skipped: Array<{ id: string; reason: string }> = [];
+  const body = await c.req.json<{ limit?: number }>().catch(() => ({}));
+  const batchSize = Math.min(body.limit || 5, 10);
 
-  for (const meta of allEpisodes) {
+  // Step 1: ディレクトリ名だけを取得（R2.list のみ、meta.json 読み込みなし）
+  const allDirs: string[] = [];
+  let listCursor: string | undefined;
+  do {
+    const listed = await c.env.R2_BUCKET.list({
+      prefix: "episodes/",
+      delimiter: "/",
+      cursor: listCursor,
+    });
+    for (const prefix of listed.delimitedPrefixes) {
+      const sk = prefix.replace("episodes/", "").replace(/\/$/, "");
+      if (sk) allDirs.push(sk);
+    }
+    listCursor = listed.truncated ? listed.cursor : undefined;
+  } while (listCursor);
+
+  // Step 2: 各ディレクトリの meta.json を読み、移行が必要なものを batchSize 件まで処理
+  const migrated: Array<{ id: string; oldStorageKey: string; newStorageKey: string }> = [];
+  const errors: Array<{ id: string; reason: string }> = [];
+  let alreadyMigrated = 0;
+
+  for (const storageKey of allDirs) {
+    if (migrated.length >= batchSize) break;
+
+    const metaObj = await c.env.R2_BUCKET.get(`episodes/${storageKey}/meta.json`);
+    if (!metaObj) continue;
+
+    const meta = JSON.parse(await metaObj.text());
     const slug = meta.slug || meta.id;
 
-    // storageKey が既に slug-{random} 形式なら移行不要
-    // 条件: storageKey が slug と完全一致、または storageKey が存在しない
+    // storageKey が既に slug と異なれば移行済み
     if (meta.storageKey && meta.storageKey !== slug) {
-      // 既に storageKey が異なる（移行済み）
-      skipped.push({ id: meta.id, reason: "Already migrated" });
+      alreadyMigrated++;
       continue;
     }
 
-    // 新しい storageKey を生成
+    // 移行実行
     const newStorageKey = generateStorageKey(slug);
 
     try {
-      // ファイルを移動
-      await moveEpisode(c.env, slug, newStorageKey);
+      await moveEpisode(c.env, storageKey, newStorageKey);
 
-      // メタデータを更新
       meta.storageKey = newStorageKey;
 
-      // audioUrl と transcriptUrl のパスも更新
-      if (meta.audioUrl && meta.audioUrl.includes(`/episodes/${slug}/`)) {
-        meta.audioUrl = meta.audioUrl.replace(`/episodes/${slug}/`, `/episodes/${newStorageKey}/`);
+      if (meta.audioUrl && meta.audioUrl.includes(`/episodes/${storageKey}/`)) {
+        meta.audioUrl = meta.audioUrl.replace(`/episodes/${storageKey}/`, `/episodes/${newStorageKey}/`);
       }
-      if (meta.transcriptUrl && meta.transcriptUrl.includes(`/episodes/${slug}/`)) {
-        meta.transcriptUrl = meta.transcriptUrl.replace(`/episodes/${slug}/`, `/episodes/${newStorageKey}/`);
+      if (meta.transcriptUrl && meta.transcriptUrl.includes(`/episodes/${storageKey}/`)) {
+        meta.transcriptUrl = meta.transcriptUrl.replace(`/episodes/${storageKey}/`, `/episodes/${newStorageKey}/`);
       }
-      if (meta.artworkUrl && meta.artworkUrl.includes(`/episodes/${slug}/`)) {
-        meta.artworkUrl = meta.artworkUrl.replace(`/episodes/${slug}/`, `/episodes/${newStorageKey}/`);
+      if (meta.artworkUrl && meta.artworkUrl.includes(`/episodes/${storageKey}/`)) {
+        meta.artworkUrl = meta.artworkUrl.replace(`/episodes/${storageKey}/`, `/episodes/${newStorageKey}/`);
       }
 
       await saveEpisodeMeta(c.env, meta);
 
       migrated.push({
         id: meta.id,
-        oldStorageKey: slug,
+        oldStorageKey: storageKey,
         newStorageKey,
       });
     } catch (err) {
-      skipped.push({ id: meta.id, reason: `Error: ${err}` });
+      errors.push({ id: meta.id, reason: `${err}` });
     }
   }
 
-  // index.json を再構築（published エピソードのみ、新しい storageKey で）
-  const index = await getIndex(c.env);
-  index.episodes = [];
+  // Step 3: 全件移行済みなら index.json とフィードを再構築
+  const done = migrated.length === 0 && errors.length === 0;
 
-  // 移行後の全エピソードを再取得して index.json を再構築
-  const updatedEpisodes = await listAllEpisodes(c.env);
-  for (const ep of updatedEpisodes) {
-    if (ep.publishStatus === "published") {
-      index.episodes.push({ id: ep.id, storageKey: ep.storageKey });
+  if (done) {
+    const index = await getIndex(c.env);
+    index.episodes = [];
+
+    const updatedEpisodes = await listAllEpisodes(c.env);
+    for (const ep of updatedEpisodes) {
+      if (ep.publishStatus === "published") {
+        index.episodes.push({ id: ep.id, storageKey: ep.storageKey });
+      }
     }
+
+    await saveIndex(c.env, index);
+    await regenerateFeed(c.env);
   }
-
-  await saveIndex(c.env, index);
-
-  // フィードを再生成
-  await regenerateFeed(c.env);
 
   return c.json({
     success: true,
+    done,
     migrated: migrated.length,
-    skipped: skipped.length,
-    details: { migrated, skipped },
+    alreadyMigrated,
+    totalDirs: allDirs.length,
+    errors: errors.length,
+    details: { migrated, errors },
+    message: done
+      ? "全エピソードの移行が完了しました。index.json と feed.xml を再構築しました。"
+      : `${migrated.length}件を移行しました。再度実行してください。`,
   });
 });
