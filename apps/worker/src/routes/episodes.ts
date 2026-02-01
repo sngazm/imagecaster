@@ -17,7 +17,9 @@ import {
   findEpisodeBySlug,
   moveEpisode,
   getAudioFile,
-  syncEpisodeStatusToIndex,
+  listAllEpisodes,
+  syncPublishedIndex,
+  generateStorageKey,
 } from "../services/r2";
 import { regenerateFeed } from "../services/feed";
 import { postEpisodeToBluesky } from "../services/bluesky";
@@ -28,28 +30,24 @@ const episodes = new Hono<{ Bindings: Env }>();
 
 /**
  * GET /api/episodes - エピソード一覧を取得（publishAt降順）
+ * R2.list() で全エピソードを列挙
  */
 episodes.get("/", async (c) => {
-  const index = await getIndex(c.env);
+  const allEpisodes = await listAllEpisodes(c.env);
 
-  const episodeList = await Promise.all(
-    index.episodes.map(async (ref) => {
-      const meta = await getEpisodeMeta(c.env, ref.id);
-      return {
-        id: meta.id,
-        slug: meta.slug || meta.id,
-        title: meta.title,
-        publishStatus: meta.publishStatus,
-        transcribeStatus: meta.transcribeStatus,
-        publishAt: meta.publishAt,
-        publishedAt: meta.publishedAt,
-        createdAt: meta.createdAt,
-        sourceGuid: meta.sourceGuid || null,
-        applePodcastsUrl: meta.applePodcastsUrl || null,
-        spotifyUrl: meta.spotifyUrl || null,
-      };
-    })
-  );
+  const episodeList = allEpisodes.map((meta) => ({
+    id: meta.id,
+    slug: meta.slug || meta.id,
+    title: meta.title,
+    publishStatus: meta.publishStatus,
+    transcribeStatus: meta.transcribeStatus,
+    publishAt: meta.publishAt,
+    publishedAt: meta.publishedAt,
+    createdAt: meta.createdAt,
+    sourceGuid: meta.sourceGuid || null,
+    applePodcastsUrl: meta.applePodcastsUrl || null,
+    spotifyUrl: meta.spotifyUrl || null,
+  }));
 
   // publishAt降順でソート（publishAtがない場合はcreatedAtで代替）
   episodeList.sort((a, b) => {
@@ -63,12 +61,16 @@ episodes.get("/", async (c) => {
 
 /**
  * GET /api/episodes/:id - エピソード詳細を取得
+ * slug から storageKey を解決して取得
  */
 episodes.get("/:id", async (c) => {
   const id = c.req.param("id");
 
   try {
-    const meta = await getEpisodeMeta(c.env, id);
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
     return c.json(meta);
   } catch {
     return c.json({ error: "Episode not found" }, 404);
@@ -102,8 +104,6 @@ episodes.post("/", async (c) => {
     return c.json({ error: "Title is required" }, 400);
   }
 
-  const index = await getIndex(c.env);
-
   // slugの決定（指定がなければ自動生成）
   let slug: string;
   if (body.slug) {
@@ -121,12 +121,15 @@ episodes.post("/", async (c) => {
     slug = generateUniqueSlug();
   }
 
+  // storageKey を生成
+  const storageKey = generateStorageKey(slug);
   const now = new Date().toISOString();
 
   // 新しいエピソードメタデータを作成
   const newMeta: EpisodeMeta = {
     id: slug,
     slug,
+    storageKey,
     title: body.title,
     description: body.description || "",
     duration: 0,
@@ -150,16 +153,8 @@ episodes.post("/", async (c) => {
     spotifyUrl: null,
   };
 
-  // メタデータを保存
+  // メタデータを保存（index.json には追加しない。published ではないため）
   await saveEpisodeMeta(c.env, newMeta);
-
-  // インデックスを更新（ステータスも含める）
-  index.episodes.push({
-    id: slug,
-    publishStatus: newMeta.publishStatus,
-    transcribeStatus: newMeta.transcribeStatus,
-  });
-  await saveIndex(c.env, index);
 
   const response: CreateEpisodeResponse = {
     id: slug,
@@ -179,8 +174,11 @@ episodes.put("/:id", async (c) => {
   const body = await c.req.json<UpdateEpisodeRequest>();
 
   try {
-    const meta = await getEpisodeMeta(c.env, id);
-    const index = await getIndex(c.env);
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
     let needsMove = false;
     let newSlug = meta.slug || meta.id;
 
@@ -266,29 +264,19 @@ episodes.put("/:id", async (c) => {
       }
     }
 
-    // slugが変わる場合はファイルを移動
+    // slugが変わる場合はファイルを移動し、新しいstorageKeyを生成
     if (needsMove) {
-      await moveEpisode(c.env, meta.id, newSlug);
-      // インデックスのIDを更新
-      const indexEntry = index.episodes.find((ep) => ep.id === meta.id);
-      if (indexEntry) {
-        indexEntry.id = newSlug;
-        indexEntry.publishStatus = meta.publishStatus;
-        indexEntry.transcribeStatus = meta.transcribeStatus;
-      }
+      const newStorageKey = generateStorageKey(newSlug);
+      await moveEpisode(c.env, meta.storageKey, newStorageKey);
       meta.id = newSlug;
       meta.slug = newSlug;
-    } else {
-      // slugが変わらない場合もステータスを同期
-      const indexEntry = index.episodes.find((ep) => ep.id === meta.id);
-      if (indexEntry) {
-        indexEntry.publishStatus = meta.publishStatus;
-        indexEntry.transcribeStatus = meta.transcribeStatus;
-      }
+      meta.storageKey = newStorageKey;
     }
 
     await saveEpisodeMeta(c.env, meta);
-    await saveIndex(c.env, index);
+
+    // 公開済みの場合は index.json を同期
+    await syncPublishedIndex(c.env, meta);
 
     // 公開済みの場合はフィードを再生成してWebをリビルド
     // ただし applePodcastsUrl / spotifyUrl のみの更新はスキップ（RSSに含まれず、頻繁な更新があり得るため）
@@ -321,18 +309,21 @@ episodes.delete("/:id", async (c) => {
   const id = c.req.param("id");
 
   try {
-    const meta = await getEpisodeMeta(c.env, id);
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
     const wasPublished = meta.publishStatus === "published";
 
-    await deleteEpisode(c.env, id);
+    // R2からファイルを削除
+    await deleteEpisode(c.env, meta.storageKey);
 
-    // インデックスから削除
-    const index = await getIndex(c.env);
-    index.episodes = index.episodes.filter((ep) => ep.id !== id);
-    await saveIndex(c.env, index);
-
-    // 公開済みだった場合はフィードを再生成してWebをリビルド
+    // 公開済みだった場合は index.json から除去
     if (wasPublished) {
+      const index = await getIndex(c.env);
+      index.episodes = index.episodes.filter((ep) => ep.id !== id);
+      await saveIndex(c.env, index);
       await regenerateFeed(c.env);
       await triggerWebRebuild(c.env);
     }
@@ -357,11 +348,14 @@ episodes.post("/:id/transcription-complete", async (c) => {
   const body = await c.req.json<TranscriptionCompleteRequest>();
 
   try {
-    const meta = await getEpisodeMeta(c.env, id);
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
 
     if (body.transcribeStatus === "completed") {
       // R2 から transcript.json を読み込み
-      const jsonKey = `episodes/${meta.id}/transcript.json`;
+      const jsonKey = `episodes/${meta.storageKey}/transcript.json`;
       const jsonObj = await c.env.R2_BUCKET.get(jsonKey);
 
       if (!jsonObj) {
@@ -386,7 +380,7 @@ episodes.post("/:id/transcription-complete", async (c) => {
       const vttContent = convertToVtt(transcriptData);
 
       // VTT を R2 に保存
-      const vttKey = `episodes/${meta.id}/transcript.vtt`;
+      const vttKey = `episodes/${meta.storageKey}/transcript.vtt`;
       await c.env.R2_BUCKET.put(vttKey, vttContent, {
         httpMetadata: {
           contentType: "text/vtt",
@@ -433,7 +427,7 @@ episodes.post("/:id/transcription-complete", async (c) => {
     meta.transcriptionLockedAt = null;
 
     await saveEpisodeMeta(c.env, meta);
-    await syncEpisodeStatusToIndex(c.env, meta.id, meta.publishStatus, meta.transcribeStatus);
+    await syncPublishedIndex(c.env, meta);
 
     // 公開された場合はフィードを再生成してWebをリビルド
     if (meta.publishStatus === "published") {

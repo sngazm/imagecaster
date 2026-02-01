@@ -1,6 +1,15 @@
 import { Hono } from "hono";
 import type { Env, ImportRssRequest, ImportRssResponse, EpisodeMeta } from "../types";
-import { getIndex, saveIndex, saveEpisodeMeta, saveAudioFile, getEpisodeMeta } from "../services/r2";
+import {
+  getIndex,
+  saveIndex,
+  saveEpisodeMeta,
+  saveAudioFile,
+  listAllEpisodes,
+  findEpisodeBySlug,
+  generateStorageKey,
+  syncPublishedIndex,
+} from "../services/r2";
 import { regenerateFeed } from "../services/feed";
 import { triggerWebRebuild } from "../services/deploy";
 
@@ -169,7 +178,7 @@ function generateSlug(title: string): string {
  */
 async function downloadAndSaveAudio(
   env: Env,
-  episodeId: string,
+  storageKey: string,
   audioUrl: string
 ): Promise<{ size: number; audioUrl: string } | null> {
   try {
@@ -179,10 +188,10 @@ async function downloadAndSaveAudio(
     }
 
     const audioData = await response.arrayBuffer();
-    const { size } = await saveAudioFile(env, episodeId, audioData);
+    const { size } = await saveAudioFile(env, storageKey, audioData);
 
     // 公開URLを生成
-    const publicAudioUrl = `${env.R2_PUBLIC_URL}/episodes/${episodeId}/audio.mp3`;
+    const publicAudioUrl = `${env.R2_PUBLIC_URL}/episodes/${storageKey}/audio.mp3`;
 
     return { size, audioUrl: publicAudioUrl };
   } catch {
@@ -195,7 +204,7 @@ async function downloadAndSaveAudio(
  */
 async function downloadAndSaveArtwork(
   env: Env,
-  episodeId: string,
+  storageKey: string,
   artworkUrl: string
 ): Promise<string | null> {
   try {
@@ -208,7 +217,7 @@ async function downloadAndSaveArtwork(
     const extension = contentType.includes("png") ? "png" : "jpg";
     const artworkData = await response.arrayBuffer();
 
-    const key = `episodes/${episodeId}/artwork.${extension}`;
+    const key = `episodes/${storageKey}/artwork.${extension}`;
     await env.R2_BUCKET.put(key, artworkData, {
       httpMetadata: {
         contentType: contentType.includes("png") ? "image/png" : "image/jpeg",
@@ -226,31 +235,14 @@ async function downloadAndSaveArtwork(
  * 既存エピソードのGUIDとAudioURLを取得（差分インポート用）
  */
 async function getExistingIdentifiers(
-  env: Env,
-  episodeIds: string[]
+  allEpisodes: EpisodeMeta[]
 ): Promise<{ guids: Set<string>; audioUrls: Set<string> }> {
   const guids = new Set<string>();
   const audioUrls = new Set<string>();
 
-  // バッチで取得
-  const BATCH_SIZE = 10;
-  for (let i = 0; i < episodeIds.length; i += BATCH_SIZE) {
-    const batch = episodeIds.slice(i, i + BATCH_SIZE);
-    const metas = await Promise.all(
-      batch.map(async (id) => {
-        try {
-          return await getEpisodeMeta(env, id);
-        } catch {
-          return null;
-        }
-      })
-    );
-
-    for (const meta of metas) {
-      if (!meta) continue;
-      if (meta.sourceGuid) guids.add(meta.sourceGuid);
-      if (meta.sourceAudioUrl) audioUrls.add(meta.sourceAudioUrl);
-    }
+  for (const meta of allEpisodes) {
+    if (meta.sourceGuid) guids.add(meta.sourceGuid);
+    if (meta.sourceAudioUrl) audioUrls.add(meta.sourceAudioUrl);
   }
 
   return { guids, audioUrls };
@@ -312,12 +304,13 @@ importRoutes.post("/rss", async (c) => {
   let imported = 0;
   let skipped = 0;
 
-  // 既存のslug一覧を作成（高速チェック用）
-  const existingSlugs = new Set(index.episodes.map((ep) => ep.id));
+  // 全エピソードを R2.list() で取得（差分インポート用）
+  const allEpisodes = await listAllEpisodes(c.env);
+  const existingSlugs = new Set(allEpisodes.map((ep) => ep.slug || ep.id));
 
   // 既存エピソードのGUIDとAudioURLを取得（差分インポート用）
   const { guids: existingGuids, audioUrls: existingAudioUrls } =
-    await getExistingIdentifiers(c.env, index.episodes.map((ep) => ep.id));
+    await getExistingIdentifiers(allEpisodes);
 
   // エピソードを古い順に処理（pubDateでソート）
   const sortedEpisodes = [...rssEpisodes].sort((a, b) =>
@@ -367,6 +360,9 @@ importRoutes.post("/rss", async (c) => {
       }
     }
 
+    // storageKey を生成
+    const storageKey = generateStorageKey(slug);
+
     // 新規エピソードを作成
     const now = new Date().toISOString();
     const pubDate = rssEp.pubDate ? new Date(rssEp.pubDate).toISOString() : now;
@@ -374,6 +370,7 @@ importRoutes.post("/rss", async (c) => {
     const meta: EpisodeMeta = {
       id: slug,
       slug,
+      storageKey,
       title: rssEp.title,
       description: rssEp.description,
       duration: rssEp.duration,
@@ -404,11 +401,10 @@ importRoutes.post("/rss", async (c) => {
     if (rssEp.guid) existingGuids.add(rssEp.guid);
     if (rssEp.audioUrl) existingAudioUrls.add(rssEp.audioUrl);
 
-    // インデックスに追加（ステータスも設定して文字起こしキューで検索可能に）
+    // 公開用 index.json に追加（published なので）
     index.episodes.push({
       id: slug,
-      publishStatus: meta.publishStatus,
-      transcribeStatus: meta.transcribeStatus,
+      storageKey,
     });
 
     results.push({
@@ -428,7 +424,7 @@ importRoutes.post("/rss", async (c) => {
       batch.map(async ({ meta, audioUrl, artworkUrl }) => {
         // オーディオをコピーする場合
         if (importAudio) {
-          const result = await downloadAndSaveAudio(c.env, meta.id, audioUrl);
+          const result = await downloadAndSaveAudio(c.env, meta.storageKey, audioUrl);
           if (result) {
             meta.audioUrl = result.audioUrl;
             meta.fileSize = result.size;
@@ -436,7 +432,7 @@ importRoutes.post("/rss", async (c) => {
         }
         // アートワークをコピーする場合
         if (importArtwork && artworkUrl) {
-          const savedArtworkUrl = await downloadAndSaveArtwork(c.env, meta.id, artworkUrl);
+          const savedArtworkUrl = await downloadAndSaveArtwork(c.env, meta.storageKey, artworkUrl);
           if (savedArtworkUrl) {
             meta.artworkUrl = savedArtworkUrl;
           }
@@ -504,13 +500,13 @@ importRoutes.post("/rss/preview", async (c) => {
   const episodes = parseRssXml(rssXml);
   const podcastMeta = parsePodcastMeta(rssXml);
 
-  // 既存のエピソード一覧を取得
-  const index = await getIndex(c.env);
-  const existingSlugs = new Set(index.episodes.map((ep) => ep.id));
+  // 全エピソードを R2.list() で取得
+  const allEpisodes = await listAllEpisodes(c.env);
+  const existingSlugs = new Set(allEpisodes.map((ep) => ep.slug || ep.id));
 
   // 既存エピソードのGUIDとAudioURLを取得（差分インポート用）
   const { guids: existingGuids, audioUrls: existingAudioUrls } =
-    await getExistingIdentifiers(c.env, index.episodes.map((ep) => ep.id));
+    await getExistingIdentifiers(allEpisodes);
 
   // 合計ファイルサイズを計算（インポート済みを除く）
   let totalFileSize = 0;
@@ -563,6 +559,7 @@ importRoutes.post("/rss/preview", async (c) => {
   });
 
   // 既存のPodcast設定を取得
+  const index = await getIndex(c.env);
   const existingPodcast = {
     title: index.podcast.title,
     description: index.podcast.description,

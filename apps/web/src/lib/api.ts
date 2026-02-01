@@ -136,16 +136,30 @@ export async function getPodcastIndex(): Promise<PodcastIndex> {
 
 /**
  * R2 からエピソードメタデータを取得
+ * @param storageKey R2ディレクトリ名（storageKey）
  */
-export async function getEpisode(id: string): Promise<Episode> {
-  const url = `${R2_PUBLIC_URL}/episodes/${id}/meta.json`;
+export async function getEpisode(storageKey: string): Promise<Episode> {
+  const url = `${R2_PUBLIC_URL}/episodes/${storageKey}/meta.json`;
   const res = await fetch(url);
 
   if (!res.ok) {
-    throw new Error(`Failed to fetch episode ${id}: ${res.status}`);
+    throw new Error(`Failed to fetch episode ${storageKey}: ${res.status}`);
   }
 
   return res.json();
+}
+
+/**
+ * slug から storageKey を解決してエピソードを取得
+ * SSRモード（開発時）で URL パラメータの slug からエピソードを取得する際に使用
+ */
+export async function getEpisodeBySlug(slug: string): Promise<Episode> {
+  const index = await getPodcastIndex();
+  const epRef = index.episodes.find((ep) => ep.id === slug);
+  if (!epRef) {
+    throw new Error(`Episode not found: ${slug}`);
+  }
+  return getEpisode(epRef.storageKey);
 }
 
 /**
@@ -162,7 +176,7 @@ export async function getPublishedEpisodes(): Promise<Episode[]> {
   const episodes = await Promise.all(
     index.episodes.map(async (ep) => {
       try {
-        return await getEpisode(ep.id);
+        return await getEpisode(ep.storageKey);
       } catch {
         return null;
       }

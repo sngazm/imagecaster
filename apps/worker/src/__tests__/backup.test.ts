@@ -319,7 +319,9 @@ describe("Backup API - Export/Import", () => {
       );
       const episode = await episodeResponse.json();
 
-      expect(episode.audioUrl).toContain("complete-test-episode/audio.mp3");
+      // storageKey はランダムサフィックスを含む（例: complete-test-episode-xxxxx）
+      expect(episode.audioUrl).toContain("complete-test-episode-");
+      expect(episode.audioUrl).toContain("/audio.mp3");
     });
 
     it("updates episode status to published", async () => {
@@ -397,7 +399,7 @@ describe("Backup API - Export/Import", () => {
       );
       const episode = await episodeResponse.json();
 
-      expect(episode.status).toBe("published");
+      expect(episode.publishStatus).toBe("published");
       expect(episode.publishedAt).toBeDefined();
     });
   });

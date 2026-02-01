@@ -8,7 +8,10 @@ import {
   saveEpisodeMeta,
   getTemplatesIndex,
   saveTemplatesIndex,
-  syncEpisodeStatusToIndex,
+  listAllEpisodes,
+  findEpisodeBySlug,
+  generateStorageKey,
+  syncPublishedIndex,
 } from "../services/r2";
 import { regenerateFeed } from "../services/feed";
 
@@ -155,24 +158,25 @@ backup.get("/export", async (c) => {
   const index = await getIndex(c.env);
   const templatesIndex = await getTemplatesIndex(c.env);
 
+  // R2.list() で全エピソードを取得
+  const allEpisodes = await listAllEpisodes(c.env);
+
   // 全エピソードのメタデータを取得
   const episodesWithFiles: ExportManifest["episodes"] = [];
 
-  for (const epRef of index.episodes) {
+  for (const meta of allEpisodes) {
     try {
-      const meta = await getEpisodeMeta(c.env, epRef.id);
-
       const files: ExportManifest["episodes"][0]["files"] = {};
 
       // 音声ファイル
-      const audioKey = `episodes/${meta.id}/audio.mp3`;
+      const audioKey = `episodes/${meta.storageKey}/audio.mp3`;
       const audioUrl = await generateDownloadUrl(c.env, audioKey);
       if (audioUrl) {
         files.audio = { key: audioKey, url: audioUrl };
       }
 
       // 文字起こし
-      const transcriptKey = `episodes/${meta.id}/transcript.vtt`;
+      const transcriptKey = `episodes/${meta.storageKey}/transcript.vtt`;
       const transcriptUrl = await generateDownloadUrl(c.env, transcriptKey);
       if (transcriptUrl) {
         files.transcript = { key: transcriptKey, url: transcriptUrl };
@@ -180,7 +184,7 @@ backup.get("/export", async (c) => {
 
       // エピソードアートワーク（jpg/pngどちらかを確認）
       for (const ext of ["jpg", "png"]) {
-        const artworkKey = `episodes/${meta.id}/artwork.${ext}`;
+        const artworkKey = `episodes/${meta.storageKey}/artwork.${ext}`;
         const artworkUrl = await generateDownloadUrl(c.env, artworkKey);
         if (artworkUrl) {
           files.artwork = { key: artworkKey, url: artworkUrl };
@@ -263,9 +267,14 @@ backup.post("/import", async (c) => {
   const episodeUploadUrls: ImportBackupResponse["uploadUrls"]["episodes"] = [];
 
   for (const ep of body.episodes) {
+    // storageKey を生成（バックアップデータにある場合はそれを使用、なければ新規生成）
+    const slug = ep.meta.slug || ep.meta.id;
+    const storageKey = ep.meta.storageKey || generateStorageKey(slug);
+
     const meta: EpisodeMeta = {
       id: ep.meta.id,
       slug: ep.meta.slug,
+      storageKey,
       title: ep.meta.title,
       description: ep.meta.description,
       duration: ep.meta.duration,
@@ -276,7 +285,8 @@ backup.post("/import", async (c) => {
       transcriptUrl: null,
       artworkUrl: null,
       skipTranscription: ep.meta.skipTranscription,
-      status: "draft", // インポート時は常にdraft
+      publishStatus: "draft", // インポート時は常にdraft
+      transcribeStatus: ep.meta.transcribeStatus || "none",
       createdAt: ep.meta.createdAt,
       publishAt: ep.meta.publishAt,
       publishedAt: null, // インポート時はリセット
@@ -288,12 +298,7 @@ backup.post("/import", async (c) => {
       spotifyUrl: null,
     };
 
-    // インデックスに追加（重複チェック）
-    if (!index.episodes.find((e) => e.id === meta.id)) {
-      index.episodes.push({ id: meta.id });
-    }
-
-    // メタデータを保存
+    // メタデータを保存（draft なので index.json には追加しない）
     await saveEpisodeMeta(c.env, meta);
 
     // アップロードURLを生成
@@ -302,7 +307,7 @@ backup.post("/import", async (c) => {
     if (ep.hasAudio) {
       urls.audio = await generateUploadUrl(
         c.env,
-        `episodes/${meta.id}/audio.mp3`,
+        `episodes/${storageKey}/audio.mp3`,
         "audio/mpeg"
       );
     }
@@ -310,7 +315,7 @@ backup.post("/import", async (c) => {
     if (ep.hasTranscript) {
       urls.transcript = await generateUploadUrl(
         c.env,
-        `episodes/${meta.id}/transcript.vtt`,
+        `episodes/${storageKey}/transcript.vtt`,
         "text/vtt"
       );
     }
@@ -319,7 +324,7 @@ backup.post("/import", async (c) => {
       // アートワークはjpgとして扱う（zipから展開時に拡張子を判定）
       urls.artwork = await generateUploadUrl(
         c.env,
-        `episodes/${meta.id}/artwork.jpg`,
+        `episodes/${storageKey}/artwork.jpg`,
         "image/jpeg"
       );
     }
@@ -376,23 +381,24 @@ backup.post("/import/complete", async (c) => {
   // 各エピソードのURLを更新
   for (const ep of body.episodes) {
     try {
-      const meta = await getEpisodeMeta(c.env, ep.id);
+      const meta = await findEpisodeBySlug(c.env, ep.id);
+      if (!meta) continue;
 
       if (ep.hasAudio) {
-        meta.audioUrl = `${c.env.R2_PUBLIC_URL}/episodes/${meta.id}/audio.mp3`;
+        meta.audioUrl = `${c.env.R2_PUBLIC_URL}/episodes/${meta.storageKey}/audio.mp3`;
       }
 
       if (ep.hasTranscript) {
-        meta.transcriptUrl = `${c.env.R2_PUBLIC_URL}/episodes/${meta.id}/transcript.vtt`;
+        meta.transcriptUrl = `${c.env.R2_PUBLIC_URL}/episodes/${meta.storageKey}/transcript.vtt`;
       }
 
       if (ep.hasArtwork) {
-        meta.artworkUrl = `${c.env.R2_PUBLIC_URL}/episodes/${meta.id}/artwork.jpg`;
+        meta.artworkUrl = `${c.env.R2_PUBLIC_URL}/episodes/${meta.storageKey}/artwork.jpg`;
       }
 
       // ステータスを更新（音声がある場合のみ）
       if (ep.hasAudio) {
-        meta.status = ep.status;
+        meta.publishStatus = ep.status;
         if (ep.status === "published") {
           meta.publishedAt = meta.publishedAt || new Date().toISOString();
         }
@@ -400,11 +406,8 @@ backup.post("/import/complete", async (c) => {
 
       await saveEpisodeMeta(c.env, meta);
 
-      // indexのstatusも同期
-      const indexEp = index.episodes.find((e) => e.id === ep.id);
-      if (indexEp) {
-        indexEp.status = meta.status;
-      }
+      // index.json を同期（published なら追加、それ以外は除去）
+      await syncPublishedIndex(c.env, meta);
     } catch {
       continue;
     }
@@ -413,9 +416,8 @@ backup.post("/import/complete", async (c) => {
   // アセットURLを更新
   if (body.hasArtwork) {
     index.podcast.artworkUrl = `${c.env.R2_PUBLIC_URL}/assets/artwork.jpg`;
+    await saveIndex(c.env, index);
   }
-
-  await saveIndex(c.env, index);
 
   // フィードを再生成
   await regenerateFeed(c.env);

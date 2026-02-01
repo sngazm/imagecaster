@@ -50,5 +50,6 @@ export interface PodcastIndex {
   podcast: PodcastInfo;
   episodes: Array<{
     id: string;
+    storageKey: string; // R2ディレクトリ名（推測不能）
   }>;
 }

@@ -1,6 +1,23 @@
 import type { Env, PodcastIndex, EpisodeMeta, TemplatesIndex, DescriptionTemplate, PublishStatus, TranscribeStatus } from "../types";
 
 /**
+ * storageKey 用のランダム文字列を生成（8文字の英数小文字）
+ */
+export function generateStorageToken(): string {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  const array = new Uint8Array(8);
+  crypto.getRandomValues(array);
+  return Array.from(array, (byte) => chars[byte % chars.length]).join("");
+}
+
+/**
+ * slug から storageKey を生成
+ */
+export function generateStorageKey(slug: string): string {
+  return `${slug}-${generateStorageToken()}`;
+}
+
+/**
  * デフォルトの Podcast インデックス
  */
 function createDefaultIndex(env: Env): PodcastIndex {
@@ -23,7 +40,7 @@ function createDefaultIndex(env: Env): PodcastIndex {
 }
 
 /**
- * index.json を取得
+ * index.json を取得（公開用: published エピソードのみ）
  */
 export async function getIndex(env: Env): Promise<PodcastIndex> {
   const obj = await env.R2_BUCKET.get("index.json");
@@ -37,7 +54,7 @@ export async function getIndex(env: Env): Promise<PodcastIndex> {
 }
 
 /**
- * index.json を保存
+ * index.json を保存（公開用: published エピソードのみ）
  */
 export async function saveIndex(env: Env, index: PodcastIndex): Promise<void> {
   await env.R2_BUCKET.put("index.json", JSON.stringify(index, null, 2), {
@@ -48,16 +65,58 @@ export async function saveIndex(env: Env, index: PodcastIndex): Promise<void> {
 }
 
 /**
+ * R2 binding の list() を使って全エピソードを列挙
+ * index.json を使わず、R2のディレクトリ構造から直接取得
+ */
+export async function listAllEpisodes(env: Env): Promise<EpisodeMeta[]> {
+  const storageKeys: string[] = [];
+  let cursor: string | undefined;
+
+  // ページネーション対応で全ディレクトリを取得
+  do {
+    const listed = await env.R2_BUCKET.list({
+      prefix: "episodes/",
+      delimiter: "/",
+      cursor,
+    });
+
+    for (const prefix of listed.delimitedPrefixes) {
+      // prefix = "episodes/ep-015-a7f3c2b1/"
+      const key = prefix.replace("episodes/", "").replace(/\/$/, "");
+      if (key) {
+        storageKeys.push(key);
+      }
+    }
+
+    cursor = listed.truncated ? listed.cursor : undefined;
+  } while (cursor);
+
+  // 各ディレクトリの meta.json を並列で読み込み
+  const episodes = await Promise.all(
+    storageKeys.map(async (key) => {
+      try {
+        return await getEpisodeMeta(env, key);
+      } catch {
+        return null;
+      }
+    })
+  );
+
+  return episodes.filter((ep): ep is EpisodeMeta => ep !== null);
+}
+
+/**
  * エピソードの meta.json を取得
+ * @param storageKey R2ディレクトリ名（storageKey）
  */
 export async function getEpisodeMeta(
   env: Env,
-  episodeId: string
+  storageKey: string
 ): Promise<EpisodeMeta> {
-  const obj = await env.R2_BUCKET.get(`episodes/${episodeId}/meta.json`);
+  const obj = await env.R2_BUCKET.get(`episodes/${storageKey}/meta.json`);
 
   if (!obj) {
-    throw new Error(`Episode not found: ${episodeId}`);
+    throw new Error(`Episode not found: ${storageKey}`);
   }
 
   const text = await obj.text();
@@ -106,6 +165,7 @@ export async function getEpisodeMeta(
 
   return {
     ...data,
+    storageKey: data.storageKey || storageKey,
     publishStatus,
     transcribeStatus,
     referenceLinks: data.referenceLinks ?? [],
@@ -115,13 +175,14 @@ export async function getEpisodeMeta(
 
 /**
  * エピソードの meta.json を保存
+ * storageKey をディレクトリ名として使用
  */
 export async function saveEpisodeMeta(
   env: Env,
   meta: EpisodeMeta
 ): Promise<void> {
   await env.R2_BUCKET.put(
-    `episodes/${meta.id}/meta.json`,
+    `episodes/${meta.storageKey}/meta.json`,
     JSON.stringify(meta, null, 2),
     {
       httpMetadata: {
@@ -132,29 +193,66 @@ export async function saveEpisodeMeta(
 }
 
 /**
- * エピソードのステータスをindex.jsonにも同期
- * キュー検索の高速化のため、ステータス変更時に呼び出す
+ * slug から storageKey を解決してエピソードを検索
+ * R2.list() で prefix "episodes/{slug}-" を検索し、slug が一致するものを返す
  */
-export async function syncEpisodeStatusToIndex(
+export async function findEpisodeBySlug(env: Env, slug: string): Promise<EpisodeMeta | null> {
+  // まず prefix で絞り込み（slug- にマッチするディレクトリを検索）
+  const listed = await env.R2_BUCKET.list({
+    prefix: `episodes/${slug}-`,
+    delimiter: "/",
+  });
+
+  for (const prefix of listed.delimitedPrefixes) {
+    const storageKey = prefix.replace("episodes/", "").replace(/\/$/, "");
+    try {
+      const meta = await getEpisodeMeta(env, storageKey);
+      if (meta.slug === slug || meta.id === slug) {
+        return meta;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 公開用 index.json のエピソード部分を同期
+ * published → index に追加、それ以外 → index から除去
+ */
+export async function syncPublishedIndex(
   env: Env,
-  episodeId: string,
-  publishStatus: PublishStatus,
-  transcribeStatus: TranscribeStatus
+  meta: EpisodeMeta
 ): Promise<void> {
   const index = await getIndex(env);
-  const episodeRef = index.episodes.find((ep) => ep.id === episodeId);
-  if (episodeRef) {
-    episodeRef.publishStatus = publishStatus;
-    episodeRef.transcribeStatus = transcribeStatus;
-    await saveIndex(env, index);
+  const existingIdx = index.episodes.findIndex((ep) => ep.id === meta.id);
+
+  if (meta.publishStatus === "published") {
+    // 公開済 → index に追加 or 更新
+    const entry = { id: meta.id, storageKey: meta.storageKey };
+    if (existingIdx >= 0) {
+      index.episodes[existingIdx] = entry;
+    } else {
+      index.episodes.push(entry);
+    }
+  } else {
+    // 非公開 → index から除去
+    if (existingIdx >= 0) {
+      index.episodes.splice(existingIdx, 1);
+    }
   }
+
+  await saveIndex(env, index);
 }
 
 /**
  * エピソードを削除（R2からファイルを削除）
+ * @param storageKey R2ディレクトリ名
  */
-export async function deleteEpisode(env: Env, episodeId: string): Promise<void> {
-  const prefix = `episodes/${episodeId}/`;
+export async function deleteEpisode(env: Env, storageKey: string): Promise<void> {
+  const prefix = `episodes/${storageKey}/`;
 
   // エピソードディレクトリ内のすべてのオブジェクトを一覧
   const listed = await env.R2_BUCKET.list({ prefix });
@@ -169,13 +267,14 @@ export async function deleteEpisode(env: Env, episodeId: string): Promise<void> 
 
 /**
  * 音声ファイルを R2 に保存
+ * @param storageKey R2ディレクトリ名
  */
 export async function saveAudioFile(
   env: Env,
-  episodeId: string,
+  storageKey: string,
   audioData: ArrayBuffer
 ): Promise<{ size: number }> {
-  const key = `episodes/${episodeId}/audio.mp3`;
+  const key = `episodes/${storageKey}/audio.mp3`;
 
   await env.R2_BUCKET.put(key, audioData, {
     httpMetadata: {
@@ -188,23 +287,25 @@ export async function saveAudioFile(
 
 /**
  * 音声ファイルを R2 から取得
+ * @param storageKey R2ディレクトリ名
  */
 export async function getAudioFile(
   env: Env,
-  episodeId: string
+  storageKey: string
 ): Promise<R2ObjectBody | null> {
-  const key = `episodes/${episodeId}/audio.mp3`;
+  const key = `episodes/${storageKey}/audio.mp3`;
   return env.R2_BUCKET.get(key);
 }
 
 /**
  * 文字起こしファイル（VTT）を取得
+ * @param storageKey R2ディレクトリ名
  */
 export async function getTranscript(
   env: Env,
-  episodeId: string
+  storageKey: string
 ): Promise<string | null> {
-  const obj = await env.R2_BUCKET.get(`episodes/${episodeId}/transcript.vtt`);
+  const obj = await env.R2_BUCKET.get(`episodes/${storageKey}/transcript.vtt`);
 
   if (!obj) {
     return null;
@@ -215,12 +316,13 @@ export async function getTranscript(
 
 /**
  * 公開済みエピソードの一覧を取得
+ * index.json（published のみ）から storageKey を使って meta を取得
  */
 export async function getPublishedEpisodes(env: Env): Promise<EpisodeMeta[]> {
   const index = await getIndex(env);
 
   const episodes = await Promise.all(
-    index.episodes.map((ref) => getEpisodeMeta(env, ref.id))
+    index.episodes.map((ref) => getEpisodeMeta(env, ref.storageKey))
   );
 
   return episodes
@@ -278,26 +380,6 @@ export async function saveArtwork(
 }
 
 /**
- * エピソードをslugで検索
- */
-export async function findEpisodeBySlug(env: Env, slug: string): Promise<EpisodeMeta | null> {
-  const index = await getIndex(env);
-
-  for (const ref of index.episodes) {
-    try {
-      const meta = await getEpisodeMeta(env, ref.id);
-      if (meta.slug === slug) {
-        return meta;
-      }
-    } catch {
-      continue;
-    }
-  }
-
-  return null;
-}
-
-/**
  * R2バケット内の全データを削除
  */
 export async function deleteAllData(env: Env): Promise<{
@@ -329,15 +411,15 @@ export async function deleteAllData(env: Env): Promise<{
 }
 
 /**
- * エピソードを別のslug（フォルダ）に移動
+ * エピソードを別のstorageKey（フォルダ）に移動
  */
 export async function moveEpisode(
   env: Env,
-  oldId: string,
-  newSlug: string
+  oldStorageKey: string,
+  newStorageKey: string
 ): Promise<void> {
-  const oldPrefix = `episodes/${oldId}/`;
-  const newPrefix = `episodes/${newSlug}/`;
+  const oldPrefix = `episodes/${oldStorageKey}/`;
+  const newPrefix = `episodes/${newStorageKey}/`;
 
   // 古いフォルダ内のオブジェクトを一覧
   const listed = await env.R2_BUCKET.list({ prefix: oldPrefix });

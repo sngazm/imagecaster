@@ -13,7 +13,7 @@ import { backup } from "./routes/backup";
 import { spotify } from "./routes/spotify";
 import { debug } from "./routes/debug";
 import { transcriptionQueue, transcriptionEpisodes } from "./routes/transcription";
-import { getIndex, getEpisodeMeta, saveEpisodeMeta, syncEpisodeStatusToIndex } from "./services/r2";
+import { getIndex, listAllEpisodes, saveEpisodeMeta, syncPublishedIndex } from "./services/r2";
 import { regenerateFeed } from "./services/feed";
 import { postEpisodeToBluesky } from "./services/bluesky";
 import { triggerWebRebuild } from "./services/deploy";
@@ -229,24 +229,19 @@ app.onError((err, c) => {
 
 /**
  * Cron 処理: 予約投稿をチェックして公開
+ * R2.list() で全エピソードを取得し、scheduled 状態のものを公開
  */
 async function handleScheduledPublish(env: Env): Promise<void> {
   console.log("[Scheduled Publish] Starting...");
   const now = new Date();
-  console.log("[Scheduled Publish] Fetching index from R2...");
-  const index = await getIndex(env);
-  console.log(`[Scheduled Publish] Got index with ${index.episodes.length} episodes`);
+  console.log("[Scheduled Publish] Fetching all episodes from R2...");
+  const allEpisodes = await listAllEpisodes(env);
+  console.log(`[Scheduled Publish] Got ${allEpisodes.length} episodes`);
 
   let updated = false;
+  const index = await getIndex(env);
 
-  for (const epRef of index.episodes) {
-    let meta: EpisodeMeta;
-    try {
-      meta = await getEpisodeMeta(env, epRef.id);
-    } catch {
-      continue;
-    }
-
+  for (const meta of allEpisodes) {
     if (meta.publishStatus === "scheduled" && meta.publishAt && new Date(meta.publishAt) <= now) {
       // 公開処理
       meta.publishStatus = "published";
@@ -259,7 +254,7 @@ async function handleScheduledPublish(env: Env): Promise<void> {
       }
 
       await saveEpisodeMeta(env, meta);
-      await syncEpisodeStatusToIndex(env, meta.id, meta.publishStatus, meta.transcribeStatus);
+      await syncPublishedIndex(env, meta);
       updated = true;
 
       console.log(`Published episode: ${meta.id}`);

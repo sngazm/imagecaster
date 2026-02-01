@@ -2,21 +2,24 @@ import { describe, it, expect } from "vitest";
 import { SELF } from "cloudflare:test";
 
 /**
- * テスト用ヘルパー: エピソードを作成してIDを返す
+ * テスト用ヘルパー: エピソードを作成してID・storageKeyを返す
  */
 async function createTestEpisode(data: {
   title: string;
   description?: string;
   publishAt?: string | null;
   skipTranscription?: boolean;
-}): Promise<{ id: string; slug: string }> {
+}): Promise<{ id: string; slug: string; storageKey: string }> {
   const response = await SELF.fetch("http://localhost/api/episodes", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
   const json = await response.json();
-  return { id: json.id, slug: json.slug };
+  // GET で storageKey を取得
+  const detailRes = await SELF.fetch(`http://localhost/api/episodes/${json.id}`);
+  const detail = await detailRes.json();
+  return { id: json.id, slug: json.slug, storageKey: detail.storageKey };
 }
 
 describe("Upload API", () => {
