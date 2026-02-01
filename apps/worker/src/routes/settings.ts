@@ -3,6 +3,7 @@ import { AwsClient } from "aws4fetch";
 import type { Env, UpdatePodcastSettingsRequest } from "../types";
 import { getIndex, saveIndex, saveArtwork } from "../services/r2";
 import { regenerateFeed } from "../services/feed";
+import { triggerWebRebuild } from "../services/deploy";
 
 export const settings = new Hono<{ Bindings: Env }>();
 
@@ -47,6 +48,7 @@ settings.put("/", async (c) => {
 
   await saveIndex(c.env, index);
   await regenerateFeed(c.env);
+  await triggerWebRebuild(c.env);
 
   return c.json(index.podcast);
 });
