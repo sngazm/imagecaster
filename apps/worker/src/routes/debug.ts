@@ -1,5 +1,14 @@
 import { Hono } from "hono";
 import type { Env } from "../types";
+import {
+  listAllEpisodes,
+  saveEpisodeMeta,
+  getIndex,
+  saveIndex,
+  generateStorageKey,
+  moveEpisode,
+} from "../services/r2";
+import { regenerateFeed } from "../services/feed";
 
 export const debug = new Hono<{ Bindings: Env }>();
 
@@ -78,5 +87,85 @@ debug.get("/env", (c) => {
     environment: env.IS_DEV === "true" ? "development" : "production",
     r2BucketBound,
     variables: result,
+  });
+});
+
+/**
+ * POST /api/debug/migrate-storage-keys - storageKey マイグレーション
+ *
+ * 旧形式（R2パス = episodes/{slug}/...）から新形式（episodes/{slug}-{random}/...）に移行
+ * storageKey が slug と同一のエピソードを検出し、新しい storageKey でファイルを移動
+ */
+debug.post("/migrate-storage-keys", async (c) => {
+  const allEpisodes = await listAllEpisodes(c.env);
+  const migrated: Array<{ id: string; oldStorageKey: string; newStorageKey: string }> = [];
+  const skipped: Array<{ id: string; reason: string }> = [];
+
+  for (const meta of allEpisodes) {
+    const slug = meta.slug || meta.id;
+
+    // storageKey が既に slug-{random} 形式なら移行不要
+    // 条件: storageKey が slug と完全一致、または storageKey が存在しない
+    if (meta.storageKey && meta.storageKey !== slug) {
+      // 既に storageKey が異なる（移行済み）
+      skipped.push({ id: meta.id, reason: "Already migrated" });
+      continue;
+    }
+
+    // 新しい storageKey を生成
+    const newStorageKey = generateStorageKey(slug);
+
+    try {
+      // ファイルを移動
+      await moveEpisode(c.env, slug, newStorageKey);
+
+      // メタデータを更新
+      meta.storageKey = newStorageKey;
+
+      // audioUrl と transcriptUrl のパスも更新
+      if (meta.audioUrl && meta.audioUrl.includes(`/episodes/${slug}/`)) {
+        meta.audioUrl = meta.audioUrl.replace(`/episodes/${slug}/`, `/episodes/${newStorageKey}/`);
+      }
+      if (meta.transcriptUrl && meta.transcriptUrl.includes(`/episodes/${slug}/`)) {
+        meta.transcriptUrl = meta.transcriptUrl.replace(`/episodes/${slug}/`, `/episodes/${newStorageKey}/`);
+      }
+      if (meta.artworkUrl && meta.artworkUrl.includes(`/episodes/${slug}/`)) {
+        meta.artworkUrl = meta.artworkUrl.replace(`/episodes/${slug}/`, `/episodes/${newStorageKey}/`);
+      }
+
+      await saveEpisodeMeta(c.env, meta);
+
+      migrated.push({
+        id: meta.id,
+        oldStorageKey: slug,
+        newStorageKey,
+      });
+    } catch (err) {
+      skipped.push({ id: meta.id, reason: `Error: ${err}` });
+    }
+  }
+
+  // index.json を再構築（published エピソードのみ、新しい storageKey で）
+  const index = await getIndex(c.env);
+  index.episodes = [];
+
+  // 移行後の全エピソードを再取得して index.json を再構築
+  const updatedEpisodes = await listAllEpisodes(c.env);
+  for (const ep of updatedEpisodes) {
+    if (ep.publishStatus === "published") {
+      index.episodes.push({ id: ep.id, storageKey: ep.storageKey });
+    }
+  }
+
+  await saveIndex(c.env, index);
+
+  // フィードを再生成
+  await regenerateFeed(c.env);
+
+  return c.json({
+    success: true,
+    migrated: migrated.length,
+    skipped: skipped.length,
+    details: { migrated, skipped },
   });
 });

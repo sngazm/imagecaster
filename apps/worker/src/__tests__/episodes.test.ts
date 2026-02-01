@@ -3,7 +3,7 @@ import { SELF, env } from "cloudflare:test";
 import type { TranscriptData } from "../types";
 
 /**
- * テスト用ヘルパー: エピソードを作成してIDを返す
+ * テスト用ヘルパー: エピソードを作成してID・storageKeyを返す
  */
 async function createTestEpisode(data: {
   title: string;
@@ -11,14 +11,17 @@ async function createTestEpisode(data: {
   publishAt?: string | null;
   skipTranscription?: boolean;
   slug?: string;
-}): Promise<{ id: string; slug: string }> {
+}): Promise<{ id: string; slug: string; storageKey: string }> {
   const response = await SELF.fetch("http://localhost/api/episodes", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
   const json = await response.json();
-  return { id: json.id, slug: json.slug };
+  // GET で storageKey を取得
+  const detailRes = await SELF.fetch(`http://localhost/api/episodes/${json.id}`);
+  const detail = await detailRes.json();
+  return { id: json.id, slug: json.slug, storageKey: detail.storageKey };
 }
 
 describe("Episodes API - CRUD Operations", () => {
@@ -139,18 +142,18 @@ describe("Episodes API - CRUD Operations", () => {
     });
 
     it("allows transcribeStatus change from failed to pending for retry", async () => {
-      const { id } = await createTestEpisode({
+      const { id, storageKey } = await createTestEpisode({
         title: "Failed Episode",
         skipTranscription: false,
       });
 
       // meta.json を直接操作して transcribeStatus を failed 状態にする
-      const meta = await env.R2_BUCKET.get(`episodes/${id}/meta.json`);
+      const meta = await env.R2_BUCKET.get(`episodes/${storageKey}/meta.json`);
       const data = JSON.parse(await meta!.text());
       data.publishStatus = "draft";
       data.transcribeStatus = "failed";
       data.audioUrl = "https://example.com/audio.mp3";
-      await env.R2_BUCKET.put(`episodes/${id}/meta.json`, JSON.stringify(data), {
+      await env.R2_BUCKET.put(`episodes/${storageKey}/meta.json`, JSON.stringify(data), {
         httpMetadata: { contentType: "application/json" },
       });
 
@@ -186,19 +189,19 @@ describe("Episodes API - CRUD Operations", () => {
     });
 
     it("rejects retry when no audio file available", async () => {
-      const { id } = await createTestEpisode({
+      const { id, storageKey } = await createTestEpisode({
         title: "Failed Episode No Audio",
         skipTranscription: false,
       });
 
       // meta.json を直接操作して transcribeStatus を failed 状態にする（音声なし）
-      const meta = await env.R2_BUCKET.get(`episodes/${id}/meta.json`);
+      const meta = await env.R2_BUCKET.get(`episodes/${storageKey}/meta.json`);
       const data = JSON.parse(await meta!.text());
       data.publishStatus = "draft";
       data.transcribeStatus = "failed";
       data.audioUrl = "";
       data.sourceAudioUrl = null;
-      await env.R2_BUCKET.put(`episodes/${id}/meta.json`, JSON.stringify(data), {
+      await env.R2_BUCKET.put(`episodes/${storageKey}/meta.json`, JSON.stringify(data), {
         httpMetadata: { contentType: "application/json" },
       });
 
@@ -273,7 +276,7 @@ describe("Episodes API - CRUD Operations", () => {
 /**
  * テスト用ヘルパー: transcript.json をR2にアップロード
  */
-async function uploadTranscriptJson(id: string): Promise<void> {
+async function uploadTranscriptJson(storageKey: string): Promise<void> {
   const transcriptData: TranscriptData = {
     segments: [
       { start: 0, end: 2.5, text: "テストセグメント" },
@@ -281,7 +284,7 @@ async function uploadTranscriptJson(id: string): Promise<void> {
     language: "ja",
   };
   await env.R2_BUCKET.put(
-    `episodes/${id}/transcript.json`,
+    `episodes/${storageKey}/transcript.json`,
     JSON.stringify(transcriptData),
     { httpMetadata: { contentType: "application/json" } }
   );
@@ -291,14 +294,14 @@ describe("Episodes API - Transcription", () => {
   describe("POST /api/episodes/:id/transcription-complete", () => {
     it("marks transcription as completed and sets publishStatus to scheduled", async () => {
       const futureDate = new Date(Date.now() + 86400000).toISOString();
-      const { id } = await createTestEpisode({
+      const { id, storageKey } = await createTestEpisode({
         title: "Transcription Test",
         publishAt: futureDate,
         skipTranscription: false,
       });
 
       // transcript.json をR2にアップロード
-      await uploadTranscriptJson(id);
+      await uploadTranscriptJson(storageKey);
 
       const response = await SELF.fetch(
         `http://localhost/api/episodes/${id}/transcription-complete`,
@@ -346,13 +349,13 @@ describe("Episodes API - Transcription", () => {
     });
 
     it("sets publishStatus to draft when publishAt is null", async () => {
-      const { id } = await createTestEpisode({
+      const { id, storageKey } = await createTestEpisode({
         title: "Draft After Transcription",
         publishAt: null,
       });
 
       // transcript.json をR2にアップロード
-      await uploadTranscriptJson(id);
+      await uploadTranscriptJson(storageKey);
 
       const response = await SELF.fetch(
         `http://localhost/api/episodes/${id}/transcription-complete`,
@@ -391,35 +394,35 @@ describe("Episodes API - Sort Order", () => {
   describe("GET /api/episodes", () => {
     it("sorts episodes by publishAt, falling back to createdAt for drafts", async () => {
       // 3つのエピソードを作成
-      const { id: idA } = await createTestEpisode({ title: "Episode A" });
-      const { id: idB } = await createTestEpisode({ title: "Episode B" });
-      const { id: idC } = await createTestEpisode({ title: "Episode C" });
+      const { id: idA, storageKey: skA } = await createTestEpisode({ title: "Episode A" });
+      const { id: idB, storageKey: skB } = await createTestEpisode({ title: "Episode B" });
+      const { id: idC, storageKey: skC } = await createTestEpisode({ title: "Episode C" });
 
       // meta.json を直接操作して日付を設定
       // A: publishAt あり（中間の日付）
-      const metaA = await env.R2_BUCKET.get(`episodes/${idA}/meta.json`);
+      const metaA = await env.R2_BUCKET.get(`episodes/${skA}/meta.json`);
       const dataA = JSON.parse(await metaA!.text());
       dataA.publishAt = "2024-01-15T00:00:00.000Z";
       dataA.createdAt = "2024-01-01T00:00:00.000Z";
-      await env.R2_BUCKET.put(`episodes/${idA}/meta.json`, JSON.stringify(dataA), {
+      await env.R2_BUCKET.put(`episodes/${skA}/meta.json`, JSON.stringify(dataA), {
         httpMetadata: { contentType: "application/json" },
       });
 
       // B: publishAt なし（下書き）、createdAt が最新
-      const metaB = await env.R2_BUCKET.get(`episodes/${idB}/meta.json`);
+      const metaB = await env.R2_BUCKET.get(`episodes/${skB}/meta.json`);
       const dataB = JSON.parse(await metaB!.text());
       dataB.publishAt = null;
       dataB.createdAt = "2024-01-20T00:00:00.000Z";
-      await env.R2_BUCKET.put(`episodes/${idB}/meta.json`, JSON.stringify(dataB), {
+      await env.R2_BUCKET.put(`episodes/${skB}/meta.json`, JSON.stringify(dataB), {
         httpMetadata: { contentType: "application/json" },
       });
 
       // C: publishAt あり（一番古い日付）
-      const metaC = await env.R2_BUCKET.get(`episodes/${idC}/meta.json`);
+      const metaC = await env.R2_BUCKET.get(`episodes/${skC}/meta.json`);
       const dataC = JSON.parse(await metaC!.text());
       dataC.publishAt = "2024-01-10T00:00:00.000Z";
       dataC.createdAt = "2024-01-01T00:00:00.000Z";
-      await env.R2_BUCKET.put(`episodes/${idC}/meta.json`, JSON.stringify(dataC), {
+      await env.R2_BUCKET.put(`episodes/${skC}/meta.json`, JSON.stringify(dataC), {
         httpMetadata: { contentType: "application/json" },
       });
 

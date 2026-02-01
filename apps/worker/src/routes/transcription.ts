@@ -7,10 +7,9 @@ import type {
   UploadUrlResponse,
 } from "../types";
 import {
-  getIndex,
-  getEpisodeMeta,
+  listAllEpisodes,
+  findEpisodeBySlug,
   saveEpisodeMeta,
-  syncEpisodeStatusToIndex,
 } from "../services/r2";
 
 /**
@@ -45,39 +44,27 @@ transcriptionQueue.get("/queue", async (c) => {
   const limitParam = c.req.query("limit");
   const limit = Math.min(Math.max(parseInt(limitParam || "1", 10) || 1, 1), 10);
 
-  const index = await getIndex(c.env);
+  // R2.list() で全エピソードを取得してフィルタリング
+  const allEpisodes = await listAllEpisodes(c.env);
   const queueItems: TranscriptionQueueItem[] = [];
 
-  // index.json のステータスで事前フィルタリング（高速化）
-  // pending または transcribing（ロック切れの再取得用）を対象
-  const transcribingRefs = index.episodes.filter(
-    (ref) => ref.transcribeStatus === "pending" || ref.transcribeStatus === "transcribing"
-  );
-
-  for (const ref of transcribingRefs) {
+  for (const meta of allEpisodes) {
     if (queueItems.length >= limit) {
       break;
     }
 
-    try {
-      const meta = await getEpisodeMeta(c.env, ref.id);
-
-      // pending または transcribing でロックが無効なエピソードのみ取得
-      const isPendingOrTranscribing = meta.transcribeStatus === "pending" || meta.transcribeStatus === "transcribing";
-      if (isPendingOrTranscribing && !isLockValid(meta.transcriptionLockedAt)) {
-        queueItems.push({
-          id: meta.id,
-          slug: meta.slug,
-          title: meta.title,
-          audioUrl: meta.audioUrl,
-          sourceAudioUrl: meta.sourceAudioUrl,
-          duration: meta.duration,
-          lockedAt: meta.transcriptionLockedAt || "",
-        });
-      }
-    } catch {
-      // エピソードが見つからない場合はスキップ
-      continue;
+    // pending または transcribing でロックが無効なエピソードのみ取得
+    const isPendingOrTranscribing = meta.transcribeStatus === "pending" || meta.transcribeStatus === "transcribing";
+    if (isPendingOrTranscribing && !isLockValid(meta.transcriptionLockedAt)) {
+      queueItems.push({
+        id: meta.id,
+        slug: meta.slug,
+        title: meta.title,
+        audioUrl: meta.audioUrl,
+        sourceAudioUrl: meta.sourceAudioUrl,
+        duration: meta.duration,
+        lockedAt: meta.transcriptionLockedAt || "",
+      });
     }
   }
 
@@ -102,7 +89,10 @@ transcriptionEpisodes.get("/:id/audio-url", async (c) => {
   const id = c.req.param("id");
 
   try {
-    const meta = await getEpisodeMeta(c.env, id);
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
 
     // R2に音声ファイルがある場合はPresigned URLを発行
     if (meta.audioUrl) {
@@ -111,7 +101,7 @@ transcriptionEpisodes.get("/:id/audio-url", async (c) => {
         secretAccessKey: c.env.R2_SECRET_ACCESS_KEY,
       });
 
-      const key = `episodes/${meta.id}/audio.mp3`;
+      const key = `episodes/${meta.storageKey}/audio.mp3`;
       const url = new URL(
         `https://${c.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${c.env.R2_BUCKET_NAME}/${key}`
       );
@@ -154,7 +144,10 @@ transcriptionEpisodes.post("/:id/transcript/upload-url", async (c) => {
   const id = c.req.param("id");
 
   try {
-    const meta = await getEpisodeMeta(c.env, id);
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
 
     // pending または transcribing 状態のみ許可
     if (meta.transcribeStatus !== "pending" && meta.transcribeStatus !== "transcribing") {
@@ -167,7 +160,7 @@ transcriptionEpisodes.post("/:id/transcript/upload-url", async (c) => {
       secretAccessKey: c.env.R2_SECRET_ACCESS_KEY,
     });
 
-    const key = `episodes/${meta.id}/transcript.json`;
+    const key = `episodes/${meta.storageKey}/transcript.json`;
     const url = new URL(
       `https://${c.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${c.env.R2_BUCKET_NAME}/${key}`
     );
@@ -201,7 +194,10 @@ transcriptionEpisodes.post("/:id/transcription-lock", async (c) => {
   const id = c.req.param("id");
 
   try {
-    const meta = await getEpisodeMeta(c.env, id);
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
 
     // pending または transcribing 状態のみ許可
     if (meta.transcribeStatus !== "pending" && meta.transcribeStatus !== "transcribing") {
@@ -218,7 +214,6 @@ transcriptionEpisodes.post("/:id/transcription-lock", async (c) => {
     meta.transcriptionLockedAt = now;
     meta.transcribeStatus = "transcribing";
     await saveEpisodeMeta(c.env, meta);
-    await syncEpisodeStatusToIndex(c.env, meta.id, meta.publishStatus, meta.transcribeStatus);
 
     return c.json({
       success: true,
@@ -245,7 +240,10 @@ transcriptionEpisodes.delete("/:id/transcription-lock", async (c) => {
   const id = c.req.param("id");
 
   try {
-    const meta = await getEpisodeMeta(c.env, id);
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
 
     // ロックを解除
     meta.transcriptionLockedAt = null;

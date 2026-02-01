@@ -30,6 +30,7 @@ export interface Env {
 
 /**
  * Podcast 全体のインデックス (index.json)
+ * 公開用: published のエピソードのみ含む
  */
 export interface PodcastIndex {
   podcast: {
@@ -52,8 +53,7 @@ export interface PodcastIndex {
   };
   episodes: Array<{
     id: string;
-    publishStatus?: PublishStatus;
-    transcribeStatus?: TranscribeStatus;
+    storageKey: string; // R2ディレクトリ名（推測不能）
   }>;
 }
 
@@ -104,6 +104,7 @@ export interface ReferenceLink {
 export interface EpisodeMeta {
   id: string;
   slug: string;
+  storageKey: string; // R2ディレクトリ名（{slug}-{random}）
   title: string;
   description: string;
   duration: number;

@@ -4,7 +4,7 @@ import { convertToVtt, validateTranscriptData } from "../services/vtt";
 import type { TranscriptData } from "../types";
 
 /**
- * テスト用ヘルパー: エピソードを作成してIDを返す
+ * テスト用ヘルパー: エピソードを作成してID・storageKeyを返す
  */
 async function createTestEpisode(data: {
   title: string;
@@ -12,14 +12,17 @@ async function createTestEpisode(data: {
   publishAt?: string | null;
   skipTranscription?: boolean;
   slug?: string;
-}): Promise<{ id: string; slug: string }> {
+}): Promise<{ id: string; slug: string; storageKey: string }> {
   const response = await SELF.fetch("http://localhost/api/episodes", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
   const json = (await response.json()) as { id: string; slug: string };
-  return { id: json.id, slug: json.slug };
+  // GET で storageKey を取得
+  const detailRes = await SELF.fetch(`http://localhost/api/episodes/${json.id}`);
+  const detail = (await detailRes.json()) as { storageKey: string };
+  return { id: json.id, slug: json.slug, storageKey: detail.storageKey };
 }
 
 /**
@@ -27,11 +30,11 @@ async function createTestEpisode(data: {
  * 実際のフローでは upload-complete 後にキューから取得されて transcribing になるが、
  * テスト用にメタデータを直接操作
  */
-async function setEpisodeToTranscribing(id: string, options?: {
+async function setEpisodeToTranscribing(storageKey: string, id: string, options?: {
   useExternalAudio?: boolean;
 }): Promise<void> {
   // meta.json を更新
-  const meta = await env.R2_BUCKET.get(`episodes/${id}/meta.json`);
+  const meta = await env.R2_BUCKET.get(`episodes/${storageKey}/meta.json`);
   if (!meta) throw new Error("Episode not found");
 
   const data = JSON.parse(await meta.text());
@@ -44,27 +47,14 @@ async function setEpisodeToTranscribing(id: string, options?: {
     data.sourceAudioUrl = `https://external.example.com/podcasts/${id}/audio.mp3`;
   } else {
     // R2にアップロード済み
-    data.audioUrl = `https://example.com/episodes/${id}/audio.mp3`;
+    data.audioUrl = `https://example.com/episodes/${storageKey}/audio.mp3`;
     data.sourceAudioUrl = null;
   }
 
-  await env.R2_BUCKET.put(`episodes/${id}/meta.json`, JSON.stringify(data), {
+  await env.R2_BUCKET.put(`episodes/${storageKey}/meta.json`, JSON.stringify(data), {
     httpMetadata: { contentType: "application/json" },
   });
-
-  // index.json も更新（キュー検索の高速化対応）
-  const indexObj = await env.R2_BUCKET.get("index.json");
-  if (indexObj) {
-    const index = JSON.parse(await indexObj.text());
-    const episodeRef = index.episodes.find((ep: { id: string }) => ep.id === id);
-    if (episodeRef) {
-      episodeRef.publishStatus = "draft";
-      episodeRef.transcribeStatus = "transcribing";
-      await env.R2_BUCKET.put("index.json", JSON.stringify(index), {
-        httpMetadata: { contentType: "application/json" },
-      });
-    }
-  }
+  // index.json の更新は不要（draft エピソードは index.json に含まれない）
 }
 
 describe("VTT Conversion Utility", () => {
@@ -181,14 +171,14 @@ describe("Transcription Queue API", () => {
     });
 
     it("returns transcribing episode without modifying state", async () => {
-      const { id } = await createTestEpisode({
+      const { id, storageKey } = await createTestEpisode({
         title: "Transcription Queue Test",
         publishAt: new Date(Date.now() + 86400000).toISOString(),
         skipTranscription: false,
       });
 
       // transcribing状態に設定
-      await setEpisodeToTranscribing(id);
+      await setEpisodeToTranscribing(storageKey, id);
 
       const response = await SELF.fetch("http://localhost/api/transcription/queue");
 
@@ -208,13 +198,13 @@ describe("Transcription Queue API", () => {
     });
 
     it("does not return locked episodes", async () => {
-      const { id } = await createTestEpisode({
+      const { id, storageKey } = await createTestEpisode({
         title: "Locked Episode Test",
         publishAt: new Date(Date.now() + 86400000).toISOString(),
         skipTranscription: false,
       });
 
-      await setEpisodeToTranscribing(id);
+      await setEpisodeToTranscribing(storageKey, id);
 
       // POSTでロックを取得
       await SELF.fetch(`http://localhost/api/episodes/${id}/transcription-lock`, {
@@ -241,14 +231,14 @@ describe("Transcription Queue API", () => {
     });
 
     it("includes sourceAudioUrl in queue response", async () => {
-      const { id } = await createTestEpisode({
+      const { id, storageKey } = await createTestEpisode({
         title: "Queue With External Audio Test",
         publishAt: new Date(Date.now() + 86400000).toISOString(),
         skipTranscription: false,
       });
 
       // 外部音声参照（RSSインポート時）の状態に設定
-      await setEpisodeToTranscribing(id, { useExternalAudio: true });
+      await setEpisodeToTranscribing(storageKey, id, { useExternalAudio: true });
 
       const response = await SELF.fetch("http://localhost/api/transcription/queue");
 
@@ -290,14 +280,14 @@ describe("Transcription Episode APIs", () => {
     });
 
     it("returns external URL when audioUrl is empty but sourceAudioUrl exists", async () => {
-      const { id } = await createTestEpisode({
+      const { id, storageKey } = await createTestEpisode({
         title: "External Audio URL Test",
         publishAt: new Date(Date.now() + 86400000).toISOString(),
         skipTranscription: false,
       });
 
       // 外部音声参照の状態に設定（RSSインポート時と同様）
-      await setEpisodeToTranscribing(id, { useExternalAudio: true });
+      await setEpisodeToTranscribing(storageKey, id, { useExternalAudio: true });
 
       const response = await SELF.fetch(
         `http://localhost/api/episodes/${id}/audio-url`
@@ -318,12 +308,12 @@ describe("Transcription Episode APIs", () => {
     // Note: このテストはenv.R2_BUCKETの直接操作がSELF.fetch経由のWorkerと
     // 共有されないためスキップ。実際の動作はE2Eテストで確認する。
     it.skip("returns presigned download URL for audio when audioUrl is set", async () => {
-      const { id } = await createTestEpisode({
+      const { id, storageKey } = await createTestEpisode({
         title: "Audio URL Test",
         skipTranscription: false,
       });
 
-      await setEpisodeToTranscribing(id);
+      await setEpisodeToTranscribing(storageKey, id);
 
       const response = await SELF.fetch(
         `http://localhost/api/episodes/${id}/audio-url`
@@ -368,13 +358,13 @@ describe("Transcription Episode APIs", () => {
     // Note: このテストはenv.R2_BUCKETの直接操作がSELF.fetch経由のWorkerと
     // 共有されないためスキップ。実際の動作はE2Eテストで確認する。
     it.skip("returns presigned upload URL for transcript JSON when transcribing", async () => {
-      const { id } = await createTestEpisode({
+      const { id, storageKey } = await createTestEpisode({
         title: "Transcript Upload URL Test",
         publishAt: new Date(Date.now() + 86400000).toISOString(),
         skipTranscription: false,
       });
 
-      await setEpisodeToTranscribing(id);
+      await setEpisodeToTranscribing(storageKey, id);
 
       const response = await SELF.fetch(
         `http://localhost/api/episodes/${id}/transcript/upload-url`,
@@ -402,13 +392,13 @@ describe("Transcription Episode APIs", () => {
 
   describe("POST /api/episodes/:id/transcription-lock", () => {
     it("acquires lock for transcribing episode", async () => {
-      const { id } = await createTestEpisode({
+      const { id, storageKey } = await createTestEpisode({
         title: "Lock Acquire Test",
         publishAt: new Date(Date.now() + 86400000).toISOString(),
         skipTranscription: false,
       });
 
-      await setEpisodeToTranscribing(id);
+      await setEpisodeToTranscribing(storageKey, id);
 
       const response = await SELF.fetch(
         `http://localhost/api/episodes/${id}/transcription-lock`,
@@ -428,13 +418,13 @@ describe("Transcription Episode APIs", () => {
     });
 
     it("returns 409 when already locked", async () => {
-      const { id } = await createTestEpisode({
+      const { id, storageKey } = await createTestEpisode({
         title: "Already Locked Test",
         publishAt: new Date(Date.now() + 86400000).toISOString(),
         skipTranscription: false,
       });
 
-      await setEpisodeToTranscribing(id);
+      await setEpisodeToTranscribing(storageKey, id);
 
       // 1回目: ロック成功
       await SELF.fetch(`http://localhost/api/episodes/${id}/transcription-lock`, {
@@ -509,13 +499,13 @@ describe("Transcription Episode APIs", () => {
 describe("Transcription Complete with JSON", () => {
   describe("POST /api/episodes/:id/transcription-complete", () => {
     it("requires transcript.json in R2 for completed status", async () => {
-      const { id } = await createTestEpisode({
+      const { id, storageKey } = await createTestEpisode({
         title: "Transcription Complete Test",
         publishAt: new Date(Date.now() + 86400000).toISOString(),
         skipTranscription: false,
       });
 
-      await setEpisodeToTranscribing(id);
+      await setEpisodeToTranscribing(storageKey, id);
 
       // transcript.json をアップロードせずに完了を通知
       const response = await SELF.fetch(
@@ -534,13 +524,13 @@ describe("Transcription Complete with JSON", () => {
     });
 
     it("converts JSON to VTT and saves both", async () => {
-      const { id } = await createTestEpisode({
+      const { id, storageKey } = await createTestEpisode({
         title: "Full Transcription Flow Test",
         publishAt: new Date(Date.now() + 86400000).toISOString(),
         skipTranscription: false,
       });
 
-      await setEpisodeToTranscribing(id);
+      await setEpisodeToTranscribing(storageKey, id);
 
       // transcript.json をR2にアップロード
       const transcriptData: TranscriptData = {
@@ -552,7 +542,7 @@ describe("Transcription Complete with JSON", () => {
       };
 
       await env.R2_BUCKET.put(
-        `episodes/${id}/transcript.json`,
+        `episodes/${storageKey}/transcript.json`,
         JSON.stringify(transcriptData),
         { httpMetadata: { contentType: "application/json" } }
       );
@@ -575,7 +565,7 @@ describe("Transcription Complete with JSON", () => {
       expect(json.transcribeStatus).toBe("completed");
 
       // VTTファイルが作成されたことを確認
-      const vttObj = await env.R2_BUCKET.get(`episodes/${id}/transcript.vtt`);
+      const vttObj = await env.R2_BUCKET.get(`episodes/${storageKey}/transcript.vtt`);
       expect(vttObj).not.toBeNull();
 
       const vttContent = await vttObj!.text();
@@ -584,7 +574,7 @@ describe("Transcription Complete with JSON", () => {
       expect(vttContent).toContain("テストセグメント2");
 
       // メタデータのtranscriptUrlが更新されたことを確認
-      const metaObj = await env.R2_BUCKET.get(`episodes/${id}/meta.json`);
+      const metaObj = await env.R2_BUCKET.get(`episodes/${storageKey}/meta.json`);
       const meta = JSON.parse(await metaObj!.text());
       expect(meta.transcriptUrl).toContain("transcript.vtt");
       expect(meta.duration).toBe(300);
@@ -592,17 +582,17 @@ describe("Transcription Complete with JSON", () => {
     });
 
     it("rejects invalid JSON structure", async () => {
-      const { id } = await createTestEpisode({
+      const { id, storageKey } = await createTestEpisode({
         title: "Invalid JSON Test",
         publishAt: new Date(Date.now() + 86400000).toISOString(),
         skipTranscription: false,
       });
 
-      await setEpisodeToTranscribing(id);
+      await setEpisodeToTranscribing(storageKey, id);
 
       // 不正な構造のJSONをアップロード
       await env.R2_BUCKET.put(
-        `episodes/${id}/transcript.json`,
+        `episodes/${storageKey}/transcript.json`,
         JSON.stringify({ invalid: "structure" }),
         { httpMetadata: { contentType: "application/json" } }
       );
@@ -623,13 +613,13 @@ describe("Transcription Complete with JSON", () => {
     });
 
     it("handles failed status without requiring JSON", async () => {
-      const { id } = await createTestEpisode({
+      const { id, storageKey } = await createTestEpisode({
         title: "Failed Transcription Test",
         publishAt: new Date(Date.now() + 86400000).toISOString(),
         skipTranscription: false,
       });
 
-      await setEpisodeToTranscribing(id);
+      await setEpisodeToTranscribing(storageKey, id);
 
       const response = await SELF.fetch(
         `http://localhost/api/episodes/${id}/transcription-complete`,
@@ -647,7 +637,7 @@ describe("Transcription Complete with JSON", () => {
       expect(json.transcribeStatus).toBe("failed");
 
       // ロックが解除されたことを確認
-      const metaObj = await env.R2_BUCKET.get(`episodes/${id}/meta.json`);
+      const metaObj = await env.R2_BUCKET.get(`episodes/${storageKey}/meta.json`);
       const meta = JSON.parse(await metaObj!.text());
       expect(meta.transcriptionLockedAt).toBeNull();
     });

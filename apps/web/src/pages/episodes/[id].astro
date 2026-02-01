@@ -1,6 +1,6 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import { getPublishedEpisodes, getEpisode, formatDuration, formatDate, formatFileSize, processDescription, getPodcastIndex, getTranscriptSegments, segmentsToText } from "../../lib/api";
+import { getPublishedEpisodes, getEpisodeBySlug, formatDuration, formatDate, formatFileSize, processDescription, getPodcastIndex, getTranscriptSegments, segmentsToText } from "../../lib/api";
 import { getEpisodeOgImageUrl } from "../../lib/og";
 import type { Episode, TranscriptSegment } from "../../lib/types";
 
@@ -67,7 +67,7 @@ if (Astro.props.episode) {
 } else {
   // SSRモード: paramsから取得してfetch
   const [fetchedEpisode, allEpisodes, index] = await Promise.all([
-    getEpisode(id!),
+    getEpisodeBySlug(id!),
     getPublishedEpisodes(),
     getPodcastIndex(),
   ]);

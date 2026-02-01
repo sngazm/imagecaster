@@ -9,10 +9,10 @@ import type {
 } from "../types";
 import {
   getIndex,
-  getEpisodeMeta,
+  findEpisodeBySlug,
   saveEpisodeMeta,
   saveAudioFile,
-  syncEpisodeStatusToIndex,
+  syncPublishedIndex,
 } from "../services/r2";
 import { regenerateFeed } from "../services/feed";
 import { postEpisodeToBluesky } from "../services/bluesky";
@@ -52,7 +52,10 @@ upload.post("/:id/upload-url", async (c) => {
 
   try {
     console.log(`[upload-url] Looking for episode: ${id}`);
-    const meta = await getEpisodeMeta(c.env, id);
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
     console.log(`[upload-url] Found episode:`, meta);
 
     // new 状態のみ許可
@@ -69,7 +72,7 @@ upload.post("/:id/upload-url", async (c) => {
       secretAccessKey: c.env.R2_SECRET_ACCESS_KEY,
     });
 
-    const key = `episodes/${id}/audio.mp3`;
+    const key = `episodes/${meta.storageKey}/audio.mp3`;
     const url = new URL(
       `https://${c.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${c.env.R2_BUCKET_NAME}/${key}`
     );
@@ -87,7 +90,6 @@ upload.post("/:id/upload-url", async (c) => {
     meta.publishStatus = "uploading";
     meta.fileSize = body.fileSize;
     await saveEpisodeMeta(c.env, meta);
-    await syncEpisodeStatusToIndex(c.env, meta.id, meta.publishStatus, meta.transcribeStatus);
 
     const response: UploadUrlResponse = {
       uploadUrl: signed.url,
@@ -109,7 +111,10 @@ upload.post("/:id/upload-complete", async (c) => {
   const body = await c.req.json<UploadCompleteRequest>();
 
   try {
-    const meta = await getEpisodeMeta(c.env, id);
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
     console.log(`[upload-complete] Episode ${id} publishStatus: ${meta.publishStatus}`);
 
     // uploading 状態のみ許可
@@ -119,7 +124,7 @@ upload.post("/:id/upload-complete", async (c) => {
     }
 
     // R2 にファイルが存在するか確認
-    const audioKey = `episodes/${id}/audio.mp3`;
+    const audioKey = `episodes/${meta.storageKey}/audio.mp3`;
     let fileSize = body.fileSize || 0;
 
     // ローカル開発時は R2 Binding が実際のバケットを参照しないためスキップ
@@ -172,7 +177,7 @@ upload.post("/:id/upload-complete", async (c) => {
     }
 
     await saveEpisodeMeta(c.env, meta);
-    await syncEpisodeStatusToIndex(c.env, meta.id, meta.publishStatus, meta.transcribeStatus);
+    await syncPublishedIndex(c.env, meta);
 
     // 公開された場合はフィードを再生成してWebをリビルド
     if (meta.publishStatus === "published") {
@@ -203,7 +208,10 @@ upload.post("/:id/upload-from-url", async (c) => {
   }
 
   try {
-    const meta = await getEpisodeMeta(c.env, id);
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
 
     // new 状態のみ許可
     if (meta.publishStatus !== "new") {
@@ -216,7 +224,6 @@ upload.post("/:id/upload-from-url", async (c) => {
     // ステータスを uploading に更新
     meta.publishStatus = "uploading";
     await saveEpisodeMeta(c.env, meta);
-    await syncEpisodeStatusToIndex(c.env, meta.id, meta.publishStatus, meta.transcribeStatus);
 
     // 音声ファイルをダウンロード（NextCloud共有リンクは自動変換）
     const downloadUrl = convertToDirectDownloadUrl(body.sourceUrl);
@@ -226,18 +233,17 @@ upload.post("/:id/upload-from-url", async (c) => {
       // 失敗時は new に戻す
       meta.publishStatus = "new";
       await saveEpisodeMeta(c.env, meta);
-      await syncEpisodeStatusToIndex(c.env, meta.id, meta.publishStatus, meta.transcribeStatus);
       return c.json({ error: "Failed to download audio file" }, 400);
     }
 
     const audioData = await audioResponse.arrayBuffer();
 
     // R2 に保存
-    const { size } = await saveAudioFile(c.env, id, audioData);
+    const { size } = await saveAudioFile(c.env, meta.storageKey, audioData);
 
     // メタデータ更新
     meta.fileSize = size;
-    meta.audioUrl = `${c.env.R2_PUBLIC_URL}/episodes/${id}/audio.mp3`;
+    meta.audioUrl = `${c.env.R2_PUBLIC_URL}/episodes/${meta.storageKey}/audio.mp3`;
 
     // transcribeStatus を設定
     if (meta.skipTranscription) {
@@ -270,7 +276,7 @@ upload.post("/:id/upload-from-url", async (c) => {
     }
 
     await saveEpisodeMeta(c.env, meta);
-    await syncEpisodeStatusToIndex(c.env, meta.id, meta.publishStatus, meta.transcribeStatus);
+    await syncPublishedIndex(c.env, meta);
 
     // 公開された場合はフィードを再生成してWebをリビルド
     if (meta.publishStatus === "published") {
@@ -286,10 +292,11 @@ upload.post("/:id/upload-from-url", async (c) => {
   } catch (error) {
     // エラー時は new に戻す
     try {
-      const meta = await getEpisodeMeta(c.env, id);
-      meta.publishStatus = "new";
-      await saveEpisodeMeta(c.env, meta);
-      await syncEpisodeStatusToIndex(c.env, meta.id, meta.publishStatus, meta.transcribeStatus);
+      const meta = await findEpisodeBySlug(c.env, id);
+      if (meta) {
+        meta.publishStatus = "new";
+        await saveEpisodeMeta(c.env, meta);
+      }
     } catch {
       // ignore
     }
@@ -317,10 +324,13 @@ upload.post("/:id/artwork/upload-url", async (c) => {
   }
 
   try {
-    const meta = await getEpisodeMeta(c.env, id);
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
 
     const extension = contentType === "image/png" ? "png" : "jpg";
-    const key = `episodes/${meta.slug}/artwork.${extension}`;
+    const key = `episodes/${meta.storageKey}/artwork.${extension}`;
 
     const r2 = new AwsClient({
       accessKeyId: c.env.R2_ACCESS_KEY_ID,
@@ -360,7 +370,11 @@ upload.post("/:id/artwork/upload-complete", async (c) => {
   const body = await c.req.json<{ artworkUrl: string }>();
 
   try {
-    const meta = await getEpisodeMeta(c.env, id);
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
     meta.artworkUrl = body.artworkUrl;
     await saveEpisodeMeta(c.env, meta);
 
