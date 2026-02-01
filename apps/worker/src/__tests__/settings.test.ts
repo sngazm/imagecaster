@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { SELF } from "cloudflare:test";
+import { SELF, env } from "cloudflare:test";
 
 describe("Settings API", () => {
   describe("GET /api/settings", () => {
@@ -92,6 +92,28 @@ describe("Settings API", () => {
       expect(updatedSettings.title).toBe(newTitle);
       // 他のフィールドは保持される（明示的にundefinedでない限り）
       expect(updatedSettings.author).toBe(originalSettings.author);
+    });
+
+    it("regenerates RSS feed after settings update", async () => {
+      const newEmail = `feed-test-${Date.now()}@example.com`;
+
+      // 設定を更新（emailを変更）
+      const updateResponse = await SELF.fetch(
+        "http://localhost/api/settings",
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: newEmail }),
+        }
+      );
+      expect(updateResponse.status).toBe(200);
+
+      // R2に保存されたfeed.xmlを取得して更新されたemailが反映されているか確認
+      const feedObj = await env.R2_BUCKET.get("feed.xml");
+      expect(feedObj).not.toBeNull();
+
+      const feedXml = await feedObj!.text();
+      expect(feedXml).toContain(`<itunes:email>${newEmail}</itunes:email>`);
     });
   });
 
