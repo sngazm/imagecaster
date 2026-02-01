@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { AwsClient } from "aws4fetch";
 import type { Env, UpdatePodcastSettingsRequest } from "../types";
 import { getIndex, saveIndex, saveArtwork } from "../services/r2";
+import { regenerateFeed } from "../services/feed";
 
 export const settings = new Hono<{ Bindings: Env }>();
 
@@ -45,6 +46,7 @@ settings.put("/", async (c) => {
   if (body.spotifyUrl !== undefined) index.podcast.spotifyUrl = body.spotifyUrl;
 
   await saveIndex(c.env, index);
+  await regenerateFeed(c.env);
 
   return c.json(index.podcast);
 });
