@@ -245,6 +245,10 @@ episodes.put("/:id", async (c) => {
     if (body.spotifyUrl !== undefined) {
       meta.spotifyUrl = body.spotifyUrl;
     }
+    // スピーカートラック情報
+    if (body.speakerTracks !== undefined) {
+      meta.speakerTracks = body.speakerTracks;
+    }
 
     // 文字起こしリトライ（failed → pending）
     if (body.transcribeStatus !== undefined) {

@@ -117,6 +117,54 @@ describe("Settings API", () => {
     });
   });
 
+  describe("PUT /api/settings - defaultSpeakerTracks", () => {
+    it("saves and retrieves defaultSpeakerTracks", async () => {
+      const defaultSpeakerTracks = [
+        { trackNumber: 1, speakerName: "ホスト" },
+        { trackNumber: 2, speakerName: "ゲスト" },
+      ];
+
+      const response = await SELF.fetch("http://localhost/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ defaultSpeakerTracks }),
+      });
+
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      expect(json.defaultSpeakerTracks).toEqual(defaultSpeakerTracks);
+
+      // GET で取得しても反映されていることを確認
+      const getResponse = await SELF.fetch("http://localhost/api/settings");
+      const settings = await getResponse.json();
+      expect(settings.defaultSpeakerTracks).toEqual(defaultSpeakerTracks);
+    });
+
+    it("clears defaultSpeakerTracks with empty array", async () => {
+      // まず設定
+      await SELF.fetch("http://localhost/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          defaultSpeakerTracks: [{ trackNumber: 1, speakerName: "テスト" }],
+        }),
+      });
+
+      // 空配列で上書き
+      const response = await SELF.fetch("http://localhost/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ defaultSpeakerTracks: [] }),
+      });
+
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      expect(json.defaultSpeakerTracks).toEqual([]);
+    });
+  });
+
   describe("POST /api/settings/artwork/upload-url", () => {
     it("rejects invalid content type", async () => {
       const response = await SELF.fetch(

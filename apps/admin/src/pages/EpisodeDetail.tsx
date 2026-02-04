@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { api, EpisodeDetail as EpisodeDetailType, formatDuration, formatFileSize, uploadToR2, getAudioDuration, utcToLocalDateTimeString, localDateTimeToISOString, fetchTranscriptSegments } from "../lib/api";
-import type { DescriptionTemplate, ReferenceLink, TranscriptSegment, PublishStatus, TranscribeStatus } from "../lib/api";
+import type { DescriptionTemplate, ReferenceLink, TranscriptSegment, PublishStatus, TranscribeStatus, SpeakerTrack } from "../lib/api";
 import { HtmlEditor } from "../components/HtmlEditor";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { BlueskyPostEditor } from "../components/BlueskyPostEditor";
@@ -71,6 +71,13 @@ export default function EpisodeDetail() {
   const [artworkPreview, setArtworkPreview] = useState<string | null>(null);
   const [uploadingArtwork, setUploadingArtwork] = useState(false);
 
+  // Speaker tracks
+  const [speakerTracksFile, setSpeakerTracksFile] = useState<File | null>(null);
+  const [uploadingSpeakerTracks, setUploadingSpeakerTracks] = useState(false);
+  const [speakerTracksMessage, setSpeakerTracksMessage] = useState("");
+  const [editSpeakerTracks, setEditSpeakerTracks] = useState<SpeakerTrack[]>([]);
+  const [deletingSpeakerTracks, setDeletingSpeakerTracks] = useState(false);
+
   // Website URL
   const [baseWebsiteUrl, setBaseWebsiteUrl] = useState<string>("");
 
@@ -103,6 +110,7 @@ export default function EpisodeDetail() {
         setEditSpotifyUrl(data.spotifyUrl || "");
         setEditSkipTranscription(data.skipTranscription);
         setEditHideTranscription(data.hideTranscription || false);
+        setEditSpeakerTracks(data.speakerTracks || []);
         setTemplates(templatesData);
 
         // Fetch transcript segments if available
@@ -149,6 +157,7 @@ export default function EpisodeDetail() {
         applePodcastsUrl: editApplePodcastsUrl.trim() || null,
         spotifyUrl: editSpotifyUrl.trim() || null,
         hideTranscription: editHideTranscription,
+        speakerTracks: editSpeakerTracks,
       };
 
       // slugの変更はnew状態のみ
@@ -251,6 +260,80 @@ export default function EpisodeDetail() {
     }
   };
 
+  const handleSpeakerTracksUpload = async () => {
+    if (!id || !speakerTracksFile || !episode) return;
+
+    try {
+      setUploadingSpeakerTracks(true);
+      setSpeakerTracksMessage("アップロード用URLを取得中...");
+
+      const { uploadUrl, speakerTracksUrl } = await api.getSpeakerTracksUploadUrl(
+        id,
+        speakerTracksFile.type || "application/zip",
+        speakerTracksFile.size
+      );
+
+      setSpeakerTracksMessage("ZIPファイルをアップロード中...");
+      await uploadToR2(uploadUrl, speakerTracksFile);
+
+      setSpeakerTracksMessage("処理を完了中...");
+      await api.completeSpeakerTracksUpload(id, speakerTracksUrl);
+
+      const updated = await api.getEpisode(id);
+      setEpisode(updated);
+      setSpeakerTracksFile(null);
+      setSpeakerTracksMessage("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "スピーカートラックのアップロードに失敗しました");
+    } finally {
+      setUploadingSpeakerTracks(false);
+    }
+  };
+
+  const handleDeleteSpeakerTracks = async () => {
+    if (!id || !confirm("スピーカートラックのZIPファイルを削除しますか？")) return;
+    try {
+      setDeletingSpeakerTracks(true);
+      await api.deleteSpeakerTracks(id);
+      const updated = await api.getEpisode(id);
+      setEpisode(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "スピーカートラックの削除に失敗しました");
+    } finally {
+      setDeletingSpeakerTracks(false);
+    }
+  };
+
+  const handleAddSpeakerTrack = () => {
+    const nextTrackNumber = editSpeakerTracks.length > 0
+      ? Math.max(...editSpeakerTracks.map(t => t.trackNumber)) + 1
+      : 1;
+    setEditSpeakerTracks([...editSpeakerTracks, { trackNumber: nextTrackNumber, speakerName: "" }]);
+  };
+
+  const handleRemoveSpeakerTrack = (index: number) => {
+    setEditSpeakerTracks(editSpeakerTracks.filter((_, i) => i !== index));
+  };
+
+  const handleSpeakerTrackChange = (index: number, field: "trackNumber" | "speakerName", value: string | number) => {
+    setEditSpeakerTracks(editSpeakerTracks.map((track, i) =>
+      i === index ? { ...track, [field]: value } : track
+    ));
+  };
+
+  const handleLoadDefaultSpeakerTracks = async () => {
+    try {
+      const settings = await api.getSettings();
+      if (settings.defaultSpeakerTracks && settings.defaultSpeakerTracks.length > 0) {
+        setEditSpeakerTracks(settings.defaultSpeakerTracks);
+      } else {
+        setError("デフォルトのスピーカートラック設定がありません。設定画面から登録してください。");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "設定の取得に失敗しました");
+    }
+  };
+
   const handleArtworkSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -273,6 +356,7 @@ export default function EpisodeDetail() {
     setEditSpotifyUrl(episode.spotifyUrl || "");
     setEditSkipTranscription(episode.skipTranscription);
     setEditHideTranscription(episode.hideTranscription || false);
+    setEditSpeakerTracks(episode.speakerTracks || []);
     setError(null);
   };
 
@@ -668,6 +752,158 @@ export default function EpisodeDetail() {
                 )}
               </>
             )}
+          </div>
+
+          {/* スピーカートラック */}
+          <div className="card p-6">
+            <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-4 flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              スピーカートラック
+            </h2>
+            <p className="text-xs text-[var(--color-text-muted)] mb-4">
+              文字起こし用のトラック毎に分割した音声ファイルをZIPでアップロードします。
+            </p>
+
+            {/* ZIPファイルアップロード */}
+            <div className="mb-4">
+              {episode.speakerTracksUrl ? (
+                <div className="flex items-center gap-3 p-3 bg-[var(--color-bg-elevated)] rounded-lg">
+                  <svg className="w-5 h-5 text-[var(--color-success)] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-[var(--color-text-primary)]">アップロード済み</p>
+                    <a
+                      href={episode.speakerTracksUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] truncate block"
+                    >
+                      ZIPファイルをダウンロード
+                    </a>
+                  </div>
+                  <button
+                    onClick={handleDeleteSpeakerTracks}
+                    disabled={deletingSpeakerTracks}
+                    className="btn btn-ghost p-2 hover:text-[var(--color-error)] shrink-0"
+                    title="削除"
+                  >
+                    {deletingSpeakerTracks ? (
+                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <input
+                    type="file"
+                    accept=".zip,application/zip,application/x-zip-compressed"
+                    onChange={(e) => setSpeakerTracksFile(e.target.files?.[0] || null)}
+                    disabled={uploadingSpeakerTracks}
+                    className="block w-full text-sm text-[var(--color-text-secondary)] file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-[var(--color-bg-elevated)] file:text-[var(--color-text-secondary)] hover:file:bg-[var(--color-bg-hover)] disabled:opacity-50"
+                  />
+                  {speakerTracksFile && (
+                    <div className="mt-3">
+                      <p className="text-sm text-[var(--color-text-secondary)] mb-2">
+                        {speakerTracksFile.name} ({(speakerTracksFile.size / 1024 / 1024).toFixed(1)} MB)
+                      </p>
+                      <button
+                        onClick={handleSpeakerTracksUpload}
+                        disabled={uploadingSpeakerTracks}
+                        className="btn btn-primary"
+                      >
+                        {uploadingSpeakerTracks ? speakerTracksMessage : "アップロード"}
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* トラック・話者マッピング */}
+            <div className="border-t border-[var(--color-border)] pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-medium text-[var(--color-text-secondary)]">トラック・話者マッピング</h3>
+                {isEditing && (
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleLoadDefaultSpeakerTracks}
+                      className="text-xs text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] transition-colors"
+                    >
+                      デフォルトを読み込む
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {isEditing ? (
+                <div className="space-y-2">
+                  {editSpeakerTracks.map((track, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <div className="w-20">
+                        <input
+                          type="number"
+                          min="1"
+                          value={track.trackNumber}
+                          onChange={(e) => handleSpeakerTrackChange(index, "trackNumber", parseInt(e.target.value) || 1)}
+                          className="input text-sm text-center"
+                          placeholder="No."
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          value={track.speakerName}
+                          onChange={(e) => handleSpeakerTrackChange(index, "speakerName", e.target.value)}
+                          className="input text-sm"
+                          placeholder="話者名"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSpeakerTrack(index)}
+                        className="btn btn-ghost p-2 hover:text-[var(--color-error)] shrink-0"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={handleAddSpeakerTrack}
+                    className="w-full py-2 border border-dashed border-[var(--color-border)] rounded-lg text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] transition-colors"
+                  >
+                    + トラックを追加
+                  </button>
+                </div>
+              ) : (
+                <div className="bg-[var(--color-bg-elevated)] rounded-lg p-4">
+                  {(episode.speakerTracks?.length || 0) > 0 ? (
+                    <div className="space-y-1">
+                      {episode.speakerTracks?.map((track, index) => (
+                        <div key={index} className="flex items-center gap-3 text-sm">
+                          <span className="text-[var(--color-text-muted)] font-mono w-12 text-right">
+                            Track {track.trackNumber}
+                          </span>
+                          <span className="text-[var(--color-text-primary)]">{track.speakerName || "(未設定)"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[var(--color-text-muted)] text-sm">スピーカートラックが設定されていません</p>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* アートワーク */}

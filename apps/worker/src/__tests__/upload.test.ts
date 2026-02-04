@@ -233,6 +233,192 @@ describe("Upload API", () => {
     });
   });
 
+  describe("POST /api/episodes/:id/speaker-tracks/upload-url", () => {
+    it("rejects invalid content type", async () => {
+      const { id } = await createTestEpisode({
+        title: "Speaker Tracks Content Type Test",
+      });
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/speaker-tracks/upload-url`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contentType: "audio/mpeg",
+            fileSize: 100000,
+          }),
+        }
+      );
+
+      expect(response.status).toBe(400);
+
+      const json = await response.json();
+      expect(json.error).toContain("Invalid content type");
+    });
+
+    it("rejects file too large", async () => {
+      const { id } = await createTestEpisode({
+        title: "Speaker Tracks Size Test",
+      });
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/speaker-tracks/upload-url`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contentType: "application/zip",
+            fileSize: 600 * 1024 * 1024, // 600MB
+          }),
+        }
+      );
+
+      expect(response.status).toBe(400);
+
+      const json = await response.json();
+      expect(json.error).toContain("File too large");
+    });
+
+    it("returns 404 for non-existent episode", async () => {
+      const response = await SELF.fetch(
+        "http://localhost/api/episodes/non-existent-id/speaker-tracks/upload-url",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contentType: "application/zip",
+            fileSize: 100000,
+          }),
+        }
+      );
+
+      expect(response.status).toBe(404);
+    });
+
+    it("generates presigned URL for valid request", async () => {
+      const { id } = await createTestEpisode({
+        title: "Speaker Tracks URL Test",
+      });
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/speaker-tracks/upload-url`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contentType: "application/zip",
+            fileSize: 100000,
+          }),
+        }
+      );
+
+      // R2クレデンシャルがない場合は404（内部エラーがcatchされる）または500
+      expect([200, 404, 500]).toContain(response.status);
+
+      if (response.status === 200) {
+        const json = await response.json();
+        expect(json.uploadUrl).toBeDefined();
+        expect(json.expiresIn).toBe(3600);
+        expect(json.speakerTracksUrl).toBeDefined();
+      }
+    });
+  });
+
+  describe("POST /api/episodes/:id/speaker-tracks/upload-complete", () => {
+    it("updates speakerTracksUrl in episode metadata", async () => {
+      const { id } = await createTestEpisode({
+        title: "Speaker Tracks Complete Test",
+      });
+
+      const speakerTracksUrl = "https://example.com/speaker-tracks.zip";
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/speaker-tracks/upload-complete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ speakerTracksUrl }),
+        }
+      );
+
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      expect(json.success).toBe(true);
+      expect(json.speakerTracksUrl).toBe(speakerTracksUrl);
+
+      // 詳細を取得して確認
+      const detailResponse = await SELF.fetch(
+        `http://localhost/api/episodes/${id}`
+      );
+      const detail = await detailResponse.json();
+      expect(detail.speakerTracksUrl).toBe(speakerTracksUrl);
+    });
+
+    it("returns 404 for non-existent episode", async () => {
+      const response = await SELF.fetch(
+        "http://localhost/api/episodes/non-existent-id/speaker-tracks/upload-complete",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            speakerTracksUrl: "https://example.com/speaker-tracks.zip",
+          }),
+        }
+      );
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("DELETE /api/episodes/:id/speaker-tracks", () => {
+    it("deletes speaker tracks from episode", async () => {
+      const { id } = await createTestEpisode({
+        title: "Speaker Tracks Delete Test",
+      });
+
+      // まずspeakerTracksUrlを設定
+      await SELF.fetch(
+        `http://localhost/api/episodes/${id}/speaker-tracks/upload-complete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            speakerTracksUrl: "https://example.com/speaker-tracks.zip",
+          }),
+        }
+      );
+
+      // 削除
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/speaker-tracks`,
+        { method: "DELETE" }
+      );
+
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      expect(json.success).toBe(true);
+
+      // 詳細を取得して確認
+      const detailResponse = await SELF.fetch(
+        `http://localhost/api/episodes/${id}`
+      );
+      const detail = await detailResponse.json();
+      expect(detail.speakerTracksUrl).toBeNull();
+    });
+
+    it("returns 404 for non-existent episode", async () => {
+      const response = await SELF.fetch(
+        "http://localhost/api/episodes/non-existent-id/speaker-tracks",
+        { method: "DELETE" }
+      );
+
+      expect(response.status).toBe(404);
+    });
+  });
+
   describe("POST /api/episodes/:id/artwork/upload-complete", () => {
     it("updates artworkUrl in episode metadata", async () => {
       const { id } = await createTestEpisode({

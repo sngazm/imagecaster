@@ -64,6 +64,8 @@ transcriptionQueue.get("/queue", async (c) => {
         sourceAudioUrl: meta.sourceAudioUrl,
         duration: meta.duration,
         lockedAt: meta.transcriptionLockedAt || "",
+        speakerTracksUrl: meta.speakerTracksUrl || null,
+        speakerTracks: meta.speakerTracks || [],
       });
     }
   }

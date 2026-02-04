@@ -45,6 +45,8 @@ settings.put("/", async (c) => {
   // 購読リンク
   if (body.applePodcastsUrl !== undefined) index.podcast.applePodcastsUrl = body.applePodcastsUrl;
   if (body.spotifyUrl !== undefined) index.podcast.spotifyUrl = body.spotifyUrl;
+  // デフォルトスピーカートラック設定
+  if (body.defaultSpeakerTracks !== undefined) index.podcast.defaultSpeakerTracks = body.defaultSpeakerTracks;
 
   await saveIndex(c.env, index);
   await regenerateFeed(c.env);

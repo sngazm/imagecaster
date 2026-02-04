@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import JSZip from "jszip";
 import { api, uploadToR2 } from "../lib/api";
-import type { PodcastSettings, DescriptionTemplate, ExportManifest } from "../lib/api";
+import type { PodcastSettings, DescriptionTemplate, ExportManifest, SpeakerTrack } from "../lib/api";
 import { HtmlEditor } from "../components/HtmlEditor";
 
 const CATEGORIES = [
@@ -952,6 +952,77 @@ export default function Settings() {
                   </span>
                 </div>
               </label>
+            </div>
+          </div>
+
+          {/* Default Speaker Tracks */}
+          <div className="card p-5 space-y-4">
+            <h2 className="text-base font-semibold text-[var(--color-text-primary)] mb-4">デフォルト スピーカートラック</h2>
+            <p className="text-sm text-[var(--color-text-muted)] mb-4">
+              エピソードの文字起こし時に使用するデフォルトのトラック番号と話者名の対応を設定します。
+              エピソード編集画面から「デフォルトを読み込む」ボタンで適用できます。
+            </p>
+
+            <div className="space-y-2">
+              {(settings.defaultSpeakerTracks || []).map((track, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <div className="w-20">
+                    <input
+                      type="number"
+                      min="1"
+                      value={track.trackNumber}
+                      onChange={(e) => {
+                        const tracks = [...(settings.defaultSpeakerTracks || [])];
+                        tracks[index] = { ...tracks[index], trackNumber: parseInt(e.target.value) || 1 };
+                        setSettings({ ...settings, defaultSpeakerTracks: tracks });
+                      }}
+                      className="input text-sm text-center"
+                      placeholder="No."
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <input
+                      type="text"
+                      value={track.speakerName}
+                      onChange={(e) => {
+                        const tracks = [...(settings.defaultSpeakerTracks || [])];
+                        tracks[index] = { ...tracks[index], speakerName: e.target.value };
+                        setSettings({ ...settings, defaultSpeakerTracks: tracks });
+                      }}
+                      className="input text-sm"
+                      placeholder="話者名"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const tracks = (settings.defaultSpeakerTracks || []).filter((_, i) => i !== index);
+                      setSettings({ ...settings, defaultSpeakerTracks: tracks });
+                    }}
+                    className="btn btn-ghost p-2 hover:text-[var(--color-error)] shrink-0"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  const tracks = settings.defaultSpeakerTracks || [];
+                  const nextTrackNumber = tracks.length > 0
+                    ? Math.max(...tracks.map(t => t.trackNumber)) + 1
+                    : 1;
+                  setSettings({
+                    ...settings,
+                    defaultSpeakerTracks: [...tracks, { trackNumber: nextTrackNumber, speakerName: "" }],
+                  });
+                }}
+                className="w-full py-2 border border-dashed border-[var(--color-border)] rounded-lg text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] transition-colors"
+              >
+                + トラックを追加
+              </button>
             </div>
           </div>
 

@@ -44,6 +44,11 @@ export interface ReferenceLink {
   title: string;
 }
 
+export interface SpeakerTrack {
+  trackNumber: number;
+  speakerName: string;
+}
+
 export interface EpisodeDetail {
   id: string;
   slug: string;
@@ -73,6 +78,9 @@ export interface EpisodeDetail {
   applePodcastsUrl: string | null;
   // Spotify
   spotifyUrl: string | null;
+  // スピーカートラック
+  speakerTracksUrl?: string | null;
+  speakerTracks?: SpeakerTrack[];
 }
 
 export interface PodcastSettings {
@@ -93,6 +101,8 @@ export interface PodcastSettings {
   // 購読リンク
   applePodcastsUrl?: string;
   spotifyUrl?: string;
+  // デフォルトスピーカートラック設定
+  defaultSpeakerTracks?: SpeakerTrack[];
 }
 
 export interface DescriptionTemplate {
@@ -302,6 +312,7 @@ export const api = {
     referenceLinks?: ReferenceLink[];
     applePodcastsUrl?: string | null;
     spotifyUrl?: string | null;
+    speakerTracks?: SpeakerTrack[];
   }) =>
     request<EpisodeDetail>(`/api/episodes/${id}`, {
       method: "PUT",
@@ -364,6 +375,24 @@ export const api = {
     request<{ success: boolean; artworkUrl: string }>(`/api/episodes/${id}/artwork/upload-complete`, {
       method: "POST",
       body: JSON.stringify({ artworkUrl }),
+    }),
+
+  // Speaker Tracks
+  getSpeakerTracksUploadUrl: (id: string, contentType: string, fileSize: number) =>
+    request<{ uploadUrl: string; expiresIn: number; speakerTracksUrl: string }>(`/api/episodes/${id}/speaker-tracks/upload-url`, {
+      method: "POST",
+      body: JSON.stringify({ contentType, fileSize }),
+    }),
+
+  completeSpeakerTracksUpload: (id: string, speakerTracksUrl: string) =>
+    request<{ success: boolean; speakerTracksUrl: string }>(`/api/episodes/${id}/speaker-tracks/upload-complete`, {
+      method: "POST",
+      body: JSON.stringify({ speakerTracksUrl }),
+    }),
+
+  deleteSpeakerTracks: (id: string) =>
+    request<{ success: boolean }>(`/api/episodes/${id}/speaker-tracks`, {
+      method: "DELETE",
     }),
 
   // Templates

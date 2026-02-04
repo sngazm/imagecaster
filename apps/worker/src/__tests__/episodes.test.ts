@@ -89,6 +89,35 @@ describe("Episodes API - CRUD Operations", () => {
       expect(json.blueskyPostText).toBe("Check out my new episode!");
     });
 
+    it("updates speakerTracks", async () => {
+      const { id } = await createTestEpisode({
+        title: "Speaker Tracks Test",
+      });
+
+      const speakerTracks = [
+        { trackNumber: 1, speakerName: "ホスト" },
+        { trackNumber: 2, speakerName: "ゲスト" },
+      ];
+
+      const response = await SELF.fetch(`http://localhost/api/episodes/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ speakerTracks }),
+      });
+
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      expect(json.speakerTracks).toEqual(speakerTracks);
+
+      // GET で確認
+      const detailResponse = await SELF.fetch(
+        `http://localhost/api/episodes/${id}`
+      );
+      const detail = await detailResponse.json();
+      expect(detail.speakerTracks).toEqual(speakerTracks);
+    });
+
     it("allows slug change in draft status", async () => {
       const { id } = await createTestEpisode({
         title: "Slug Change Test",

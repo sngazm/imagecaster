@@ -50,6 +50,8 @@ export interface PodcastIndex {
     // 購読リンク
     applePodcastsUrl?: string;
     spotifyUrl?: string;
+    // デフォルトスピーカートラック設定
+    defaultSpeakerTracks?: SpeakerTrack[];
   };
   episodes: Array<{
     id: string;
@@ -99,6 +101,14 @@ export interface ReferenceLink {
 }
 
 /**
+ * スピーカートラック情報（トラック番号と話者名の対応）
+ */
+export interface SpeakerTrack {
+  trackNumber: number;
+  speakerName: string;
+}
+
+/**
  * エピソードメタデータ (meta.json)
  */
 export interface EpisodeMeta {
@@ -131,6 +141,9 @@ export interface EpisodeMeta {
   applePodcastsUrl: string | null; // エピソード個別URL
   // Spotify
   spotifyUrl: string | null; // エピソード個別URL
+  // スピーカートラック（文字起こし用の話者別音声）
+  speakerTracksUrl?: string | null; // トラック音声ZIPファイルのURL
+  speakerTracks?: SpeakerTrack[]; // トラック番号と話者名の対応
   // 文字起こしロック（ソフトロック、1時間で自動解除）
   transcriptionLockedAt?: string | null;
 }
@@ -166,6 +179,8 @@ export interface UpdateEpisodeRequest {
   applePodcastsUrl?: string | null;
   // Spotify（管理画面から編集可能）
   spotifyUrl?: string | null;
+  // スピーカートラック情報
+  speakerTracks?: SpeakerTrack[];
   // 文字起こしリトライ用（failed → pending）
   transcribeStatus?: TranscribeStatus;
 }
@@ -207,6 +222,8 @@ export interface TranscriptionQueueItem {
   sourceAudioUrl: string | null; // 外部参照URL（RSSインポート時）
   duration: number;
   lockedAt: string; // ロック取得時刻
+  speakerTracksUrl?: string | null; // トラック音声ZIPファイルのURL
+  speakerTracks?: SpeakerTrack[]; // トラック番号と話者名の対応
 }
 
 /**
@@ -319,6 +336,8 @@ export interface UpdatePodcastSettingsRequest {
   // 購読リンク
   applePodcastsUrl?: string;
   spotifyUrl?: string;
+  // デフォルトスピーカートラック設定
+  defaultSpeakerTracks?: SpeakerTrack[];
 }
 
 /**

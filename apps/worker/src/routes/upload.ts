@@ -390,4 +390,108 @@ upload.post("/:id/artwork/upload-complete", async (c) => {
   }
 });
 
+/**
+ * POST /api/episodes/:id/speaker-tracks/upload-url - スピーカートラックZIPのPresigned URL発行
+ */
+upload.post("/:id/speaker-tracks/upload-url", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json<{ contentType: string; fileSize: number }>();
+
+  const { contentType, fileSize } = body;
+
+  // ZIP形式のバリデーション
+  if (!["application/zip", "application/x-zip-compressed"].includes(contentType)) {
+    return c.json({ error: "Invalid content type. Use application/zip" }, 400);
+  }
+
+  // ファイルサイズ上限（500MB）
+  if (fileSize > 500 * 1024 * 1024) {
+    return c.json({ error: "File too large. Max 500MB" }, 400);
+  }
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    const key = `episodes/${meta.storageKey}/speaker-tracks.zip`;
+
+    const r2 = new AwsClient({
+      accessKeyId: c.env.R2_ACCESS_KEY_ID,
+      secretAccessKey: c.env.R2_SECRET_ACCESS_KEY,
+    });
+
+    const url = new URL(
+      `https://${c.env.R2_BUCKET_NAME}.${c.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${key}`
+    );
+
+    url.searchParams.set("X-Amz-Expires", "3600");
+
+    const signedRequest = await r2.sign(
+      new Request(url, {
+        method: "PUT",
+      }),
+      {
+        aws: { signQuery: true },
+      }
+    );
+
+    return c.json({
+      uploadUrl: signedRequest.url,
+      expiresIn: 3600,
+      speakerTracksUrl: `${c.env.R2_PUBLIC_URL}/${key}`,
+    });
+  } catch {
+    return c.json({ error: "Episode not found" }, 404);
+  }
+});
+
+/**
+ * POST /api/episodes/:id/speaker-tracks/upload-complete - スピーカートラックZIPアップロード完了通知
+ */
+upload.post("/:id/speaker-tracks/upload-complete", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json<{ speakerTracksUrl: string }>();
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    meta.speakerTracksUrl = body.speakerTracksUrl;
+    await saveEpisodeMeta(c.env, meta);
+
+    return c.json({ success: true, speakerTracksUrl: body.speakerTracksUrl });
+  } catch {
+    return c.json({ error: "Episode not found" }, 404);
+  }
+});
+
+/**
+ * DELETE /api/episodes/:id/speaker-tracks - スピーカートラックZIPを削除
+ */
+upload.delete("/:id/speaker-tracks", async (c) => {
+  const id = c.req.param("id");
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    // R2からファイルを削除
+    const key = `episodes/${meta.storageKey}/speaker-tracks.zip`;
+    await c.env.R2_BUCKET.delete(key);
+
+    meta.speakerTracksUrl = null;
+    await saveEpisodeMeta(c.env, meta);
+
+    return c.json({ success: true });
+  } catch {
+    return c.json({ error: "Episode not found" }, 404);
+  }
+});
+
 export { upload };
