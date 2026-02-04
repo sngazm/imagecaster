@@ -404,9 +404,9 @@ upload.post("/:id/speaker-tracks/upload-url", async (c) => {
     return c.json({ error: "Invalid content type. Use application/zip" }, 400);
   }
 
-  // ファイルサイズ上限（500MB）
-  if (fileSize > 500 * 1024 * 1024) {
-    return c.json({ error: "File too large. Max 500MB" }, 400);
+  // ファイルサイズ上限（2GB）
+  if (fileSize > 2 * 1024 * 1024 * 1024) {
+    return c.json({ error: "File too large. Max 2GB" }, 400);
   }
 
   try {

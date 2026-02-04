@@ -269,7 +269,7 @@ describe("Upload API", () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contentType: "application/zip",
-            fileSize: 600 * 1024 * 1024, // 600MB
+            fileSize: 3 * 1024 * 1024 * 1024, // 3GB
           }),
         }
       );
