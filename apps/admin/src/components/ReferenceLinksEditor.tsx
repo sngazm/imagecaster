@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { api } from "../lib/api";
 
 export interface ReferenceLink {
@@ -75,6 +75,10 @@ export function ReferenceLinksEditor({
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   // 編集中のURL
   const [editingUrl, setEditingUrl] = useState("");
+  // ドラッグ中のインデックス
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  // ドロップ先のインデックス
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   // linksが変わったらrefを更新
   useEffect(() => {
@@ -164,19 +168,47 @@ export function ReferenceLinksEditor({
     onChange(links.filter((_, i) => i !== index));
   };
 
-  const handleMoveUp = (index: number) => {
-    if (index === 0) return;
-    const updated = [...links];
-    [updated[index - 1], updated[index]] = [updated[index], updated[index - 1]];
-    onChange(updated);
-  };
+  const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
+    setDragIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+    // ドラッグ中の見た目を半透明にする
+    if (e.currentTarget instanceof HTMLElement) {
+      requestAnimationFrame(() => {
+        (e.target as HTMLElement).style.opacity = "0.4";
+      });
+    }
+  }, []);
 
-  const handleMoveDown = (index: number) => {
-    if (index === links.length - 1) return;
+  const handleDragEnd = useCallback((e: React.DragEvent) => {
+    (e.target as HTMLElement).style.opacity = "";
+    setDragIndex(null);
+    setDragOverIndex(null);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverIndex(index);
+  }, []);
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverIndex(null);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    if (dragIndex === null || dragIndex === dropIndex) {
+      setDragIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
     const updated = [...links];
-    [updated[index], updated[index + 1]] = [updated[index + 1], updated[index]];
+    const [moved] = updated.splice(dragIndex, 1);
+    updated.splice(dropIndex, 0, moved);
     onChange(updated);
-  };
+    setDragIndex(null);
+    setDragOverIndex(null);
+  }, [dragIndex, links, onChange]);
 
   const handleStartEditUrl = (index: number) => {
     setEditingIndex(index);
@@ -240,35 +272,35 @@ export function ReferenceLinksEditor({
           {links.map((link, index) => {
             const isFetching = fetchingUrls.has(link.url);
             const isEditingThisUrl = editingIndex === index;
+            const isDragOver = dragOverIndex === index && dragIndex !== index;
             return (
               <div
                 key={`${index}-${link.url}`}
-                className="flex items-start gap-2 p-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg"
+                draggable={!disabled}
+                onDragStart={(e) => handleDragStart(e, index)}
+                onDragEnd={handleDragEnd}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, index)}
+                className={`flex items-start gap-2 p-3 bg-[var(--color-bg-elevated)] border rounded-lg transition-colors ${
+                  isDragOver
+                    ? "border-[var(--color-accent)] bg-[var(--color-accent)]/5"
+                    : "border-[var(--color-border)]"
+                }`}
               >
-                {/* 並び替えボタン */}
-                <div className="flex flex-col gap-0.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => handleMoveUp(index)}
-                    disabled={disabled || index === 0}
-                    className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                    title="上に移動"
-                  >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleMoveDown(index)}
-                    disabled={disabled || index === links.length - 1}
-                    className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                    title="下に移動"
-                  >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
+                {/* ドラッグハンドル */}
+                <div
+                  className={`shrink-0 pt-2 ${disabled ? "cursor-not-allowed opacity-30" : "cursor-grab active:cursor-grabbing"} text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors`}
+                  title="ドラッグで並び替え"
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <circle cx="9" cy="5" r="1.5" />
+                    <circle cx="15" cy="5" r="1.5" />
+                    <circle cx="9" cy="12" r="1.5" />
+                    <circle cx="15" cy="12" r="1.5" />
+                    <circle cx="9" cy="19" r="1.5" />
+                    <circle cx="15" cy="19" r="1.5" />
+                  </svg>
                 </div>
 
                 <div className="flex-1 min-w-0 space-y-2">
