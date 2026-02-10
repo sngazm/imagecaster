@@ -946,7 +946,7 @@ export default function EpisodeDetail() {
                     disabled={isSaving}
                     className="btn btn-primary w-full py-3"
                   >
-                    {isSaving ? "保存中..." : (editPublishAt ? "公開予約" : "今すぐ公開")}
+                    {isSaving ? "保存中..." : (!editPublishAt || new Date(editPublishAt) <= new Date() ? "今すぐ公開" : "公開予約")}
                   </button>
                   <button
                     onClick={() => handleSave(true)}
