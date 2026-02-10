@@ -133,16 +133,27 @@ export default function EpisodeDetail() {
     fetchData();
   }, [id]);
 
-  const handleSave = async () => {
+  const handleSave = async (isDraft?: boolean) => {
     if (!id || !episode) return;
     try {
       setIsSaving(true);
       setError(null);
 
+      // 下書き保存の場合は publishAt を null に、公開/予約の場合は日時を設定
+      const canSchedule = ["draft", "scheduled", "published"].includes(episode.publishStatus);
+      let publishAtValue: string | null;
+      if (canSchedule && isDraft === true) {
+        publishAtValue = null;
+      } else if (canSchedule && isDraft === false) {
+        publishAtValue = editPublishAt ? localDateTimeToISOString(editPublishAt) : new Date().toISOString();
+      } else {
+        publishAtValue = editPublishAt ? localDateTimeToISOString(editPublishAt) : null;
+      }
+
       const updateData: Parameters<typeof api.updateEpisode>[1] = {
         title: editTitle,
         description: editDescription,
-        publishAt: editPublishAt ? localDateTimeToISOString(editPublishAt) : null,
+        publishAt: publishAtValue,
         blueskyPostText: editBlueskyPostText.trim() || null,
         blueskyPostEnabled: editBlueskyPostEnabled,
         referenceLinks: editReferenceLinks,
@@ -163,6 +174,7 @@ export default function EpisodeDetail() {
 
       const updated = await api.updateEpisode(id, updateData);
       setEpisode(updated);
+      setEditPublishAt(updated.publishAt ? utcToLocalDateTimeString(updated.publishAt) : "");
       setIsEditing(false);
 
       // slugが変わった場合はURLを更新
@@ -918,21 +930,46 @@ export default function EpisodeDetail() {
           {/* 編集・保存ボタン */}
           <div className="card p-6 space-y-3">
             {isEditing ? (
-              <>
-                <button
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  className="btn btn-primary w-full py-3"
-                >
-                  {isSaving ? "保存中..." : "保存"}
-                </button>
-                <button
-                  onClick={handleCancelEdit}
-                  className="btn btn-secondary w-full py-3"
-                >
-                  キャンセル
-                </button>
-              </>
+              ["draft", "scheduled", "published"].includes(episode.publishStatus) ? (
+                <>
+                  <button
+                    onClick={() => handleSave(false)}
+                    disabled={isSaving}
+                    className="btn btn-primary w-full py-3"
+                  >
+                    {isSaving ? "保存中..." : (editPublishAt ? "公開予約" : "今すぐ公開")}
+                  </button>
+                  <button
+                    onClick={() => handleSave(true)}
+                    disabled={isSaving}
+                    className="btn btn-secondary w-full py-3"
+                  >
+                    {isSaving ? "保存中..." : "下書き保存"}
+                  </button>
+                  <button
+                    onClick={handleCancelEdit}
+                    className="btn btn-secondary w-full py-3"
+                  >
+                    キャンセル
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => handleSave()}
+                    disabled={isSaving}
+                    className="btn btn-primary w-full py-3"
+                  >
+                    {isSaving ? "保存中..." : "保存"}
+                  </button>
+                  <button
+                    onClick={handleCancelEdit}
+                    className="btn btn-secondary w-full py-3"
+                  >
+                    キャンセル
+                  </button>
+                </>
+              )
             ) : (
               <button
                 onClick={() => setIsEditing(true)}
