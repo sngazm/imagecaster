@@ -179,6 +179,8 @@ episodes.put("/:id", async (c) => {
       return c.json({ error: "Episode not found" }, 404);
     }
 
+    const previousPublishStatus = meta.publishStatus;
+
     let needsMove = false;
     let newSlug = meta.slug || meta.id;
 
@@ -264,6 +266,32 @@ episodes.put("/:id", async (c) => {
       }
     }
 
+    // publishAt の変更に伴う publishStatus の再計算
+    // 音声アップロード完了後の状態（draft, scheduled, published）のみ対象
+    if (body.publishAt !== undefined && ["draft", "scheduled", "published"].includes(meta.publishStatus)) {
+      if (meta.publishAt === null) {
+        meta.publishStatus = "draft";
+      } else {
+        const now = new Date();
+        if (new Date(meta.publishAt) <= now) {
+          meta.publishStatus = "published";
+          if (!meta.publishedAt) {
+            meta.publishedAt = now.toISOString();
+          }
+          // 新たに published になった場合は Bluesky に投稿
+          if (previousPublishStatus !== "published") {
+            const index = await getIndex(c.env);
+            const posted = await postEpisodeToBluesky(c.env, meta, c.env.WEBSITE_URL, index.podcast.artworkUrl);
+            if (posted) {
+              meta.blueskyPostedAt = now.toISOString();
+            }
+          }
+        } else {
+          meta.publishStatus = "scheduled";
+        }
+      }
+    }
+
     // slugが変わる場合はファイルを移動し、新しいstorageKeyを生成
     if (needsMove) {
       const newStorageKey = generateStorageKey(newSlug);
@@ -291,7 +319,13 @@ episodes.put("/:id", async (c) => {
       body.referenceLinks === undefined &&
       body.slug === undefined;
 
+    const statusChanged = meta.publishStatus !== previousPublishStatus;
+
     if (meta.publishStatus === "published" && !isPlatformUrlOnlyUpdate) {
+      await regenerateFeed(c.env);
+      await triggerWebRebuild(c.env);
+    } else if (statusChanged && previousPublishStatus === "published") {
+      // 公開から非公開に変わった場合もフィードを再生成
       await regenerateFeed(c.env);
       await triggerWebRebuild(c.env);
     }
