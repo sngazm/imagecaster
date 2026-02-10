@@ -3,7 +3,7 @@ import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 
 // プレースホルダータグをハイライト表示する拡張
 const PlaceholderHighlight = Extension.create({
@@ -91,11 +91,70 @@ function formatHtml(html: string): string {
   return indentedLines.filter(line => line !== "").join("\n");
 }
 
+/** プレビュー用のエピソードコンテキスト */
+export interface PreviewContext {
+  slug?: string;
+  id?: string;
+  audioUrl?: string;
+  sourceAudioUrl?: string | null;
+  transcriptUrl?: string | null;
+  referenceLinks?: { url: string; title: string }[];
+  websiteUrl?: string;
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function formatReferenceLinks(links: { url: string; title: string }[]): string {
+  if (!links || links.length === 0) return "";
+  return links
+    .map(
+      (link) =>
+        `<p>${escapeHtml(link.title)}<br><a href="${escapeHtml(link.url)}">${escapeHtml(link.url)}</a></p>`
+    )
+    .join("\n");
+}
+
+function replacePlaceholders(html: string, ctx: PreviewContext): string {
+  const slug = ctx.slug || ctx.id || "";
+  const websiteUrl = ctx.websiteUrl || "";
+  const episodePageUrl = slug ? `${websiteUrl}/episodes/${slug}` : "";
+  const transcriptPageUrl = ctx.transcriptUrl && slug
+    ? `${websiteUrl}/episodes/${slug}/transcript`
+    : "";
+  const audioUrl = ctx.audioUrl || ctx.sourceAudioUrl || "";
+
+  let result = html
+    .replace(/\{\{TRANSCRIPT_URL\}\}/g, transcriptPageUrl)
+    .replace(/\{\{EPISODE_URL\}\}/g, episodePageUrl)
+    .replace(/\{\{AUDIO_URL\}\}/g, audioUrl);
+
+  if (ctx.referenceLinks && ctx.referenceLinks.length > 0) {
+    result = result.replace(
+      /\{\{REFERENCE_LINKS\}\}/g,
+      formatReferenceLinks(ctx.referenceLinks)
+    );
+  } else {
+    result = result.replace(/<p>\s*\{\{REFERENCE_LINKS\}\}\s*<\/p>\s*/gi, "");
+    result = result.replace(/<div>\s*\{\{REFERENCE_LINKS\}\}\s*<\/div>\s*/gi, "");
+    result = result.replace(/\{\{REFERENCE_LINKS\}\}/g, "");
+  }
+
+  return result;
+}
+
 interface HtmlEditorProps {
   value: string;
   onChange: (html: string) => void;
   placeholder?: string;
   onInsertPlaceholder?: (placeholder: string) => void;
+  /** プレビューモードで使用するエピソードコンテキスト */
+  previewContext?: PreviewContext;
 }
 
 const PLACEHOLDERS = [
@@ -109,8 +168,10 @@ export function HtmlEditor({
   value,
   onChange,
   placeholder = "エピソードの説明を入力...",
+  previewContext,
 }: HtmlEditorProps) {
-  const [mode, setMode] = useState<"visual" | "html">("visual");
+  const [mode, setMode] = useState<"visual" | "html" | "preview">("visual");
+  const hasPlaceholders = /\{\{[A-Z_]+\}\}/.test(value);
   const [htmlSource, setHtmlSource] = useState(value);
 
   const editor = useEditor({
@@ -220,6 +281,12 @@ export function HtmlEditor({
     setMode("html");
   };
 
+  // プレビュー用のHTML（プレースホルダーを置換済み）
+  const previewHtml = useMemo(() => {
+    if (!previewContext) return value;
+    return replacePlaceholders(value, previewContext);
+  }, [value, previewContext]);
+
   if (!editor) {
     return (
       <div className="h-48 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg animate-pulse" />
@@ -254,6 +321,19 @@ export function HtmlEditor({
           >
             HTML
           </button>
+          {previewContext && hasPlaceholders && (
+            <button
+              type="button"
+              onClick={() => setMode("preview")}
+              className={`px-3 py-1 text-xs font-medium transition-colors ${
+                mode === "preview"
+                  ? "bg-[var(--color-accent)] text-white"
+                  : "bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+              }`}
+            >
+              プレビュー
+            </button>
+          )}
         </div>
 
         {mode === "visual" && (
@@ -323,7 +403,7 @@ export function HtmlEditor({
         )}
 
         {/* Placeholders dropdown */}
-        <div className="ml-auto relative group">
+        {mode !== "preview" && <div className="ml-auto relative group">
           <button
             type="button"
             className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] bg-[var(--color-bg-elevated)] rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
@@ -352,7 +432,7 @@ export function HtmlEditor({
               </button>
             ))}
           </div>
-        </div>
+        </div>}
       </div>
 
       {/* Editor content */}
@@ -369,6 +449,12 @@ export function HtmlEditor({
             onChange={(e) => handleHtmlChange(e.target.value)}
             className="w-full min-h-[200px] max-h-none p-4 bg-transparent text-[var(--color-text-primary)] font-mono text-sm resize-none focus:outline-none"
             spellCheck={false}
+          />
+        )}
+        {mode === "preview" && (
+          <div
+            className="prose prose-sm max-w-none p-4 min-h-[200px] text-[var(--color-text-primary)]"
+            dangerouslySetInnerHTML={{ __html: previewHtml }}
           />
         )}
       </div>
