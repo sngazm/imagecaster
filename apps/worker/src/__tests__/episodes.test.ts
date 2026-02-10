@@ -170,6 +170,117 @@ describe("Episodes API - CRUD Operations", () => {
       expect(json.transcribeStatus).toBe("pending");
     });
 
+    it("transitions draft to scheduled when publishAt is set to future date", async () => {
+      const { id, storageKey } = await createTestEpisode({
+        title: "Draft to Scheduled",
+        publishAt: null,
+      });
+
+      // meta.json を直接操作して draft 状態にする（音声アップロード済み）
+      const meta = await env.R2_BUCKET.get(`episodes/${storageKey}/meta.json`);
+      const data = JSON.parse(await meta!.text());
+      data.publishStatus = "draft";
+      data.audioUrl = "https://example.com/audio.mp3";
+      await env.R2_BUCKET.put(`episodes/${storageKey}/meta.json`, JSON.stringify(data), {
+        httpMetadata: { contentType: "application/json" },
+      });
+
+      const futureDate = new Date(Date.now() + 86400000 * 7).toISOString();
+
+      const response = await SELF.fetch(`http://localhost/api/episodes/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publishAt: futureDate }),
+      });
+
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      expect(json.publishAt).toBe(futureDate);
+      expect(json.publishStatus).toBe("scheduled");
+    });
+
+    it("transitions scheduled to draft when publishAt is cleared", async () => {
+      const futureDate = new Date(Date.now() + 86400000 * 7).toISOString();
+      const { id, storageKey } = await createTestEpisode({
+        title: "Scheduled to Draft",
+        publishAt: futureDate,
+      });
+
+      // meta.json を直接操作して scheduled 状態にする
+      const meta = await env.R2_BUCKET.get(`episodes/${storageKey}/meta.json`);
+      const data = JSON.parse(await meta!.text());
+      data.publishStatus = "scheduled";
+      data.audioUrl = "https://example.com/audio.mp3";
+      await env.R2_BUCKET.put(`episodes/${storageKey}/meta.json`, JSON.stringify(data), {
+        httpMetadata: { contentType: "application/json" },
+      });
+
+      const response = await SELF.fetch(`http://localhost/api/episodes/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publishAt: null }),
+      });
+
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      expect(json.publishAt).toBeNull();
+      expect(json.publishStatus).toBe("draft");
+    });
+
+    it("transitions draft to published when publishAt is set to past date", async () => {
+      const { id, storageKey } = await createTestEpisode({
+        title: "Draft to Published",
+        publishAt: null,
+      });
+
+      // meta.json を直接操作して draft 状態にする
+      const meta = await env.R2_BUCKET.get(`episodes/${storageKey}/meta.json`);
+      const data = JSON.parse(await meta!.text());
+      data.publishStatus = "draft";
+      data.audioUrl = "https://example.com/audio.mp3";
+      await env.R2_BUCKET.put(`episodes/${storageKey}/meta.json`, JSON.stringify(data), {
+        httpMetadata: { contentType: "application/json" },
+      });
+
+      const pastDate = new Date(Date.now() - 86400000).toISOString();
+
+      const response = await SELF.fetch(`http://localhost/api/episodes/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publishAt: pastDate }),
+      });
+
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      expect(json.publishStatus).toBe("published");
+      expect(json.publishedAt).toBeDefined();
+    });
+
+    it("does not change publishStatus for new episodes when publishAt is set", async () => {
+      const { id } = await createTestEpisode({
+        title: "New Episode",
+        publishAt: null,
+      });
+
+      const futureDate = new Date(Date.now() + 86400000 * 7).toISOString();
+
+      const response = await SELF.fetch(`http://localhost/api/episodes/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publishAt: futureDate }),
+      });
+
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      expect(json.publishAt).toBe(futureDate);
+      // new 状態のままであること（音声未アップロードのため）
+      expect(json.publishStatus).toBe("new");
+    });
+
     it("rejects transcribeStatus change from none to pending (not failed)", async () => {
       const { id } = await createTestEpisode({
         title: "Draft Episode",
