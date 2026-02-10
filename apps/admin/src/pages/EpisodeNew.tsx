@@ -2,7 +2,7 @@ import { useState, useEffect, FormEvent, ChangeEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, uploadToR2, getAudioDuration, localDateTimeToISOString } from "../lib/api";
 import type { DescriptionTemplate, ReferenceLink } from "../lib/api";
-import { HtmlEditor } from "../components/HtmlEditor";
+import { HtmlEditor, type PreviewContext } from "../components/HtmlEditor";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { BlueskyPostEditor } from "../components/BlueskyPostEditor";
 import { ReferenceLinksEditor } from "../components/ReferenceLinksEditor";
@@ -248,6 +248,10 @@ export default function EpisodeNew() {
                   value={description}
                   onChange={setDescription}
                   placeholder="エピソードの説明を入力..."
+                  previewContext={{
+                    slug: slug || undefined,
+                    referenceLinks,
+                  } satisfies PreviewContext}
                 />
               </div>
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { api, EpisodeDetail as EpisodeDetailType, formatDuration, formatFileSize, uploadToR2, getAudioDuration, utcToLocalDateTimeString, localDateTimeToISOString, fetchTranscriptSegments } from "../lib/api";
 import type { DescriptionTemplate, ReferenceLink, TranscriptSegment, PublishStatus, TranscribeStatus } from "../lib/api";
-import { HtmlEditor } from "../components/HtmlEditor";
+import { HtmlEditor, type PreviewContext } from "../components/HtmlEditor";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { BlueskyPostEditor } from "../components/BlueskyPostEditor";
 import { ReferenceLinksEditor } from "../components/ReferenceLinksEditor";
@@ -517,6 +517,15 @@ export default function EpisodeDetail() {
                 value={editDescription}
                 onChange={setEditDescription}
                 placeholder="エピソードの説明を入力..."
+                previewContext={{
+                  slug: editSlug || episode?.slug || episode?.id,
+                  id: episode?.id,
+                  audioUrl: episode?.audioUrl,
+                  sourceAudioUrl: episode?.sourceAudioUrl,
+                  transcriptUrl: episode?.transcriptUrl,
+                  referenceLinks: editReferenceLinks,
+                  websiteUrl: baseWebsiteUrl ? getWebsiteUrl(baseWebsiteUrl) : "",
+                } satisfies PreviewContext}
               />
             ) : (
               <div
