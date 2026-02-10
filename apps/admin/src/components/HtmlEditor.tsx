@@ -170,7 +170,8 @@ export function HtmlEditor({
   placeholder = "エピソードの説明を入力...",
   previewContext,
 }: HtmlEditorProps) {
-  const [mode, setMode] = useState<"visual" | "html" | "preview">("visual");
+  const [mode, setMode] = useState<"visual" | "html">("visual");
+  const [htmlPreview, setHtmlPreview] = useState(false);
   const hasPlaceholders = /\{\{[A-Z_]+\}\}/.test(value);
   const [htmlSource, setHtmlSource] = useState(value);
 
@@ -278,13 +279,14 @@ export function HtmlEditor({
   const switchToHtmlMode = () => {
     const formattedHtml = formatHtml(htmlSource);
     setHtmlSource(formattedHtml);
+    setHtmlPreview(false);
     setMode("html");
   };
 
-  // プレビュー用のHTML（プレースホルダーを置換済み）
-  const previewHtml = useMemo(() => {
-    if (!previewContext) return value;
-    return replacePlaceholders(value, previewContext);
+  // プレビュー用のHTMLソース（プレースホルダーを置換 + 整形済み）
+  const previewHtmlSource = useMemo(() => {
+    if (!previewContext) return formatHtml(value);
+    return formatHtml(replacePlaceholders(value, previewContext));
   }, [value, previewContext]);
 
   if (!editor) {
@@ -321,19 +323,6 @@ export function HtmlEditor({
           >
             HTML
           </button>
-          {previewContext && hasPlaceholders && (
-            <button
-              type="button"
-              onClick={() => setMode("preview")}
-              className={`px-3 py-1 text-xs font-medium transition-colors ${
-                mode === "preview"
-                  ? "bg-[var(--color-accent)] text-white"
-                  : "bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-              }`}
-            >
-              プレビュー
-            </button>
-          )}
         </div>
 
         {mode === "visual" && (
@@ -402,8 +391,23 @@ export function HtmlEditor({
           </>
         )}
 
+        {/* HTML preview toggle */}
+        {mode === "html" && previewContext && hasPlaceholders && (
+          <button
+            type="button"
+            onClick={() => setHtmlPreview(!htmlPreview)}
+            className={`ml-auto px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              htmlPreview
+                ? "bg-[var(--color-accent)]/15 text-[var(--color-accent)] border border-[var(--color-accent)]/30"
+                : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] bg-[var(--color-bg-elevated)] hover:bg-[var(--color-bg-hover)]"
+            }`}
+          >
+            タグ展開
+          </button>
+        )}
+
         {/* Placeholders dropdown */}
-        {mode !== "preview" && <div className="ml-auto relative group">
+        {!(mode === "html" && htmlPreview) && <div className={`${mode !== "html" || !previewContext || !hasPlaceholders ? "ml-auto" : ""} relative group`}>
           <button
             type="button"
             className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] bg-[var(--color-bg-elevated)] rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
@@ -444,18 +448,21 @@ export function HtmlEditor({
           />
         )}
         {mode === "html" && (
-          <textarea
-            value={htmlSource}
-            onChange={(e) => handleHtmlChange(e.target.value)}
-            className="w-full min-h-[200px] max-h-none p-4 bg-transparent text-[var(--color-text-primary)] font-mono text-sm resize-none focus:outline-none"
-            spellCheck={false}
-          />
-        )}
-        {mode === "preview" && (
-          <div
-            className="prose prose-sm max-w-none p-4 min-h-[200px] text-[var(--color-text-primary)]"
-            dangerouslySetInnerHTML={{ __html: previewHtml }}
-          />
+          htmlPreview && previewContext ? (
+            <textarea
+              value={previewHtmlSource}
+              readOnly
+              className="w-full min-h-[200px] max-h-none p-4 bg-transparent text-[var(--color-text-primary)] font-mono text-sm resize-none focus:outline-none opacity-75"
+              spellCheck={false}
+            />
+          ) : (
+            <textarea
+              value={htmlSource}
+              onChange={(e) => handleHtmlChange(e.target.value)}
+              className="w-full min-h-[200px] max-h-none p-4 bg-transparent text-[var(--color-text-primary)] font-mono text-sm resize-none focus:outline-none"
+              spellCheck={false}
+            />
+          )
         )}
       </div>
     </div>
