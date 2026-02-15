@@ -27,6 +27,13 @@ const TRANSCRIBE_STATUS_CONFIG: Record<TranscribeStatus, { label: string; badgeC
   skipped: { label: "スキップ済み", badgeClass: "badge badge-default" },
 };
 
+function highlightPlaceholders(html: string): string {
+  return html.replace(
+    /\{\{([A-Z_]+)\}\}/g,
+    '<span class="placeholder-tag">{{$1}}</span>'
+  );
+}
+
 function formatDate(dateString: string | null): string {
   if (!dateString) return "-";
   return new Date(dateString).toLocaleDateString("ja-JP", {
@@ -530,7 +537,7 @@ export default function EpisodeDetail() {
             ) : (
               <div
                 className="bg-[var(--color-bg-elevated)] rounded-lg p-4 text-[var(--color-text-secondary)] text-sm prose prose-sm max-w-none"
-                dangerouslySetInnerHTML={{ __html: episode.description || "<p>説明がありません</p>" }}
+                dangerouslySetInnerHTML={{ __html: highlightPlaceholders(episode.description || "<p>説明がありません</p>") }}
               />
             )}
           </div>
