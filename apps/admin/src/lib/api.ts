@@ -36,6 +36,7 @@ export interface Episode {
   publishedAt: string | null;
   sourceGuid: string | null;
   applePodcastsUrl: string | null;
+  applePodcastsFetchedAt: string | null;
   spotifyUrl: string | null;
 }
 
@@ -301,6 +302,7 @@ export const api = {
     blueskyPostEnabled?: boolean;
     referenceLinks?: ReferenceLink[];
     applePodcastsUrl?: string | null;
+    applePodcastsFetchedAt?: string | null;
     spotifyUrl?: string | null;
   }) =>
     request<EpisodeDetail>(`/api/episodes/${id}`, {

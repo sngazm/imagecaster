@@ -46,6 +46,7 @@ episodes.get("/", async (c) => {
     createdAt: meta.createdAt,
     sourceGuid: meta.sourceGuid || null,
     applePodcastsUrl: meta.applePodcastsUrl || null,
+    applePodcastsFetchedAt: meta.applePodcastsFetchedAt || null,
     spotifyUrl: meta.spotifyUrl || null,
   }));
 
@@ -243,6 +244,9 @@ episodes.put("/:id", async (c) => {
     if (body.applePodcastsUrl !== undefined) {
       meta.applePodcastsUrl = body.applePodcastsUrl;
     }
+    if (body.applePodcastsFetchedAt !== undefined) {
+      meta.applePodcastsFetchedAt = body.applePodcastsFetchedAt;
+    }
     // Spotify
     if (body.spotifyUrl !== undefined) {
       meta.spotifyUrl = body.spotifyUrl;
@@ -309,7 +313,7 @@ episodes.put("/:id", async (c) => {
     // 公開済みの場合はフィードを再生成してWebをリビルド
     // ただし applePodcastsUrl / spotifyUrl のみの更新はスキップ（RSSに含まれず、頻繁な更新があり得るため）
     const isPlatformUrlOnlyUpdate =
-      (body.applePodcastsUrl !== undefined || body.spotifyUrl !== undefined) &&
+      (body.applePodcastsUrl !== undefined || body.spotifyUrl !== undefined || body.applePodcastsFetchedAt !== undefined) &&
       body.title === undefined &&
       body.description === undefined &&
       body.publishAt === undefined &&
