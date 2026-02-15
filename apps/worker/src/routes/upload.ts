@@ -17,6 +17,7 @@ import {
 import { regenerateFeed } from "../services/feed";
 import { postEpisodeToBluesky } from "../services/bluesky";
 import { triggerWebRebuild } from "../services/deploy";
+import { getMp3Duration } from "../services/audio";
 
 const upload = new Hono<{ Bindings: Env }>();
 
@@ -241,7 +242,11 @@ upload.post("/:id/upload-from-url", async (c) => {
     // R2 に保存
     const { size } = await saveAudioFile(c.env, meta.storageKey, audioData);
 
+    // 音声ファイルからdurationを算出
+    const duration = getMp3Duration(audioData);
+
     // メタデータ更新
+    meta.duration = duration;
     meta.fileSize = size;
     meta.audioUrl = `${c.env.R2_PUBLIC_URL}/episodes/${meta.storageKey}/audio.mp3`;
 
