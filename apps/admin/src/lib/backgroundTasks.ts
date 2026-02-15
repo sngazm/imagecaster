@@ -34,11 +34,19 @@ export async function runApplePodcastsAutoFetch(
   }
 
   // 公開から1時間以上経過 & applePodcastsUrl が未設定のエピソードを抽出
+  // ただし、前回の取得試行から3日以内のエピソードはスキップ
   const oneHourAgo = Date.now() - 60 * 60 * 1000;
+  const retryIntervalMs = 3 * 24 * 60 * 60 * 1000; // 3日
   const targetEpisodes = episodes.filter((ep) => {
     if (ep.publishStatus !== "published" || ep.applePodcastsUrl) return false;
     const publishedAt = ep.publishedAt ? new Date(ep.publishedAt).getTime() : 0;
-    return publishedAt > 0 && publishedAt < oneHourAgo;
+    if (!(publishedAt > 0 && publishedAt < oneHourAgo)) return false;
+    // 前回の取得試行から一定期間経過していなければスキップ
+    if (ep.applePodcastsFetchedAt) {
+      const fetchedAt = new Date(ep.applePodcastsFetchedAt).getTime();
+      if (Date.now() - fetchedAt < retryIntervalMs) return false;
+    }
+    return true;
   });
 
   if (targetEpisodes.length === 0) {
@@ -71,9 +79,13 @@ export async function runApplePodcastsAutoFetch(
         settings.applePodcastsId
       );
 
+      const now = new Date().toISOString();
       if (applePodcastsUrl) {
-        await api.updateEpisode(ep.id, { applePodcastsUrl });
+        await api.updateEpisode(ep.id, { applePodcastsUrl, applePodcastsFetchedAt: now });
         foundCount++;
+      } else {
+        // 見つからなかった場合も試行日時を記録（次回まで再試行をスキップ）
+        await api.updateEpisode(ep.id, { applePodcastsFetchedAt: now });
       }
 
       processedCount++;

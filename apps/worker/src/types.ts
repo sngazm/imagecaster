@@ -129,6 +129,7 @@ export interface EpisodeMeta {
   referenceLinks: ReferenceLink[];
   // Apple Podcasts
   applePodcastsUrl: string | null; // エピソード個別URL
+  applePodcastsFetchedAt?: string | null; // 自動取得を最後に試みた日時
   // Spotify
   spotifyUrl: string | null; // エピソード個別URL
   // 文字起こしロック（ソフトロック、1時間で自動解除）
@@ -164,6 +165,7 @@ export interface UpdateEpisodeRequest {
   referenceLinks?: ReferenceLink[];
   // Apple Podcasts（管理画面から編集可能）
   applePodcastsUrl?: string | null;
+  applePodcastsFetchedAt?: string | null;
   // Spotify（管理画面から編集可能）
   spotifyUrl?: string | null;
   // 文字起こしリトライ用（failed → pending）
