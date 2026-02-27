@@ -297,6 +297,29 @@ body {
   border: 1px solid color-mix(in srgb, var(--color-accent) 50%, transparent);
 }
 
+.prose ul {
+  list-style-type: disc;
+  padding-left: 1.5em;
+  margin-bottom: 1.25em;
+}
+
+.prose ol {
+  list-style-type: decimal;
+  padding-left: 1.5em;
+  margin-bottom: 1.25em;
+}
+
+.prose ul ul { list-style-type: circle; }
+.prose ul ul ul { list-style-type: square; }
+
+.prose li {
+  margin-bottom: 0.25em;
+}
+
+.prose li p {
+  margin-bottom: 0.25em;
+}
+
 .prose a {
   overflow-wrap: break-word;
   word-break: break-all;
