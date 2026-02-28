@@ -174,6 +174,73 @@ draft → uploading → transcribing → scheduled → published
 draft → uploading → scheduled → published
 ```
 
+## R2 ストレージと未公開エピソードの隠蔽
+
+エピソードの音声ファイルは R2 に保存され、公開 URL でアクセスできます。未公開エピソードの音声 URL が推測されないよう、以下の仕組みで保護しています。
+
+### storageKey によるURL推測防止
+
+各エピソードは `{slug}-{ランダム文字列}` 形式の `storageKey` を持ちます。
+
+```
+episodes/
+├── my-episode-a3x8k9m2/     ← storageKey: "my-episode-a3x8k9m2"
+│   ├── meta.json
+│   └── audio.mp3             ← URL: https://r2.example.com/episodes/my-episode-a3x8k9m2/audio.mp3
+```
+
+slug だけでは音声 URL を組み立てられないため、`storageKey` を知らない限りアクセスできません。
+
+### index.json の役割
+
+`index.json` は R2 に保存され、公開サイト（Astro SSG）のビルド時に読み込まれます。
+
+```jsonc
+{
+  "podcast": { /* 番組設定 */ },
+  "episodes": [
+    // published のエピソードのみ（storageKey を含む）
+    { "id": "ep-1", "storageKey": "ep-1-a3x8k9m2" }
+  ],
+  "scheduledEpisodeIds": [
+    // scheduled のエピソード ID のみ（storageKey は含まない）
+    "ep-2"
+  ]
+}
+```
+
+| フィールド | 内容 | storageKey | 用途 |
+|-----------|------|-----------|------|
+| `episodes` | 公開済みエピソード | 含む | Web ビルド・RSS フィード生成 |
+| `scheduledEpisodeIds` | 予約投稿待ちの ID 一覧 | **含まない** | Cron の公開チェック最適化 |
+
+- `episodes` に `storageKey` を含めるのは、公開済みなので音声 URL が公開情報であるため
+- `scheduledEpisodeIds` に `storageKey` を含めないのは、未公開エピソードの音声 URL を隠蔽するため
+
+### Cron による予約公開の流れ
+
+```
+Cron (5分ごと)
+  ├─ index.json から scheduledEpisodeIds を取得
+  ├─ 各 ID の meta.json を読み込み（findEpisodeBySlug）
+  ├─ publishAt ≤ 現在時刻 なら公開処理
+  │   ├─ publishStatus を "published" に変更
+  │   ├─ scheduledEpisodeIds から除去、episodes に追加
+  │   ├─ Bluesky 自動投稿（設定時）
+  │   └─ RSS フィード再生成 + Web リビルド
+  └─ 対象なし → 何もしない（R2 操作は index.json の読み込み 1回のみ）
+```
+
+### syncPublishedIndex の動作
+
+エピソードのステータスが変わるたびに `syncPublishedIndex()` が呼ばれ、`index.json` を更新します。
+
+| ステータス変更 | episodes | scheduledEpisodeIds |
+|--------------|----------|---------------------|
+| → `published` | 追加 | 除去 |
+| → `scheduled` | 除去 | 追加 |
+| → その他 | 除去 | 除去 |
+
 ## 認証
 
 Cloudflare Access を使用した JWT ベース認証。
