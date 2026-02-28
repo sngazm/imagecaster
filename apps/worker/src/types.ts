@@ -55,6 +55,7 @@ export interface PodcastIndex {
     id: string;
     storageKey: string; // R2ディレクトリ名（推測不能）
   }>;
+  scheduledEpisodeIds?: string[]; // 予約投稿待ちエピソードのID一覧（Cron最適化用）
 }
 
 /**

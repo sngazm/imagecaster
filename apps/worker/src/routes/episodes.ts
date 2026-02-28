@@ -353,17 +353,25 @@ episodes.delete("/:id", async (c) => {
     }
 
     const wasPublished = meta.publishStatus === "published";
+    const wasScheduled = meta.publishStatus === "scheduled";
 
     // R2からファイルを削除
     await deleteEpisode(c.env, meta.storageKey);
 
-    // 公開済みだった場合は index.json から除去
-    if (wasPublished) {
+    // 公開済み or 予約済みだった場合は index.json から除去
+    if (wasPublished || wasScheduled) {
       const index = await getIndex(c.env);
-      index.episodes = index.episodes.filter((ep) => ep.id !== id);
+      if (wasPublished) {
+        index.episodes = index.episodes.filter((ep) => ep.id !== id);
+      }
+      if (wasScheduled && index.scheduledEpisodeIds) {
+        index.scheduledEpisodeIds = index.scheduledEpisodeIds.filter((sid) => sid !== id);
+      }
       await saveIndex(c.env, index);
-      await regenerateFeed(c.env);
-      await triggerWebRebuild(c.env);
+      if (wasPublished) {
+        await regenerateFeed(c.env);
+        await triggerWebRebuild(c.env);
+      }
     }
 
     return c.json({ success: true });

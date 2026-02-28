@@ -13,7 +13,7 @@ import { backup } from "./routes/backup";
 import { spotify } from "./routes/spotify";
 import { debug } from "./routes/debug";
 import { transcriptionQueue, transcriptionEpisodes } from "./routes/transcription";
-import { getIndex, listAllEpisodes, saveEpisodeMeta, syncPublishedIndex } from "./services/r2";
+import { getIndex, saveIndex, findEpisodeBySlug, saveEpisodeMeta, syncPublishedIndex } from "./services/r2";
 import { regenerateFeed } from "./services/feed";
 import { postEpisodeToBluesky } from "./services/bluesky";
 import { triggerWebRebuild } from "./services/deploy";
@@ -229,41 +229,57 @@ app.onError((err, c) => {
 
 /**
  * Cron 処理: 予約投稿をチェックして公開
- * R2.list() で全エピソードを取得し、scheduled 状態のものを公開
+ * index.json の scheduledEpisodeIds から対象エピソードのみ取得して公開
  */
 async function handleScheduledPublish(env: Env): Promise<void> {
   console.log("[Scheduled Publish] Starting...");
   const now = new Date();
-  console.log("[Scheduled Publish] Fetching all episodes from R2...");
-  const allEpisodes = await listAllEpisodes(env);
-  console.log(`[Scheduled Publish] Got ${allEpisodes.length} episodes`);
+
+  const index = await getIndex(env);
+  const scheduledIds = index.scheduledEpisodeIds || [];
+  console.log(`[Scheduled Publish] ${scheduledIds.length} scheduled episode(s)`);
+
+  if (scheduledIds.length === 0) {
+    return;
+  }
 
   let updated = false;
-  const index = await getIndex(env);
 
-  for (const meta of allEpisodes) {
-    if (meta.publishStatus === "scheduled" && meta.publishAt && new Date(meta.publishAt) <= now) {
-      // 公開処理
-      meta.publishStatus = "published";
-      meta.publishedAt = now.toISOString();
-
-      // Bluesky に投稿（OGP画像のフォールバックとしてartworkUrlを渡す）
-      const posted = await postEpisodeToBluesky(env, meta, env.WEBSITE_URL, index.podcast.artworkUrl);
-      if (posted) {
-        meta.blueskyPostedAt = now.toISOString();
-      }
-
-      await saveEpisodeMeta(env, meta);
-      await syncPublishedIndex(env, meta);
-      updated = true;
-
-      console.log(`Published episode: ${meta.id}`);
+  for (const id of scheduledIds) {
+    const meta = await findEpisodeBySlug(env, id);
+    if (!meta) {
+      console.warn(`[Scheduled Publish] Episode not found: ${id}, removing from scheduledEpisodeIds`);
+      // 存在しないエピソードはリストから除去
+      const currentIndex = await getIndex(env);
+      currentIndex.scheduledEpisodeIds = (currentIndex.scheduledEpisodeIds || []).filter((sid) => sid !== id);
+      await saveIndex(env, currentIndex);
+      continue;
     }
+
+    if (meta.publishStatus !== "scheduled" || !meta.publishAt || new Date(meta.publishAt) > now) {
+      continue;
+    }
+
+    // 公開処理
+    meta.publishStatus = "published";
+    meta.publishedAt = now.toISOString();
+
+    // Bluesky に投稿（OGP画像のフォールバックとしてartworkUrlを渡す）
+    const posted = await postEpisodeToBluesky(env, meta, env.WEBSITE_URL, index.podcast.artworkUrl);
+    if (posted) {
+      meta.blueskyPostedAt = now.toISOString();
+    }
+
+    await saveEpisodeMeta(env, meta);
+    await syncPublishedIndex(env, meta);
+    updated = true;
+
+    console.log(`[Scheduled Publish] Published episode: ${meta.id}`);
   }
 
   if (updated) {
     await regenerateFeed(env);
-    console.log("Feed regenerated");
+    console.log("[Scheduled Publish] Feed regenerated");
 
     // Web サイトのリビルドをトリガー
     await triggerWebRebuild(env);

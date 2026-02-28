@@ -220,7 +220,7 @@ export async function findEpisodeBySlug(env: Env, slug: string): Promise<Episode
 
 /**
  * 公開用 index.json のエピソード部分を同期
- * published → index に追加、それ以外 → index から除去
+ * published → episodes に追加、scheduled → scheduledEpisodeIds に追加、それ以外 → 両方から除去
  */
 export async function syncPublishedIndex(
   env: Env,
@@ -229,19 +229,36 @@ export async function syncPublishedIndex(
   const index = await getIndex(env);
   const existingIdx = index.episodes.findIndex((ep) => ep.id === meta.id);
 
+  // scheduledEpisodeIds の初期化（後方互換性）
+  if (!index.scheduledEpisodeIds) {
+    index.scheduledEpisodeIds = [];
+  }
+
   if (meta.publishStatus === "published") {
-    // 公開済 → index に追加 or 更新
+    // 公開済 → episodes に追加 or 更新
     const entry = { id: meta.id, storageKey: meta.storageKey };
     if (existingIdx >= 0) {
       index.episodes[existingIdx] = entry;
     } else {
       index.episodes.push(entry);
     }
-  } else {
-    // 非公開 → index から除去
+    // scheduledEpisodeIds から除去
+    index.scheduledEpisodeIds = index.scheduledEpisodeIds.filter((id) => id !== meta.id);
+  } else if (meta.publishStatus === "scheduled") {
+    // 予約済 → scheduledEpisodeIds に追加（重複防止）
+    if (!index.scheduledEpisodeIds.includes(meta.id)) {
+      index.scheduledEpisodeIds.push(meta.id);
+    }
+    // episodes から除去
     if (existingIdx >= 0) {
       index.episodes.splice(existingIdx, 1);
     }
+  } else {
+    // その他 → 両方から除去
+    if (existingIdx >= 0) {
+      index.episodes.splice(existingIdx, 1);
+    }
+    index.scheduledEpisodeIds = index.scheduledEpisodeIds.filter((id) => id !== meta.id);
   }
 
   await saveIndex(env, index);
