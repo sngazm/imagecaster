@@ -459,6 +459,111 @@ describe("Episodes API - Transcription", () => {
       expect(json.transcribeStatus).toBe("failed");
     });
 
+    it("stores errorMessage when transcription fails", async () => {
+      const { id } = await createTestEpisode({
+        title: "Failed With Message",
+        publishAt: new Date(Date.now() + 86400000).toISOString(),
+      });
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/transcription-complete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            transcribeStatus: "failed",
+            errorMessage: "Whisper API timeout after 300s",
+          }),
+        }
+      );
+
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      expect(json.success).toBe(true);
+      expect(json.transcribeStatus).toBe("failed");
+
+      // エピソード詳細を取得してエラーメッセージを確認
+      const detailRes = await SELF.fetch(`http://localhost/api/episodes/${id}`);
+      const detail = await detailRes.json();
+      expect(detail.transcriptionErrorMessage).toBe("Whisper API timeout after 300s");
+    });
+
+    it("stores errorMessage when worker-side processing fails (invalid JSON)", async () => {
+      const { id, storageKey } = await createTestEpisode({
+        title: "Worker Error Test",
+        publishAt: new Date(Date.now() + 86400000).toISOString(),
+      });
+
+      // 不正なJSONをR2にアップロード
+      await env.R2_BUCKET.put(
+        `episodes/${storageKey}/transcript.json`,
+        "this is not json",
+        { httpMetadata: { contentType: "application/json" } }
+      );
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/transcription-complete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            transcribeStatus: "completed",
+          }),
+        }
+      );
+
+      expect(response.status).toBe(400);
+
+      // エピソード詳細を取得してエラーメッセージとステータスを確認
+      const detailRes = await SELF.fetch(`http://localhost/api/episodes/${id}`);
+      const detail = await detailRes.json();
+      expect(detail.transcribeStatus).toBe("failed");
+      expect(detail.transcriptionErrorMessage).toBe("Invalid JSON format in transcript file");
+    });
+
+    it("clears errorMessage when transcription completes successfully", async () => {
+      const { id, storageKey } = await createTestEpisode({
+        title: "Clear Error Test",
+        publishAt: new Date(Date.now() + 86400000).toISOString(),
+      });
+
+      // まず失敗させてエラーメッセージを保存
+      await SELF.fetch(
+        `http://localhost/api/episodes/${id}/transcription-complete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            transcribeStatus: "failed",
+            errorMessage: "Previous error",
+          }),
+        }
+      );
+
+      // transcript.json をR2にアップロードして成功させる
+      await uploadTranscriptJson(storageKey);
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/transcription-complete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            transcribeStatus: "completed",
+          }),
+        }
+      );
+
+      expect(response.status).toBe(200);
+
+      // エラーメッセージがクリアされていることを確認
+      const detailRes = await SELF.fetch(`http://localhost/api/episodes/${id}`);
+      const detail = await detailRes.json();
+      expect(detail.transcribeStatus).toBe("completed");
+      expect(detail.transcriptionErrorMessage).toBeNull();
+    });
+
     it("sets publishStatus to draft when publishAt is null", async () => {
       const { id, storageKey } = await createTestEpisode({
         title: "Draft After Transcription",
@@ -494,6 +599,97 @@ describe("Episodes API - Transcription", () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: "completed" }),
         }
+      );
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("POST /api/episodes/:id/retry-transcription", () => {
+    it("retries transcription for a failed episode", async () => {
+      const { id, storageKey } = await createTestEpisode({
+        title: "Retry Episode",
+        skipTranscription: false,
+      });
+
+      // meta.json を直接操作して failed 状態にする
+      const meta = await env.R2_BUCKET.get(`episodes/${storageKey}/meta.json`);
+      const data = JSON.parse(await meta!.text());
+      data.publishStatus = "draft";
+      data.transcribeStatus = "failed";
+      data.audioUrl = "https://example.com/audio.mp3";
+      data.transcriptionErrorMessage = "Some previous error";
+      await env.R2_BUCKET.put(`episodes/${storageKey}/meta.json`, JSON.stringify(data), {
+        httpMetadata: { contentType: "application/json" },
+      });
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/retry-transcription`,
+        { method: "POST" }
+      );
+
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      expect(json.success).toBe(true);
+      expect(json.transcribeStatus).toBe("pending");
+
+      // エピソード詳細を確認
+      const detailRes = await SELF.fetch(`http://localhost/api/episodes/${id}`);
+      const detail = await detailRes.json();
+      expect(detail.transcribeStatus).toBe("pending");
+      expect(detail.transcriptionErrorMessage).toBeNull();
+    });
+
+    it("rejects retry when status is not failed", async () => {
+      const { id } = await createTestEpisode({
+        title: "Not Failed Episode",
+        skipTranscription: false,
+      });
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/retry-transcription`,
+        { method: "POST" }
+      );
+
+      expect(response.status).toBe(400);
+
+      const json = await response.json();
+      expect(json.error).toContain("expected 'failed'");
+    });
+
+    it("rejects retry when no audio file available", async () => {
+      const { id, storageKey } = await createTestEpisode({
+        title: "No Audio Retry",
+        skipTranscription: false,
+      });
+
+      // meta.json を直接操作して failed 状態にする（音声なし）
+      const meta = await env.R2_BUCKET.get(`episodes/${storageKey}/meta.json`);
+      const data = JSON.parse(await meta!.text());
+      data.publishStatus = "draft";
+      data.transcribeStatus = "failed";
+      data.audioUrl = "";
+      data.sourceAudioUrl = null;
+      await env.R2_BUCKET.put(`episodes/${storageKey}/meta.json`, JSON.stringify(data), {
+        httpMetadata: { contentType: "application/json" },
+      });
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/retry-transcription`,
+        { method: "POST" }
+      );
+
+      expect(response.status).toBe(400);
+
+      const json = await response.json();
+      expect(json.error).toContain("no audio file");
+    });
+
+    it("returns 404 for non-existent episode", async () => {
+      const response = await SELF.fetch(
+        "http://localhost/api/episodes/non-existent-id/retry-transcription",
+        { method: "POST" }
       );
 
       expect(response.status).toBe(404);

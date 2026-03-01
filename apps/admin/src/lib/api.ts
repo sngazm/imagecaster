@@ -74,6 +74,8 @@ export interface EpisodeDetail {
   applePodcastsUrl: string | null;
   // Spotify
   spotifyUrl: string | null;
+  // 文字起こしエラー
+  transcriptionErrorMessage?: string | null;
 }
 
 export interface PodcastSettings {
@@ -331,6 +333,11 @@ export const api = {
     request<{ id: string; publishStatus: PublishStatus; transcribeStatus: TranscribeStatus }>(`/api/episodes/${id}/upload-from-url`, {
       method: "POST",
       body: JSON.stringify({ sourceUrl }),
+    }),
+
+  retryTranscription: (id: string) =>
+    request<{ success: boolean; transcribeStatus: TranscribeStatus }>(`/api/episodes/${id}/retry-transcription`, {
+      method: "POST",
     }),
 
   // Settings
