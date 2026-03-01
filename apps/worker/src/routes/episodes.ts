@@ -405,7 +405,13 @@ episodes.post("/:id/transcription-complete", async (c) => {
       const jsonObj = await c.env.R2_BUCKET.get(jsonKey);
 
       if (!jsonObj) {
-        return c.json({ error: "Transcript JSON not found in R2. Please upload first." }, 400);
+        // Worker側エラー: transcript.json が見つからない → failed として記録
+        const errorMsg = "Transcript JSON not found in R2. Please upload first.";
+        meta.transcribeStatus = "failed";
+        meta.transcriptionErrorMessage = errorMsg;
+        meta.transcriptionLockedAt = null;
+        await saveEpisodeMeta(c.env, meta);
+        return c.json({ error: errorMsg }, 400);
       }
 
       const jsonText = await jsonObj.text();
@@ -414,12 +420,24 @@ episodes.post("/:id/transcription-complete", async (c) => {
       try {
         transcriptData = JSON.parse(jsonText);
       } catch {
-        return c.json({ error: "Invalid JSON format in transcript file" }, 400);
+        // Worker側エラー: JSON パース失敗 → failed として記録
+        const errorMsg = "Invalid JSON format in transcript file";
+        meta.transcribeStatus = "failed";
+        meta.transcriptionErrorMessage = errorMsg;
+        meta.transcriptionLockedAt = null;
+        await saveEpisodeMeta(c.env, meta);
+        return c.json({ error: errorMsg }, 400);
       }
 
       // バリデーション
       if (!validateTranscriptData(transcriptData)) {
-        return c.json({ error: "Invalid transcript data structure" }, 400);
+        // Worker側エラー: 不正なデータ構造 → failed として記録
+        const errorMsg = "Invalid transcript data structure";
+        meta.transcribeStatus = "failed";
+        meta.transcriptionErrorMessage = errorMsg;
+        meta.transcriptionLockedAt = null;
+        await saveEpisodeMeta(c.env, meta);
+        return c.json({ error: errorMsg }, 400);
       }
 
       // VTT に変換
@@ -436,6 +454,7 @@ episodes.post("/:id/transcription-complete", async (c) => {
       // メタデータ更新
       meta.transcriptUrl = `${c.env.R2_PUBLIC_URL}/${vttKey}`;
       meta.transcribeStatus = "completed";
+      meta.transcriptionErrorMessage = null;
 
       // duration が提供されていれば更新
       if (body.duration !== undefined) {
@@ -467,6 +486,7 @@ episodes.post("/:id/transcription-complete", async (c) => {
       }
     } else {
       meta.transcribeStatus = "failed";
+      meta.transcriptionErrorMessage = body.errorMessage || null;
     }
 
     // ロック解除
@@ -484,6 +504,46 @@ episodes.post("/:id/transcription-complete", async (c) => {
     return c.json({
       success: true,
       publishStatus: meta.publishStatus,
+      transcribeStatus: meta.transcribeStatus,
+    });
+  } catch {
+    return c.json({ error: "Episode not found" }, 404);
+  }
+});
+
+/**
+ * POST /api/episodes/:id/retry-transcription - 文字起こしリトライ
+ *
+ * failed 状態のエピソードを pending に戻して再キュー
+ */
+episodes.post("/:id/retry-transcription", async (c) => {
+  const id = c.req.param("id");
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    if (meta.transcribeStatus !== "failed") {
+      return c.json(
+        { error: `Cannot retry: transcribeStatus is '${meta.transcribeStatus}', expected 'failed'` },
+        400
+      );
+    }
+
+    if (!meta.audioUrl && !meta.sourceAudioUrl) {
+      return c.json({ error: "Cannot retry: no audio file available" }, 400);
+    }
+
+    meta.transcribeStatus = "pending";
+    meta.transcriptionErrorMessage = null;
+    meta.transcriptionLockedAt = null;
+
+    await saveEpisodeMeta(c.env, meta);
+
+    return c.json({
+      success: true,
       transcribeStatus: meta.transcribeStatus,
     });
   } catch {

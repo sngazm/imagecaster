@@ -84,6 +84,7 @@ export default function EpisodeDetail() {
   // Transcript
   const [transcriptSegments, setTranscriptSegments] = useState<TranscriptSegment[]>([]);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
+  const [isRetryingTranscription, setIsRetryingTranscription] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -204,6 +205,23 @@ export default function EpisodeDetail() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "削除に失敗しました");
       setIsDeleting(false);
+    }
+  };
+
+  const handleRetryTranscription = async () => {
+    if (!id || !episode) return;
+
+    try {
+      setIsRetryingTranscription(true);
+      setError(null);
+      await api.retryTranscription(id);
+      // リロードして最新の状態を取得
+      const data = await api.getEpisode(id);
+      setEpisode(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "文字起こしリトライに失敗しました");
+    } finally {
+      setIsRetryingTranscription(false);
     }
   };
 
@@ -631,6 +649,24 @@ export default function EpisodeDetail() {
                     </div>
                   </label>
                 )}
+                {/* 文字起こし失敗時のエラー表示 + リトライ */}
+                {episode.transcribeStatus === "failed" && (
+                  <div className="space-y-3">
+                    <div className="p-3 bg-[var(--color-error-muted)] border border-[var(--color-error)] rounded-lg">
+                      <p className="text-sm font-medium text-[var(--color-error)]">文字起こしに失敗しました</p>
+                      {episode.transcriptionErrorMessage && (
+                        <p className="text-xs text-[var(--color-error)] mt-1 opacity-80">{episode.transcriptionErrorMessage}</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={handleRetryTranscription}
+                      disabled={isRetryingTranscription}
+                      className="btn btn-primary text-sm"
+                    >
+                      {isRetryingTranscription ? "リトライ中..." : "文字起こしをリトライ"}
+                    </button>
+                  </div>
+                )}
                 {/* 現在の状態を表示 */}
                 {episode.publishStatus !== "new" && episode.transcribeStatus !== "failed" && !episode.transcriptUrl && (
                   <p className="text-[var(--color-text-muted)] text-sm">
@@ -653,7 +689,23 @@ export default function EpisodeDetail() {
               </div>
             ) : (
               <>
-                {episode.hideTranscription ? (
+                {episode.transcribeStatus === "failed" ? (
+                  <div className="space-y-3">
+                    <div className="p-3 bg-[var(--color-error-muted)] border border-[var(--color-error)] rounded-lg">
+                      <p className="text-sm font-medium text-[var(--color-error)]">文字起こしに失敗しました</p>
+                      {episode.transcriptionErrorMessage && (
+                        <p className="text-xs text-[var(--color-error)] mt-1 opacity-80">{episode.transcriptionErrorMessage}</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={handleRetryTranscription}
+                      disabled={isRetryingTranscription}
+                      className="btn btn-primary text-sm"
+                    >
+                      {isRetryingTranscription ? "リトライ中..." : "文字起こしをリトライ"}
+                    </button>
+                  </div>
+                ) : episode.hideTranscription ? (
                   <p className="text-[var(--color-text-muted)] text-sm">文字起こしは非表示に設定されています</p>
                 ) : episode.skipTranscription ? (
                   <p className="text-[var(--color-text-muted)] text-sm">文字起こしはスキップされました</p>

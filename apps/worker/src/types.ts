@@ -135,6 +135,8 @@ export interface EpisodeMeta {
   spotifyUrl: string | null; // エピソード個別URL
   // 文字起こしロック（ソフトロック、1時間で自動解除）
   transcriptionLockedAt?: string | null;
+  // 文字起こし失敗時のエラーメッセージ
+  transcriptionErrorMessage?: string | null;
 }
 
 /**
@@ -179,6 +181,7 @@ export interface UpdateEpisodeRequest {
 export interface TranscriptionCompleteRequest {
   transcribeStatus: "completed" | "failed";
   duration?: number;
+  errorMessage?: string;
 }
 
 /**
