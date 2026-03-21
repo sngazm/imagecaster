@@ -1,0 +1,44 @@
+---
+title: Imagecaster ドキュメント
+description: セルフホスト型 Podcast 配信システム Imagecaster のドキュメント
+template: splash
+hero:
+  tagline: Cloudflare のインフラ上で動く、シンプルなセルフホスト型 Podcast 配信システム
+  actions:
+    - text: セットアップを始める
+      link: /getting-started/overview/
+      icon: right-arrow
+      variant: primary
+    - text: API リファレンス
+      link: /api/episodes/
+      icon: external
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## 特徴
+
+<CardGrid stagger>
+  <Card title="Cloudflare ネイティブ" icon="cloudflare">
+    Workers + Pages + R2 だけで完結。サーバー管理不要、従量課金で低コスト。
+  </Card>
+  <Card title="シンプルな構成" icon="document">
+    データベース不要。エピソードのメタデータは R2 に JSON で保存。
+  </Card>
+  <Card title="文字起こし対応" icon="list-format">
+    外部の文字起こしサービスと連携して VTT 字幕を自動生成。
+  </Card>
+  <Card title="Bluesky 連携" icon="seti:markdown">
+    エピソード公開時に Bluesky へ自動投稿。
+  </Card>
+</CardGrid>
+
+## システム構成
+
+| コンポーネント | 技術 | 用途 |
+|---|---|---|
+| API | Cloudflare Workers + Hono | エピソード管理、アップロード処理 |
+| 公開サイト | Astro SSG | Podcast のリスナー向けページ |
+| 管理画面 | React + Vite | エピソード・設定の管理 |
+| ストレージ | Cloudflare R2 | 音声・メタデータ・RSS フィード |
+| 認証 | Cloudflare Access | 管理画面・API の保護 |
