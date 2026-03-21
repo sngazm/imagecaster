@@ -973,6 +973,20 @@ export default function Settings() {
                 RSSフィードの音声URLの先頭に付与するプレフィックスURLです。<br />
                 例: <code className="px-1 py-0.5 bg-[var(--color-bg-hover)] rounded">https://op3.dev/e/</code> を設定すると OP3 でリスナー数を計測できます。
               </p>
+              {(() => {
+                const r2Base = (() => {
+                  try { return settings.artworkUrl ? new URL(settings.artworkUrl).origin : null; } catch { return null; }
+                })();
+                const sampleAudio = `${r2Base ?? "https://your-bucket.r2.dev"}/episodes/episode-slug/audio.mp3`;
+                const preview = settings.analyticsPrefix
+                  ? settings.analyticsPrefix.replace(/\/$/, "") + "/" + sampleAudio.replace(/^\//, "")
+                  : sampleAudio;
+                return (
+                  <p className="text-xs text-[var(--color-text-muted)] mt-2 break-all">
+                    例: <span className="font-mono">{preview}</span>
+                  </p>
+                );
+              })()}
             </div>
           </div>
 
