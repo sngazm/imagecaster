@@ -102,4 +102,4 @@ new → uploading → draft → scheduled → published
 
 外部サービスは `GET /api/transcription/queue` でキューを取得し、処理完了後に `POST /api/episodes/:id/transcription-complete` で通知します。
 
-詳細は [文字起こし](/features/transcription/) を参照してください。
+詳細は [文字起こし](../features/transcription/) を参照してください。
