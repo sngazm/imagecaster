@@ -10,14 +10,29 @@ Imagecaster は、Cloudflare のインフラ上で完全にセルフホストで
 ## アーキテクチャ概要
 
 ```
-リスナー
-  └─ 公開サイト (Astro SSG / Cloudflare Pages)
-       └─ 音声・RSS (Cloudflare R2)
-
-管理者
-  └─ 管理画面 (React + Vite / Cloudflare Pages)
-       └─ API (Cloudflare Workers + Hono)
-            └─ ストレージ (Cloudflare R2)
+┌────────────────────────────────────┐
+│        Cloudflare Access           │
+│  (認証: メール / Google / Token)    │
+└────────────────────────────────────┘
+        │                   │
+        ▼                   ▼
+┌───────────────┐   ┌─────────────────┐            ┌───────────────┐
+│  apps/admin   │   │   apps/worker   │──Pages API─▶│  apps/web    │
+│  (React+Vite) │──▶│ (Hono+Workers)  │  (rebuild)  │  (Astro SSG)  │
+│               │API│                 │            │               │
+│ CF Pages      │   │ CF Workers      │            │ CF Pages      │
+│ (認証必要)     │   │ (認証必要)       │            │ (公開)        │
+└───────────────┘   └────────┬────────┘            └───────┬───────┘
+                             │                             │
+                             │ R2 Binding                  │ fetch (build時)
+                             ▼                             ▼
+                    ┌─────────────────────────────────────────┐
+                    │              Cloudflare R2              │
+                    │                                         │
+                    │  - episodes/{id}/meta.json, audio.mp3   │
+                    │  - index.json                           │
+                    │  - feed.xml                             │
+                    └─────────────────────────────────────────┘
 ```
 
 ### 3つのアプリケーション
