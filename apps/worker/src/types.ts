@@ -50,6 +50,8 @@ export interface PodcastIndex {
     // 購読リンク
     applePodcastsUrl?: string;
     spotifyUrl?: string;
+    // 配信アナリティクス
+    analyticsPrefix?: string; // オーディオURLに付与するプレフィックス (例: https://op3.dev/e/)
   };
   episodes: Array<{
     id: string;
@@ -325,6 +327,8 @@ export interface UpdatePodcastSettingsRequest {
   // 購読リンク
   applePodcastsUrl?: string;
   spotifyUrl?: string;
+  // 配信アナリティクス
+  analyticsPrefix?: string | null;
 }
 
 /**
