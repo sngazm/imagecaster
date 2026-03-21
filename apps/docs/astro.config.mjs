@@ -1,7 +1,14 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
+// GitHub Pages へのデプロイ時は環境変数で上書きされる
+// SITE=https://sngazm.github.io BASE_PATH=/imagecaster
+const site = process.env.SITE ?? 'http://localhost:4322';
+const base = process.env.BASE_PATH ?? '/';
+
 export default defineConfig({
+  site,
+  base,
   integrations: [
     starlight({
       title: 'Imagecaster',
