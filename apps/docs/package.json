@@ -1,0 +1,14 @@
+{
+  "name": "docs",
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev --port 4322",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.32.0",
+    "astro": "^5.0.0"
+  }
+}
