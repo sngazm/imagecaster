@@ -57,7 +57,7 @@ import { Badge } from '@astrojs/starlight/components';
 
 ### レスポンス
 
-`EpisodeMeta` オブジェクト全体を返します。詳細は [ストレージ](../architecture/storage/) を参照。
+`EpisodeMeta` オブジェクト全体を返します。詳細は [ストレージ](../../architecture/storage/) を参照。
 
 ---
 
