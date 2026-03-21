@@ -96,6 +96,8 @@ export interface PodcastSettings {
   // 購読リンク
   applePodcastsUrl?: string;
   spotifyUrl?: string;
+  // アナリティクス
+  analyticsPrefix?: string;
 }
 
 export interface DescriptionTemplate {

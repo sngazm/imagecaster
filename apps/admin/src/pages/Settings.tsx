@@ -955,6 +955,27 @@ export default function Settings() {
             </div>
           </div>
 
+          {/* Analytics */}
+          <div className="card p-5 space-y-4">
+            <h2 className="text-base font-semibold text-[var(--color-text-primary)] mb-4">配信アナリティクス</h2>
+            <div>
+              <label className="label">アナリティクスプレフィックス</label>
+              <input
+                type="url"
+                value={settings.analyticsPrefix || ""}
+                onChange={(e) =>
+                  setSettings({ ...settings, analyticsPrefix: e.target.value || undefined })
+                }
+                placeholder="https://op3.dev/e/"
+                className="input"
+              />
+              <p className="text-xs text-[var(--color-text-muted)] mt-2">
+                RSSフィードの音声URLの先頭に付与するプレフィックスURLです。<br />
+                例: <code className="px-1 py-0.5 bg-[var(--color-bg-hover)] rounded">https://op3.dev/e/</code> を設定すると OP3 でリスナー数を計測できます。
+              </p>
+            </div>
+          </div>
+
           <div className="flex justify-end">
             <button
               type="submit"
