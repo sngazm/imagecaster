@@ -13,7 +13,8 @@ podcast-platform/
 ├── apps/
 │   ├── admin/          # 管理画面（React + Vite + Tailwind）
 │   ├── web/            # 公開サイト（Astro SSG + Tailwind）
-│   └── worker/         # API + Cron（Cloudflare Workers + Hono）
+│   ├── worker/         # API + Cron（Cloudflare Workers + Hono）
+│   └── docs/           # ドキュメントサイト（Astro Starlight）
 ├── packages/
 │   ├── shared/         # 共通型定義 ※未実装
 │   └── rss-generator/  # RSSフィード生成 ※未実装
@@ -59,7 +60,26 @@ pnpm test
 1. 機能を実装
 2. 対応するテストを追加（`apps/worker/src/__tests/` 配下）
 3. `pnpm test` で全テストが通ることを確認
-4. コミット
+4. 対応するドキュメントを更新（下記「ドキュメント更新ルール」を参照）
+5. コミット
+
+### ドキュメント更新ルール
+
+`apps/docs/src/content/docs/` 配下のドキュメントは、常に実装と同期させること。
+
+| 変更内容 | 更新すべきドキュメント |
+|---------|----------------------|
+| API エンドポイントの追加・変更・削除 | `api/` 配下の対応するページ |
+| 新しいエンドポイントのカテゴリ追加 | `api/` に新規ページを作成し、`astro.config.mjs` のサイドバーに追加 |
+| `types.ts` の型定義変更 | 関連する `api/` や `architecture/` のページ |
+| エピソードのステータス遷移変更 | `architecture/episode-lifecycle.md` |
+| 環境変数の追加・変更 | `deployment/env-vars.md` |
+| R2 バケット構造の変更 | `architecture/storage.md` |
+| 認証まわりの変更 | `architecture/auth.md` |
+| 新機能追加（Bluesky・Spotify等） | `features/` に対応するページを作成または更新 |
+| デプロイ手順の変更 | `deployment/guide.md` |
+| 開発コマンドの変更 | `development/local.md` |
+| テストファイルの追加 | `development/testing.md` |
 
 ## 技術スタック
 
@@ -158,6 +178,7 @@ pnpm dev              # 全体開発サーバー
 pnpm dev:worker       # Worker（localhost:8787）
 pnpm dev:admin        # 管理画面（localhost:5173）
 pnpm dev:web          # 公開サイト（localhost:4321）
+pnpm dev:docs         # ドキュメントサイト（localhost:4322）
 pnpm build            # ビルド
 pnpm test             # Worker API テスト
 pnpm deploy:worker    # Worker デプロイ
