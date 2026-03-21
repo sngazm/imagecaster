@@ -1,36 +1,14 @@
 ---
 title: Imagecaster
 description: Cloudflare のインフラを使った、セルフホスト型 Podcast 配信ツールキット
-template: splash
-hero:
-  tagline: Cloudflare のインフラを使った、セルフホスト型 Podcast 配信ツールキットです。
-  actions:
-    - text: セットアップを始める
-      link: getting-started/overview/
-      icon: right-arrow
-      variant: primary
-    - text: アーキテクチャを読む
-      link: architecture/overview/
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
+Cloudflare のインフラを使った、セルフホスト型 Podcast 配信ツールキットです。音声・メタデータ・RSS フィードはすべて R2 上の静的ファイルとして保存されます。データベースも状態も持ちません。
 
-## 設計の考え方
+## はじめる
 
-<CardGrid>
-  <Card title="静的ファイルとして残る" icon="document">
-    音声・メタデータ・RSS フィードはすべて R2 上の静的ファイルです。データベースも状態も持ちません。ファイルが存在する限り、配信は続きます。
-  </Card>
-  <Card title="使った分だけのコスト" icon="setting">
-    Cloudflare Workers と R2 の従量課金です。配信がなければコストはほぼゼロです。急激なトラフィック増にも追加作業なしで対応できます。
-  </Card>
-  <Card title="データはあなたの管理下に" icon="approve-check">
-    すべてのデータはあなたの R2 バケットに保存されます。プラットフォームに預けません。移行・バックアップは単純なファイル操作で完結します。
-  </Card>
-  <Card title="実績ある技術だけを使う" icon="puzzle">
-    Workers、Pages、R2 — Cloudflare が世界規模で運用するインフラのみを使用しています。独自の複雑な仕組みは持ち込みません。
-  </Card>
-</CardGrid>
+- [概要](getting-started/overview/) — システムの全体像と設計の考え方
+- [セットアップ](getting-started/setup/) — 一からの構築手順
 
 ## システム構成
 
