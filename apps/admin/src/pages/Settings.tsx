@@ -979,7 +979,7 @@ export default function Settings() {
                 })();
                 const sampleAudio = `${r2Base ?? "https://your-bucket.r2.dev"}/episodes/episode-slug/audio.mp3`;
                 const preview = settings.analyticsPrefix
-                  ? settings.analyticsPrefix.replace(/\/$/, "") + "/" + sampleAudio.replace(/^\//, "")
+                  ? settings.analyticsPrefix.replace(/\/$/, "") + "/" + sampleAudio.replace(/^https?:\/\//, "")
                   : sampleAudio;
                 return (
                   <p className="text-xs text-[var(--color-text-muted)] mt-2 break-all">

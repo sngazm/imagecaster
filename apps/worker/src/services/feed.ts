@@ -101,8 +101,9 @@ function replacePlaceholders(
  */
 function applyAnalyticsPrefix(audioUrl: string, prefix: string | undefined | null): string {
   if (!prefix || !audioUrl) return audioUrl;
-  // 末尾スラッシュを正規化して連結
-  return prefix.replace(/\/$/, "") + "/" + audioUrl.replace(/^\//, "");
+  // プロトコルを除去してから連結（OP3・podtrac 等はプロトコルなしを期待）
+  const strippedUrl = audioUrl.replace(/^https?:\/\//, "");
+  return prefix.replace(/\/$/, "") + "/" + strippedUrl;
 }
 
 /**
