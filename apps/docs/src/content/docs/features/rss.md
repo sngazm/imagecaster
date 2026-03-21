@@ -67,4 +67,4 @@ RSS 2.0 + iTunes ポッドキャスト拡張仕様に準拠しています。
 1. [Spotify for Podcasters](https://podcasters.spotify.com/) にアクセス
 2. RSS フィード URL を入力して登録
 
-承認後、管理画面の設定で **Spotify Show ID** を設定すると、エピソードごとの Spotify URL を自動取得できます。詳細は [Spotify 連携](/features/spotify/) を参照。
+承認後、管理画面の設定で **Spotify Show ID** を設定すると、エピソードごとの Spotify URL を自動取得できます。詳細は [Spotify 連携](./spotify/) を参照。

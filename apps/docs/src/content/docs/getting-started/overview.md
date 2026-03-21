@@ -62,5 +62,5 @@ imagecaster/
 
 ## 次のステップ
 
-- [セットアップ](/getting-started/setup/) — 一からの構築手順
-- [全体アーキテクチャ](/architecture/overview/) — 詳細な設計
+- [セットアップ](./setup/) — 一からの構築手順
+- [全体アーキテクチャ](../architecture/overview/) — 詳細な設計
