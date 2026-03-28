@@ -94,6 +94,50 @@ describe("Settings API", () => {
       expect(updatedSettings.author).toBe(originalSettings.author);
     });
 
+    it("updates analyticsPrefix and reflects in RSS feed", async () => {
+      const prefix = "https://op3.dev/e";
+
+      const response = await SELF.fetch("http://localhost/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ analyticsPrefix: prefix }),
+      });
+
+      expect(response.status).toBe(200);
+      const json = await response.json();
+      expect(json.analyticsPrefix).toBe(prefix);
+
+      // feedにプレフィックスが付与されているか確認
+      const feedObj = await env.R2_BUCKET.get("feed.xml");
+      expect(feedObj).not.toBeNull();
+      const feedXml = await feedObj!.text();
+      // エピソードがある場合はプレフィックスが付与される
+      if (feedXml.includes("<enclosure")) {
+        expect(feedXml).toMatch(new RegExp(`url="${prefix}/`));
+      }
+    });
+
+    it("clears analyticsPrefix when set to empty string", async () => {
+      // まずプレフィックスを設定
+      await SELF.fetch("http://localhost/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ analyticsPrefix: "https://op3.dev/e" }),
+      });
+
+      // 空文字で削除
+      const response = await SELF.fetch("http://localhost/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ analyticsPrefix: "" }),
+      });
+
+      expect(response.status).toBe(200);
+      const json = await response.json();
+      // 空文字はundefinedとして扱われる
+      expect(json.analyticsPrefix).toBeUndefined();
+    });
+
     it("regenerates RSS feed after settings update", async () => {
       const newEmail = `feed-test-${Date.now()}@example.com`;
 

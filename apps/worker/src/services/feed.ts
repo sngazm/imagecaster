@@ -97,9 +97,19 @@ function replacePlaceholders(
 }
 
 /**
+ * アナリティクスプレフィックスをオーディオURLに付与
+ */
+function applyAnalyticsPrefix(audioUrl: string, prefix: string | undefined | null): string {
+  if (!prefix || !audioUrl) return audioUrl;
+  // プロトコルを除去してから連結（OP3・podtrac 等はプロトコルなしを期待）
+  const strippedUrl = audioUrl.replace(/^https?:\/\//, "");
+  return prefix.replace(/\/$/, "") + "/" + strippedUrl;
+}
+
+/**
  * エピソードの RSS item を生成
  */
-function generateEpisodeItem(episode: EpisodeMeta, websiteUrl: string): string {
+function generateEpisodeItem(episode: EpisodeMeta, websiteUrl: string, analyticsPrefix?: string | null): string {
   const transcriptTag = episode.transcriptUrl
     ? `\n      <podcast:transcript url="${escapeXml(episode.transcriptUrl)}" type="text/vtt" language="ja"/>`
     : "";
@@ -110,7 +120,8 @@ function generateEpisodeItem(episode: EpisodeMeta, websiteUrl: string): string {
     : "";
 
   // 音声URLはaudioUrlがあればそれを使い、なければsourceAudioUrl（外部参照）を使用
-  const audioUrl = episode.audioUrl || episode.sourceAudioUrl || "";
+  const rawAudioUrl = episode.audioUrl || episode.sourceAudioUrl || "";
+  const audioUrl = applyAnalyticsPrefix(rawAudioUrl, analyticsPrefix);
 
   // プレースホルダーを置換した説明文
   const processedDescription = replacePlaceholders(
@@ -144,7 +155,7 @@ export function generateFeed(
   const { podcast } = podcastIndex;
 
   const items = episodes
-    .map((ep) => generateEpisodeItem(ep, podcast.websiteUrl))
+    .map((ep) => generateEpisodeItem(ep, podcast.websiteUrl, podcast.analyticsPrefix))
     .join("\n");
 
   const lastBuildDate = toRFC2822(new Date().toISOString());
