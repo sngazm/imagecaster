@@ -72,6 +72,8 @@ export default function EpisodeDetail() {
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState("");
+  const [audioSource, setAudioSource] = useState<"file" | "url">("file");
+  const [audioUploadUrl, setAudioUploadUrl] = useState("");
 
   // Episode artwork upload
   const [artworkFile, setArtworkFile] = useState<File | null>(null);
@@ -257,6 +259,27 @@ export default function EpisodeDetail() {
     }
   };
 
+  const handleAudioUploadFromUrl = async () => {
+    if (!id || !audioUploadUrl.trim() || !episode) return;
+
+    try {
+      setIsUploading(true);
+      setUploadMessage("URLから音声を取得中...");
+
+      await api.uploadFromUrl(id, audioUploadUrl.trim());
+
+      // リロード
+      const updated = await api.getEpisode(id);
+      setEpisode(updated);
+      setAudioUploadUrl("");
+      setUploadMessage("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "URLからの取得に失敗しました");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const applyTemplate = (template: DescriptionTemplate) => {
     setEditDescription(template.content);
     setShowTemplates(false);
@@ -433,7 +456,7 @@ export default function EpisodeDetail() {
                 <p className="text-xs text-[var(--color-text-muted)] mt-2">外部音声ファイルを参照しています</p>
               )}
             </div>
-          ) : (
+          ) : isEditing ? (
             <div className="card p-6">
               <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-4 flex items-center gap-2">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -443,30 +466,88 @@ export default function EpisodeDetail() {
               </h2>
               <p className="text-[var(--color-text-muted)] text-sm mb-4">音声ファイルがまだアップロードされていません。</p>
 
-              <input
-                type="file"
-                accept="audio/*"
-                onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
-                disabled={isUploading}
-                className="block w-full text-sm text-[var(--color-text-secondary)] file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-[var(--color-bg-elevated)] file:text-[var(--color-text-secondary)] hover:file:bg-[var(--color-bg-hover)] disabled:opacity-50"
-              />
-
-              {audioFile && (
-                <div className="mt-3">
-                  <p className="text-sm text-[var(--color-text-secondary)] mb-2">
-                    {audioFile.name} ({(audioFile.size / 1024 / 1024).toFixed(1)} MB)
-                  </p>
-                  <button
-                    onClick={handleAudioUpload}
+              {/* ソース選択 */}
+              <div className="flex gap-4 mb-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="audioSource"
+                    value="file"
+                    checked={audioSource === "file"}
+                    onChange={() => setAudioSource("file")}
                     disabled={isUploading}
-                    className="btn btn-primary"
-                  >
-                    {isUploading ? uploadMessage : "アップロード"}
-                  </button>
+                    className="w-4 h-4 text-[var(--color-accent)] bg-[var(--color-bg-base)] border-[var(--color-border)] focus:ring-[var(--color-accent)]"
+                  />
+                  <span className="text-sm text-[var(--color-text-primary)]">ファイルをアップロード</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="audioSource"
+                    value="url"
+                    checked={audioSource === "url"}
+                    onChange={() => setAudioSource("url")}
+                    disabled={isUploading}
+                    className="w-4 h-4 text-[var(--color-accent)] bg-[var(--color-bg-base)] border-[var(--color-border)] focus:ring-[var(--color-accent)]"
+                  />
+                  <span className="text-sm text-[var(--color-text-primary)]">URLから取得</span>
+                </label>
+              </div>
+
+              {/* ファイル入力 */}
+              {audioSource === "file" && (
+                <>
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
+                    disabled={isUploading}
+                    className="block w-full text-sm text-[var(--color-text-secondary)] file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-[var(--color-bg-elevated)] file:text-[var(--color-text-secondary)] hover:file:bg-[var(--color-bg-hover)] disabled:opacity-50"
+                  />
+                  {audioFile && (
+                    <div className="mt-3">
+                      <p className="text-sm text-[var(--color-text-secondary)] mb-2">
+                        {audioFile.name} ({(audioFile.size / 1024 / 1024).toFixed(1)} MB)
+                      </p>
+                      <button
+                        onClick={handleAudioUpload}
+                        disabled={isUploading}
+                        className="btn btn-primary"
+                      >
+                        {isUploading ? uploadMessage : "アップロード"}
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* URL入力 */}
+              {audioSource === "url" && (
+                <div>
+                  <input
+                    type="url"
+                    value={audioUploadUrl}
+                    onChange={(e) => setAudioUploadUrl(e.target.value)}
+                    placeholder="https://example.com/audio.mp3"
+                    disabled={isUploading}
+                    className="input"
+                  />
+                  <p className="text-xs text-[var(--color-text-faint)] mt-1">NextCloud共有リンクも使用可能です</p>
+                  {audioUploadUrl.trim() && (
+                    <div className="mt-3">
+                      <button
+                        onClick={handleAudioUploadFromUrl}
+                        disabled={isUploading}
+                        className="btn btn-primary"
+                      >
+                        {isUploading ? uploadMessage : "取得"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          )}
+          ) : null}
 
           {/* 詳細情報 */}
           <div className="card p-6">
