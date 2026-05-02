@@ -310,6 +310,218 @@ upload.post("/:id/upload-from-url", async (c) => {
 });
 
 /**
+ * 既存の文字起こしファイルを削除し、メタデータからtranscriptUrlを除去
+ */
+async function clearTranscript(env: Env, meta: import("../types").EpisodeMeta): Promise<void> {
+  if (env.IS_DEV !== "true") {
+    try {
+      await env.R2_BUCKET.delete(`episodes/${meta.storageKey}/transcript.vtt`);
+    } catch {
+      // 失敗しても続行
+    }
+  }
+  meta.transcriptUrl = null;
+  meta.transcriptionErrorMessage = null;
+  meta.transcriptionLockedAt = null;
+}
+
+/**
+ * 音声差し替え後の transcribeStatus を設定
+ */
+function resetTranscribeStatusForReplace(meta: import("../types").EpisodeMeta): void {
+  if (meta.skipTranscription) {
+    meta.transcribeStatus = "skipped";
+  } else {
+    meta.transcribeStatus = "pending";
+  }
+}
+
+/**
+ * 音声差し替えが許可されている publishStatus かどうか
+ */
+function canReplaceAudio(status: string): boolean {
+  return status === "draft" || status === "scheduled" || status === "published";
+}
+
+/**
+ * POST /api/episodes/:id/replace-url - 音声差し替え用のPresigned URL発行
+ *
+ * 既に音声がアップロード済みのエピソード（draft/scheduled/published）の音声を差し替える。
+ * publishStatus は変更せず、replace-complete で duration/fileSize を更新する。
+ */
+upload.post("/:id/replace-url", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json<UploadUrlRequest>();
+
+  if (!body.contentType || !body.fileSize) {
+    return c.json({ error: "Missing required fields" }, 400);
+  }
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    if (!canReplaceAudio(meta.publishStatus)) {
+      return c.json(
+        { error: `Cannot replace audio: publishStatus is '${meta.publishStatus}'` },
+        400
+      );
+    }
+
+    const r2 = new AwsClient({
+      accessKeyId: c.env.R2_ACCESS_KEY_ID,
+      secretAccessKey: c.env.R2_SECRET_ACCESS_KEY,
+    });
+
+    const key = `episodes/${meta.storageKey}/audio.mp3`;
+    const url = new URL(
+      `https://${c.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${c.env.R2_BUCKET_NAME}/${key}`
+    );
+    url.searchParams.set("X-Amz-Expires", "3600");
+
+    const signed = await r2.sign(
+      new Request(url, {
+        method: "PUT",
+        headers: { "Content-Type": body.contentType },
+      }),
+      { aws: { signQuery: true } }
+    );
+
+    const response: UploadUrlResponse = {
+      uploadUrl: signed.url,
+      expiresIn: 3600,
+    };
+
+    return c.json(response);
+  } catch (err) {
+    console.error(`[replace-url] Error for episode ${id}:`, err);
+    return c.json({ error: "Episode not found" }, 404);
+  }
+});
+
+/**
+ * POST /api/episodes/:id/replace-complete - 音声差し替え完了通知
+ *
+ * publishStatus は変更しない。duration/fileSize を更新し、文字起こしをリセットする。
+ */
+upload.post("/:id/replace-complete", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json<UploadCompleteRequest>();
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    if (!canReplaceAudio(meta.publishStatus)) {
+      return c.json(
+        { error: `Cannot replace audio: publishStatus is '${meta.publishStatus}'` },
+        400
+      );
+    }
+
+    const audioKey = `episodes/${meta.storageKey}/audio.mp3`;
+    let fileSize = body.fileSize || 0;
+
+    if (c.env.IS_DEV !== "true") {
+      const audioObj = await c.env.R2_BUCKET.head(audioKey);
+      if (!audioObj) {
+        return c.json({ error: "Audio file not found in R2" }, 400);
+      }
+      fileSize = audioObj.size;
+    }
+
+    meta.duration = body.duration;
+    meta.fileSize = fileSize;
+    meta.audioUrl = `${c.env.R2_PUBLIC_URL}/${audioKey}`;
+    meta.sourceAudioUrl = null;
+
+    await clearTranscript(c.env, meta);
+    resetTranscribeStatusForReplace(meta);
+
+    await saveEpisodeMeta(c.env, meta);
+
+    if (meta.publishStatus === "published") {
+      await regenerateFeed(c.env);
+      await triggerWebRebuild(c.env);
+    }
+
+    return c.json({
+      id: meta.id,
+      publishStatus: meta.publishStatus,
+      transcribeStatus: meta.transcribeStatus,
+    });
+  } catch {
+    return c.json({ error: "Episode not found" }, 404);
+  }
+});
+
+/**
+ * POST /api/episodes/:id/replace-from-url - URLから音声を差し替え
+ */
+upload.post("/:id/replace-from-url", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json<UploadFromUrlRequest>();
+
+  if (!body.sourceUrl) {
+    return c.json({ error: "Missing sourceUrl" }, 400);
+  }
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    if (!canReplaceAudio(meta.publishStatus)) {
+      return c.json(
+        { error: `Cannot replace audio: publishStatus is '${meta.publishStatus}'` },
+        400
+      );
+    }
+
+    const downloadUrl = convertToDirectDownloadUrl(body.sourceUrl);
+    const audioResponse = await fetch(downloadUrl);
+
+    if (!audioResponse.ok) {
+      return c.json({ error: "Failed to download audio file" }, 400);
+    }
+
+    const audioData = await audioResponse.arrayBuffer();
+
+    const { size } = await saveAudioFile(c.env, meta.storageKey, audioData);
+    const duration = getMp3Duration(audioData);
+
+    meta.duration = duration;
+    meta.fileSize = size;
+    meta.audioUrl = `${c.env.R2_PUBLIC_URL}/episodes/${meta.storageKey}/audio.mp3`;
+    meta.sourceAudioUrl = null;
+
+    await clearTranscript(c.env, meta);
+    resetTranscribeStatusForReplace(meta);
+
+    await saveEpisodeMeta(c.env, meta);
+
+    if (meta.publishStatus === "published") {
+      await regenerateFeed(c.env);
+      await triggerWebRebuild(c.env);
+    }
+
+    return c.json({
+      id: meta.id,
+      publishStatus: meta.publishStatus,
+      transcribeStatus: meta.transcribeStatus,
+    });
+  } catch (error) {
+    console.error(`[replace-from-url] Error for episode ${id}:`, error);
+    return c.json({ error: "Failed to process audio file" }, 500);
+  }
+});
+
+/**
  * POST /api/episodes/:id/artwork/upload-url - エピソードアートワークのPresigned URL発行
  */
 upload.post("/:id/artwork/upload-url", async (c) => {

@@ -75,6 +75,12 @@ export default function EpisodeDetail() {
   const [audioSource, setAudioSource] = useState<"file" | "url">("file");
   const [audioUploadUrl, setAudioUploadUrl] = useState("");
 
+  // Audio replace
+  const [isReplacingAudio, setIsReplacingAudio] = useState(false);
+  const [replaceFile, setReplaceFile] = useState<File | null>(null);
+  const [replaceSource, setReplaceSource] = useState<"file" | "url">("file");
+  const [replaceUploadUrl, setReplaceUploadUrl] = useState("");
+
   // Episode artwork upload
   const [artworkFile, setArtworkFile] = useState<File | null>(null);
   const [artworkPreview, setArtworkPreview] = useState<string | null>(null);
@@ -280,6 +286,65 @@ export default function EpisodeDetail() {
     }
   };
 
+  const handleReplaceAudio = async () => {
+    if (!id || !replaceFile || !episode) return;
+    if (!confirm("音声ファイルを差し替えますか？既存の文字起こしは削除され、必要に応じて再実行されます。")) return;
+
+    try {
+      setIsUploading(true);
+      setUploadMessage("アップロード用URLを取得中...");
+
+      const { uploadUrl } = await api.getReplaceUrl(
+        id,
+        replaceFile.type || "audio/mpeg",
+        replaceFile.size
+      );
+
+      setUploadMessage("音声をアップロード中...");
+      await uploadToR2(uploadUrl, replaceFile);
+
+      setUploadMessage("処理を完了中...");
+      const duration = await getAudioDuration(replaceFile);
+      await api.completeReplace(id, duration, replaceFile.size);
+
+      const updated = await api.getEpisode(id);
+      setEpisode(updated);
+      setReplaceFile(null);
+      setReplaceUploadUrl("");
+      setIsReplacingAudio(false);
+      setUploadMessage("");
+      setTranscriptSegments([]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "差し替えに失敗しました");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleReplaceAudioFromUrl = async () => {
+    if (!id || !replaceUploadUrl.trim() || !episode) return;
+    if (!confirm("音声ファイルを差し替えますか？既存の文字起こしは削除され、必要に応じて再実行されます。")) return;
+
+    try {
+      setIsUploading(true);
+      setUploadMessage("URLから音声を取得中...");
+
+      await api.replaceFromUrl(id, replaceUploadUrl.trim());
+
+      const updated = await api.getEpisode(id);
+      setEpisode(updated);
+      setReplaceUploadUrl("");
+      setReplaceFile(null);
+      setIsReplacingAudio(false);
+      setUploadMessage("");
+      setTranscriptSegments([]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "URLからの差し替えに失敗しました");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const applyTemplate = (template: DescriptionTemplate) => {
     setEditDescription(template.content);
     setShowTemplates(false);
@@ -454,6 +519,127 @@ export default function EpisodeDetail() {
               <audio src={audioUrl} controls className="w-full" />
               {episode.sourceAudioUrl && !episode.audioUrl && (
                 <p className="text-xs text-[var(--color-text-muted)] mt-2">外部音声ファイルを参照しています</p>
+              )}
+              {isEditing && episode.publishStatus !== "uploading" && episode.publishStatus !== "new" && (
+                <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
+                  {!isReplacingAudio ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsReplacingAudio(true)}
+                      className="text-sm text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] inline-flex items-center gap-1.5"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      音声ファイルを差し替える
+                    </button>
+                  ) : (
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-medium text-[var(--color-text-secondary)]">音声ファイルを差し替え</h3>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsReplacingAudio(false);
+                            setReplaceFile(null);
+                            setReplaceUploadUrl("");
+                          }}
+                          disabled={isUploading}
+                          className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+                        >
+                          キャンセル
+                        </button>
+                      </div>
+                      <div className="p-3 bg-[var(--color-warning-muted,var(--color-bg-elevated))] border border-[var(--color-border)] rounded-lg mb-3">
+                        <p className="text-xs text-[var(--color-text-secondary)]">
+                          差し替え後、既存の文字起こしは削除されます。
+                          {episode.skipTranscription
+                            ? "（文字起こしはスキップ設定のため再実行されません）"
+                            : "新しい音声に対して文字起こしが再実行されます。"}
+                        </p>
+                      </div>
+
+                      {/* ソース選択 */}
+                      <div className="flex gap-4 mb-3">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="replaceAudioSource"
+                            value="file"
+                            checked={replaceSource === "file"}
+                            onChange={() => setReplaceSource("file")}
+                            disabled={isUploading}
+                            className="w-4 h-4 text-[var(--color-accent)] bg-[var(--color-bg-base)] border-[var(--color-border)] focus:ring-[var(--color-accent)]"
+                          />
+                          <span className="text-sm text-[var(--color-text-primary)]">ファイルをアップロード</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="replaceAudioSource"
+                            value="url"
+                            checked={replaceSource === "url"}
+                            onChange={() => setReplaceSource("url")}
+                            disabled={isUploading}
+                            className="w-4 h-4 text-[var(--color-accent)] bg-[var(--color-bg-base)] border-[var(--color-border)] focus:ring-[var(--color-accent)]"
+                          />
+                          <span className="text-sm text-[var(--color-text-primary)]">URLから取得</span>
+                        </label>
+                      </div>
+
+                      {replaceSource === "file" ? (
+                        <>
+                          <input
+                            type="file"
+                            accept="audio/*"
+                            onChange={(e) => setReplaceFile(e.target.files?.[0] || null)}
+                            disabled={isUploading}
+                            className="block w-full text-sm text-[var(--color-text-secondary)] file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-[var(--color-bg-elevated)] file:text-[var(--color-text-secondary)] hover:file:bg-[var(--color-bg-hover)] disabled:opacity-50"
+                          />
+                          {replaceFile && (
+                            <div className="mt-3">
+                              <p className="text-sm text-[var(--color-text-secondary)] mb-2">
+                                {replaceFile.name} ({(replaceFile.size / 1024 / 1024).toFixed(1)} MB)
+                              </p>
+                              <button
+                                type="button"
+                                onClick={handleReplaceAudio}
+                                disabled={isUploading}
+                                className="btn btn-primary"
+                              >
+                                {isUploading ? uploadMessage : "差し替えを実行"}
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div>
+                          <input
+                            type="url"
+                            value={replaceUploadUrl}
+                            onChange={(e) => setReplaceUploadUrl(e.target.value)}
+                            placeholder="https://example.com/audio.mp3"
+                            disabled={isUploading}
+                            className="input"
+                          />
+                          <p className="text-xs text-[var(--color-text-faint)] mt-1">NextCloud共有リンクも使用可能です</p>
+                          {replaceUploadUrl.trim() && (
+                            <div className="mt-3">
+                              <button
+                                type="button"
+                                onClick={handleReplaceAudioFromUrl}
+                                disabled={isUploading}
+                                className="btn btn-primary"
+                              >
+                                {isUploading ? uploadMessage : "差し替えを実行"}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           ) : isEditing ? (
