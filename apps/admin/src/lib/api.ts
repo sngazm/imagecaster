@@ -337,6 +337,24 @@ export const api = {
       body: JSON.stringify({ sourceUrl }),
     }),
 
+  getReplaceUrl: (id: string, contentType: string, fileSize: number) =>
+    request<UploadUrlResponse>(`/api/episodes/${id}/replace-url`, {
+      method: "POST",
+      body: JSON.stringify({ contentType, fileSize }),
+    }),
+
+  completeReplace: (id: string, duration: number, fileSize: number) =>
+    request<{ id: string; publishStatus: PublishStatus; transcribeStatus: TranscribeStatus }>(`/api/episodes/${id}/replace-complete`, {
+      method: "POST",
+      body: JSON.stringify({ duration, fileSize }),
+    }),
+
+  replaceFromUrl: (id: string, sourceUrl: string) =>
+    request<{ id: string; publishStatus: PublishStatus; transcribeStatus: TranscribeStatus }>(`/api/episodes/${id}/replace-from-url`, {
+      method: "POST",
+      body: JSON.stringify({ sourceUrl }),
+    }),
+
   retryTranscription: (id: string) =>
     request<{ success: boolean; transcribeStatus: TranscribeStatus }>(`/api/episodes/${id}/retry-transcription`, {
       method: "POST",
