@@ -184,6 +184,10 @@ import Layout from "../layouts/Layout.astro";
     }
   }
 
-  // 初回ロード時とView Transitionsでのページ遷移時に実行
-  document.addEventListener("astro:page-load", initPagefind);
+  // ページ読み込み時に実行
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initPagefind);
+  } else {
+    initPagefind();
+  }
 </script>
