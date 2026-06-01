@@ -1,5 +1,4 @@
 ---
-import { ViewTransitions } from "astro:transitions";
 import { stripHtml } from "../lib/api";
 
 interface Props {
@@ -58,7 +57,6 @@ const absoluteOgImage = toAbsoluteUrl(ogImage);
     <link rel="alternate" type="application/rss+xml" title={siteTitle} href="/feed.xml" />
     <meta name="color-scheme" content="light dark" />
     <title>{fullTitle}</title>
-    <ViewTransitions />
     <!-- テーマ初期化（FOUC防止） -->
     <script is:inline>
       (function initTheme() {
@@ -69,15 +67,6 @@ const absoluteOgImage = toAbsoluteUrl(ogImage);
           document.documentElement.classList.remove('dark');
         }
       })();
-      // View Transitionsでのページ遷移時にもテーマを再適用
-      document.addEventListener('astro:after-swap', function() {
-        const stored = localStorage.getItem('theme');
-        if (stored === 'dark' || (stored !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-          document.documentElement.classList.add('dark');
-        } else {
-          document.documentElement.classList.remove('dark');
-        }
-      });
     </script>
   </head>
   <body class="min-h-screen bg-bg text-text dark:bg-bg-dark dark:text-text-dark">
@@ -234,9 +223,8 @@ const absoluteOgImage = toAbsoluteUrl(ogImage);
         updateThemeIcon(setting);
       }
 
-      // 初回ロード時とView Transitionsでのページ遷移時に実行
+      // 初回ロード時に実行
       setupThemeToggle();
-      document.addEventListener('astro:after-swap', setupThemeToggle);
 
       // システム設定の変更を監視（システムモード時のみ反映）
       window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
