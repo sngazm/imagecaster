@@ -78,6 +78,16 @@ export default function EpisodeNew() {
       return;
     }
 
+    // 音声が未選択の場合は公開不可（下書き保存のみ許可）
+    const hasAudio =
+      (audioSource === "file" && file !== null) ||
+      (audioSource === "url" && audioUrl.trim() !== "");
+    if (!isDraft && !hasAudio) {
+      setStatus("error");
+      setMessage("公開するには音声を選択してください");
+      return;
+    }
+
     try {
       setStatus("creating");
       setMessage("エピソードを作成中...");
@@ -149,6 +159,11 @@ export default function EpisodeNew() {
   };
 
   const isSubmitting = status === "creating" || status === "uploading" || status === "completing";
+
+  // 音声ソースが指定されているか（指定がない場合は公開できず下書き保存のみ）
+  const hasAudioSource =
+    (audioSource === "file" && file !== null) ||
+    (audioSource === "url" && audioUrl.trim() !== "");
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-10">
@@ -514,21 +529,28 @@ export default function EpisodeNew() {
 
             {/* Submit buttons */}
             <div className="space-y-3">
-              <button
-                type="submit"
-                disabled={isSubmitting || status === "done"}
-                className="btn btn-primary w-full py-3"
-              >
-                {isSubmitting ? "処理中..." : (publishAt ? "公開予約" : "今すぐ公開")}
-              </button>
+              {hasAudioSource && (
+                <button
+                  type="submit"
+                  disabled={isSubmitting || status === "done"}
+                  className="btn btn-primary w-full py-3"
+                >
+                  {isSubmitting ? "処理中..." : (publishAt ? "公開予約" : "今すぐ公開")}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={(e) => handleSubmit(e, true)}
                 disabled={isSubmitting || status === "done"}
-                className="btn btn-secondary w-full py-3"
+                className={`btn w-full py-3 ${hasAudioSource ? "btn-secondary" : "btn-primary"}`}
               >
                 下書き保存
               </button>
+              {!hasAudioSource && (
+                <p className="text-xs text-[var(--color-text-faint)]">
+                  音声を選択すると公開できます
+                </p>
+              )}
             </div>
           </div>
         </div>
