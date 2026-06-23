@@ -125,6 +125,16 @@ export function DateTimePicker({
     setIsOpen(false);
   };
 
+  const handleNow = () => {
+    const now = new Date();
+    setSelectedDate(now);
+    setViewDate(now);
+    setSelectedHour(now.getHours());
+    setSelectedMinute(now.getMinutes());
+    onChange(toDateTimeLocal(now));
+    setIsOpen(false);
+  };
+
   const hours = Array.from({ length: 24 }, (_, i) => i);
   const minutes = [0, 10, 20, 30, 40, 50];
 
@@ -262,13 +272,22 @@ export function DateTimePicker({
 
           {/* Actions */}
           <div className="flex items-center justify-between mt-4 pt-4 border-t border-[var(--color-border)]">
-            <button
-              type="button"
-              onClick={handleClear}
-              className="text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
-            >
-              クリア
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleClear}
+                className="text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+              >
+                クリア
+              </button>
+              <button
+                type="button"
+                onClick={handleNow}
+                className="text-sm text-[var(--color-accent)] hover:opacity-80 transition-opacity font-medium"
+              >
+                今すぐ
+              </button>
+            </div>
             <button
               type="button"
               onClick={() => setIsOpen(false)}
