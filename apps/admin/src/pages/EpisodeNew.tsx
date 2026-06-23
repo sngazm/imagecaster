@@ -28,6 +28,11 @@ export default function EpisodeNew() {
   const [templates, setTemplates] = useState<DescriptionTemplate[]>([]);
   const [showTemplates, setShowTemplates] = useState(false);
 
+  // 先行アップロード（ファイル選択時に下書きを作成して音声を先にアップロード）
+  const [draftEpisodeId, setDraftEpisodeId] = useState<string | null>(null);
+  const [audioUploadStatus, setAudioUploadStatus] = useState<"idle" | "uploading" | "uploaded" | "error">("idle");
+  const [audioUploadMessage, setAudioUploadMessage] = useState("");
+
   // Artwork upload
   const [artworkFile, setArtworkFile] = useState<File | null>(null);
   const [artworkPreview, setArtworkPreview] = useState<string | null>(null);
@@ -47,6 +52,73 @@ export default function EpisodeNew() {
     const selected = e.target.files?.[0];
     if (selected) {
       setFile(selected);
+      // ファイル選択時に下書きを作成して音声を先行アップロード
+      void uploadAudioEarly(selected);
+    }
+  };
+
+  /**
+   * ファイル選択時に下書きエピソードを作成し、音声を先にアップロードする。
+   * これにより、アップロード完了を待たずに概要文などの編集を続けられる。
+   * 編集中は publishAt: null（下書き）で作成し、公開日時は最終保存時に確定する。
+   */
+  const uploadAudioEarly = async (selectedFile: File) => {
+    setAudioUploadStatus("uploading");
+    setStatus("idle");
+    setMessage("");
+
+    try {
+      let episodeId = draftEpisodeId;
+      const hadDraft = episodeId !== null;
+
+      // 下書きがなければ作成（タイトル未入力なら仮タイトルで作成し、後で更新）
+      if (!episodeId) {
+        setAudioUploadMessage("下書きを作成中...");
+        const created = await api.createEpisode({
+          title: title.trim() || "無題のエピソード",
+          slug: slug.trim() || undefined,
+          description: description.trim(),
+          publishAt: null, // 編集中は常に下書き。公開日時は最終保存時に確定
+          skipTranscription,
+          blueskyPostText: blueskyPostText.trim() || null,
+          blueskyPostEnabled,
+          referenceLinks,
+        });
+        episodeId = created.id;
+        setDraftEpisodeId(episodeId);
+        // 自動生成された slug を反映（以降は変更不可）
+        if (!slug.trim()) {
+          setSlug(created.slug);
+        }
+      }
+
+      setAudioUploadMessage("音声をアップロード中...");
+      const duration = await getAudioDuration(selectedFile);
+
+      // 既に音声がアップロード済みの下書きへの再選択は差し替え扱い
+      if (hadDraft && audioUploadStatus === "uploaded") {
+        const { uploadUrl } = await api.getReplaceUrl(
+          episodeId,
+          selectedFile.type || "audio/mpeg",
+          selectedFile.size
+        );
+        await uploadToR2(uploadUrl, selectedFile);
+        await api.completeReplace(episodeId, duration, selectedFile.size);
+      } else {
+        const { uploadUrl } = await api.getUploadUrl(
+          episodeId,
+          selectedFile.type || "audio/mpeg",
+          selectedFile.size
+        );
+        await uploadToR2(uploadUrl, selectedFile);
+        await api.completeUpload(episodeId, duration, selectedFile.size);
+      }
+
+      setAudioUploadStatus("uploaded");
+      setAudioUploadMessage("");
+    } catch (err) {
+      setAudioUploadStatus("error");
+      setAudioUploadMessage(err instanceof Error ? err.message : "アップロードに失敗しました");
     }
   };
 
@@ -80,7 +152,7 @@ export default function EpisodeNew() {
 
     // 音声が未選択の場合は公開不可（下書き保存のみ許可）
     const hasAudio =
-      (audioSource === "file" && file !== null) ||
+      (audioSource === "file" && audioUploadStatus === "uploaded") ||
       (audioSource === "url" && audioUrl.trim() !== "");
     if (!isDraft && !hasAudio) {
       setStatus("error");
@@ -88,7 +160,55 @@ export default function EpisodeNew() {
       return;
     }
 
+    // 音声アップロード中は保存させない
+    if (audioUploadStatus === "uploading") {
+      setStatus("error");
+      setMessage("音声のアップロード完了をお待ちください");
+      return;
+    }
+
+    const publishAtValue = isDraft
+      ? null
+      : (publishAt ? localDateTimeToISOString(publishAt) : new Date().toISOString());
+
     try {
+      // 先行アップロードで下書きが作成済みの場合は更新（PUT）
+      if (draftEpisodeId) {
+        setStatus("completing");
+        setMessage("エピソードを保存中...");
+
+        // slug は音声アップロード後に変更できないため送らない
+        await api.updateEpisode(draftEpisodeId, {
+          title: title.trim(),
+          description: description.trim(),
+          publishAt: publishAtValue,
+          skipTranscription,
+          blueskyPostText: blueskyPostText.trim() || null,
+          blueskyPostEnabled,
+          referenceLinks,
+        });
+
+        // アートワークをアップロード
+        if (artworkFile) {
+          setMessage("アートワークをアップロード中...");
+          const { uploadUrl, artworkUrl } = await api.getEpisodeArtworkUploadUrl(
+            draftEpisodeId,
+            artworkFile.type,
+            artworkFile.size
+          );
+          await uploadToR2(uploadUrl, artworkFile);
+          await api.completeEpisodeArtworkUpload(draftEpisodeId, artworkUrl);
+        }
+
+        setStatus("done");
+        setMessage(isDraft
+          ? `エピソード "${title}" を下書き保存しました`
+          : `エピソード "${title}" を登録しました`
+        );
+        setTimeout(() => navigate("/"), 1500);
+        return;
+      }
+
       setStatus("creating");
       setMessage("エピソードを作成中...");
 
@@ -96,7 +216,7 @@ export default function EpisodeNew() {
         title: title.trim(),
         slug: slug.trim() || undefined,
         description: description.trim(),
-        publishAt: isDraft ? null : (publishAt ? localDateTimeToISOString(publishAt) : new Date().toISOString()),
+        publishAt: publishAtValue,
         skipTranscription,
         blueskyPostText: blueskyPostText.trim() || null,
         blueskyPostEnabled,
@@ -158,11 +278,12 @@ export default function EpisodeNew() {
     setShowTemplates(false);
   };
 
+  const isUploadingAudio = audioUploadStatus === "uploading";
   const isSubmitting = status === "creating" || status === "uploading" || status === "completing";
 
   // 音声ソースが指定されているか（指定がない場合は公開できず下書き保存のみ）
   const hasAudioSource =
-    (audioSource === "file" && file !== null) ||
+    (audioSource === "file" && audioUploadStatus === "uploaded") ||
     (audioSource === "url" && audioUrl.trim() !== "");
 
   return (
@@ -221,10 +342,14 @@ export default function EpisodeNew() {
                   value={slug}
                   onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
                   placeholder="my-episode"
-                  disabled={isSubmitting || status === "done"}
+                  disabled={isSubmitting || status === "done" || draftEpisodeId !== null}
                   className="input font-mono text-sm"
                 />
-                <p className="text-xs text-[var(--color-text-faint)] mt-1">URLに使用されます。空欄で自動生成</p>
+                <p className="text-xs text-[var(--color-text-faint)] mt-1">
+                  {draftEpisodeId !== null
+                    ? "音声アップロード後はURLを変更できません"
+                    : "URLに使用されます。空欄で自動生成"}
+                </p>
               </div>
 
               {/* Description with template selector */}
@@ -301,7 +426,7 @@ export default function EpisodeNew() {
                     value="file"
                     checked={audioSource === "file"}
                     onChange={() => setAudioSource("file")}
-                    disabled={isSubmitting || status === "done"}
+                    disabled={isSubmitting || status === "done" || draftEpisodeId !== null}
                     className="w-4 h-4 text-[var(--color-accent)] bg-[var(--color-bg-base)] border-[var(--color-border)] focus:ring-[var(--color-accent)]"
                   />
                   <span className="text-sm text-[var(--color-text-primary)]">ファイルをアップロード</span>
@@ -313,7 +438,7 @@ export default function EpisodeNew() {
                     value="url"
                     checked={audioSource === "url"}
                     onChange={() => setAudioSource("url")}
-                    disabled={isSubmitting || status === "done"}
+                    disabled={isSubmitting || status === "done" || draftEpisodeId !== null}
                     className="w-4 h-4 text-[var(--color-accent)] bg-[var(--color-bg-base)] border-[var(--color-border)] focus:ring-[var(--color-accent)]"
                   />
                   <span className="text-sm text-[var(--color-text-primary)]">URLから取得</span>
@@ -328,12 +453,35 @@ export default function EpisodeNew() {
                     id="audio"
                     accept="audio/*"
                     onChange={handleFileChange}
-                    disabled={isSubmitting || status === "done"}
+                    disabled={isSubmitting || status === "done" || isUploadingAudio}
                     className="w-full px-4 py-4 bg-[var(--color-bg-elevated)] border-2 border-dashed border-[var(--color-border)] rounded-lg text-[var(--color-text-secondary)] file:hidden cursor-pointer hover:border-[var(--color-accent)] focus:outline-none focus:border-[var(--color-accent)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   {file && (
                     <div className="mt-2 text-sm text-[var(--color-text-muted)]">
                       {file.name} ({(file.size / 1024 / 1024).toFixed(1)} MB)
+                    </div>
+                  )}
+                  {/* 先行アップロードの状態表示 */}
+                  {audioUploadStatus === "uploading" && (
+                    <div className="mt-2 flex items-center gap-2 text-sm text-[var(--color-info)]">
+                      <div className="w-4 h-4 border-2 border-[var(--color-info)]/30 border-t-[var(--color-info)] rounded-full animate-spin" />
+                      {audioUploadMessage || "アップロード中..."}
+                    </div>
+                  )}
+                  {audioUploadStatus === "uploaded" && (
+                    <div className="mt-2 flex items-center gap-2 text-sm text-[var(--color-success)]">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      音声をアップロードしました。このまま概要などを編集できます
+                    </div>
+                  )}
+                  {audioUploadStatus === "error" && (
+                    <div className="mt-2 flex items-center gap-2 text-sm text-[var(--color-error)]">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      {audioUploadMessage || "アップロードに失敗しました"}（ファイルを選び直すと再試行します）
                     </div>
                   )}
                 </div>
@@ -355,7 +503,9 @@ export default function EpisodeNew() {
                 </div>
               )}
 
-              <p className="text-xs text-[var(--color-text-faint)] mt-2">後からアップロードすることもできます</p>
+              <p className="text-xs text-[var(--color-text-faint)] mt-2">
+                ファイルを選択すると自動でアップロードを開始します。完了を待たずに概要などを編集できます。後からアップロードすることもできます。
+              </p>
             </div>
 
             {/* アートワーク */}
@@ -532,7 +682,7 @@ export default function EpisodeNew() {
               {hasAudioSource && (
                 <button
                   type="submit"
-                  disabled={isSubmitting || status === "done"}
+                  disabled={isSubmitting || status === "done" || isUploadingAudio}
                   className="btn btn-primary w-full py-3"
                 >
                   {isSubmitting ? "処理中..." : (publishAt ? "公開予約" : "今すぐ公開")}
@@ -541,12 +691,17 @@ export default function EpisodeNew() {
               <button
                 type="button"
                 onClick={(e) => handleSubmit(e, true)}
-                disabled={isSubmitting || status === "done"}
+                disabled={isSubmitting || status === "done" || isUploadingAudio}
                 className={`btn w-full py-3 ${hasAudioSource ? "btn-secondary" : "btn-primary"}`}
               >
                 下書き保存
               </button>
-              {!hasAudioSource && (
+              {isUploadingAudio && (
+                <p className="text-xs text-[var(--color-text-faint)]">
+                  音声のアップロード完了後に保存できます
+                </p>
+              )}
+              {!hasAudioSource && !isUploadingAudio && (
                 <p className="text-xs text-[var(--color-text-faint)]">
                   音声を選択すると公開できます
                 </p>
