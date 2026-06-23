@@ -233,8 +233,9 @@ export default function EpisodeDetail() {
     }
   };
 
-  const handleAudioUpload = async () => {
-    if (!id || !audioFile || !episode) return;
+  const handleAudioUpload = async (fileArg?: File) => {
+    const targetFile = fileArg ?? audioFile;
+    if (!id || !targetFile || !episode) return;
 
     try {
       setIsUploading(true);
@@ -242,16 +243,16 @@ export default function EpisodeDetail() {
 
       const { uploadUrl } = await api.getUploadUrl(
         id,
-        audioFile.type || "audio/mpeg",
-        audioFile.size
+        targetFile.type || "audio/mpeg",
+        targetFile.size
       );
 
       setUploadMessage("音声をアップロード中...");
-      await uploadToR2(uploadUrl, audioFile);
+      await uploadToR2(uploadUrl, targetFile);
 
       setUploadMessage("処理を完了中...");
-      const duration = await getAudioDuration(audioFile);
-      await api.completeUpload(id, duration, audioFile.size);
+      const duration = await getAudioDuration(targetFile);
+      await api.completeUpload(id, duration, targetFile.size);
 
       // リロード
       const updated = await api.getEpisode(id);
@@ -686,21 +687,27 @@ export default function EpisodeDetail() {
                   <input
                     type="file"
                     accept="audio/*"
-                    onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
+                    onChange={(e) => {
+                      const selected = e.target.files?.[0] || null;
+                      setAudioFile(selected);
+                      // ファイル選択時に自動でアップロードを開始
+                      if (selected) handleAudioUpload(selected);
+                    }}
                     disabled={isUploading}
                     className="block w-full text-sm text-[var(--color-text-secondary)] file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-[var(--color-bg-elevated)] file:text-[var(--color-text-secondary)] hover:file:bg-[var(--color-bg-hover)] disabled:opacity-50"
                   />
+                  <p className="text-xs text-[var(--color-text-faint)] mt-2">ファイルを選択すると自動でアップロードを開始します</p>
                   {audioFile && (
                     <div className="mt-3">
                       <p className="text-sm text-[var(--color-text-secondary)] mb-2">
                         {audioFile.name} ({(audioFile.size / 1024 / 1024).toFixed(1)} MB)
                       </p>
                       <button
-                        onClick={handleAudioUpload}
+                        onClick={() => handleAudioUpload()}
                         disabled={isUploading}
                         className="btn btn-primary"
                       >
-                        {isUploading ? uploadMessage : "アップロード"}
+                        {isUploading ? uploadMessage : "再アップロード"}
                       </button>
                     </div>
                   )}
