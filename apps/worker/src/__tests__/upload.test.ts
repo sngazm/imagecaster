@@ -88,6 +88,65 @@ describe("Upload API", () => {
 
       expect(response.status).toBe(404);
     });
+
+    it("allows retry for episode stuck in 'uploading' status", async () => {
+      const { id, storageKey } = await createTestEpisode({
+        title: "Upload Retry Test",
+      });
+
+      // 前回のアップロード失敗で uploading のまま残った状態を再現
+      const meta = await env.R2_BUCKET.get(`episodes/${storageKey}/meta.json`);
+      const data = JSON.parse(await meta!.text());
+      data.publishStatus = "uploading";
+      await env.R2_BUCKET.put(`episodes/${storageKey}/meta.json`, JSON.stringify(data), {
+        httpMetadata: { contentType: "application/json" },
+      });
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/upload-url`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contentType: "audio/mpeg",
+            fileSize: 1024000,
+          }),
+        }
+      );
+
+      // ステータスチェックの400にならないこと（R2クレデンシャルがない環境では404/500になりうる）
+      expect([200, 404, 500]).toContain(response.status);
+    });
+
+    it("rejects upload for episode that already has audio (draft)", async () => {
+      const { id, storageKey } = await createTestEpisode({
+        title: "Upload Draft Reject Test",
+      });
+
+      const meta = await env.R2_BUCKET.get(`episodes/${storageKey}/meta.json`);
+      const data = JSON.parse(await meta!.text());
+      data.publishStatus = "draft";
+      data.audioUrl = "https://example.com/audio.mp3";
+      await env.R2_BUCKET.put(`episodes/${storageKey}/meta.json`, JSON.stringify(data), {
+        httpMetadata: { contentType: "application/json" },
+      });
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/upload-url`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contentType: "audio/mpeg",
+            fileSize: 1024000,
+          }),
+        }
+      );
+
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.error).toBe("Episode is not in new or uploading status");
+    });
   });
 
   describe("POST /api/episodes/:id/upload-complete", () => {
@@ -166,6 +225,35 @@ describe("Upload API", () => {
 
       // エラーハンドリングが500を返す場合がある
       expect([404, 500]).toContain(response.status);
+    });
+
+    it("rejects upload-from-url for episode that already has audio (draft)", async () => {
+      const { id, storageKey } = await createTestEpisode({
+        title: "Upload From URL Draft Reject Test",
+      });
+
+      const meta = await env.R2_BUCKET.get(`episodes/${storageKey}/meta.json`);
+      const data = JSON.parse(await meta!.text());
+      data.publishStatus = "draft";
+      data.audioUrl = "https://example.com/audio.mp3";
+      await env.R2_BUCKET.put(`episodes/${storageKey}/meta.json`, JSON.stringify(data), {
+        httpMetadata: { contentType: "application/json" },
+      });
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/upload-from-url`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sourceUrl: "https://example.com/audio.mp3",
+          }),
+        }
+      );
+
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.error).toBe("Episode is not in new or uploading status");
     });
   });
 

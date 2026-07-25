@@ -59,10 +59,10 @@ upload.post("/:id/upload-url", async (c) => {
     }
     console.log(`[upload-url] Found episode:`, meta);
 
-    // new 状態のみ許可
-    if (meta.publishStatus !== "new") {
+    // new / uploading 状態のみ許可（uploading は前回失敗時のリトライ）
+    if (meta.publishStatus !== "new" && meta.publishStatus !== "uploading") {
       return c.json(
-        { error: "Episode is not in new status" },
+        { error: "Episode is not in new or uploading status" },
         400
       );
     }
@@ -214,10 +214,10 @@ upload.post("/:id/upload-from-url", async (c) => {
       return c.json({ error: "Episode not found" }, 404);
     }
 
-    // new 状態のみ許可
-    if (meta.publishStatus !== "new") {
+    // new / uploading 状態のみ許可（uploading は前回失敗時のリトライ）
+    if (meta.publishStatus !== "new" && meta.publishStatus !== "uploading") {
       return c.json(
-        { error: "Episode is not in new status" },
+        { error: "Episode is not in new or uploading status" },
         400
       );
     }
