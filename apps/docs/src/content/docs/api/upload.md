@@ -67,6 +67,8 @@ interface UploadUrlRequest {
 
 取得した `uploadUrl` に対して `PUT` リクエストで音声ファイルをアップロードしてください。
 
+`publishStatus` が `new` または `uploading` のエピソードのみ許可されます（`uploading` は前回のアップロードが失敗した場合のリトライ用）。それ以外のステータスでは 400 エラー（`Episode is not in new or uploading status`）を返します。音声アップロード済みのエピソードは差し替え用の `/replace-url` を使用してください。
+
 ---
 
 ## POST /api/episodes/:id/upload-complete
@@ -89,6 +91,8 @@ interface UploadCompleteRequest {
 ## POST /api/episodes/:id/upload-from-url
 
 指定した URL から音声ファイルを Worker がダウンロードして R2 に保存します。RSS インポート時に使用します。
+
+`/upload-url` と同様に、`publishStatus` が `new` または `uploading` のエピソードのみ許可されます。ダウンロードに失敗した場合、`publishStatus` は `new` に戻されます。
 
 ### リクエストボディ
 

@@ -60,6 +60,8 @@ new → uploading → draft → scheduled → published
 - API: `POST /api/episodes/:id/upload-url`（Presigned URL 発行）
 - API: `POST /api/episodes/:id/upload-from-url`（URL からダウンロード）
 
+アップロードが途中で失敗すると `uploading` のまま残ることがあります。この状態でも上記 2 つの API は再実行（リトライ）を許可しているため、管理画面から再度アップロードすれば復帰できます。なお `upload-from-url` はダウンロード失敗時に `new` へ自動で戻します。
+
 ### `draft`
 
 音声ファイルのアップロードが完了した状態。公開予約なし。
