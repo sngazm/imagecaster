@@ -1,7 +1,8 @@
 import { useState, useEffect, FormEvent, ChangeEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, uploadToR2, getAudioDuration, localDateTimeToISOString } from "../lib/api";
-import type { DescriptionTemplate, ReferenceLink } from "../lib/api";
+import type { DescriptionTemplate, ReferenceLink, UploadProgress } from "../lib/api";
+import { UploadProgressBar } from "../components/UploadProgressBar";
 import { HtmlEditor, type PreviewContext } from "../components/HtmlEditor";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { BlueskyPostEditor } from "../components/BlueskyPostEditor";
@@ -32,6 +33,7 @@ export default function EpisodeNew() {
   const [draftEpisodeId, setDraftEpisodeId] = useState<string | null>(null);
   const [audioUploadStatus, setAudioUploadStatus] = useState<"idle" | "uploading" | "uploaded" | "error">("idle");
   const [audioUploadMessage, setAudioUploadMessage] = useState("");
+  const [audioUploadProgress, setAudioUploadProgress] = useState<UploadProgress | null>(null);
 
   // Artwork upload
   const [artworkFile, setArtworkFile] = useState<File | null>(null);
@@ -93,6 +95,7 @@ export default function EpisodeNew() {
       }
 
       setAudioUploadMessage("音声をアップロード中...");
+      setAudioUploadProgress({ loaded: 0, total: selectedFile.size, percent: 0 });
       const duration = await getAudioDuration(selectedFile);
 
       // 既に音声がアップロード済みの下書きへの再選択は差し替え扱い
@@ -102,7 +105,7 @@ export default function EpisodeNew() {
           selectedFile.type || "audio/mpeg",
           selectedFile.size
         );
-        await uploadToR2(uploadUrl, selectedFile);
+        await uploadToR2(uploadUrl, selectedFile, setAudioUploadProgress);
         await api.completeReplace(episodeId, duration, selectedFile.size);
       } else {
         const { uploadUrl } = await api.getUploadUrl(
@@ -110,15 +113,17 @@ export default function EpisodeNew() {
           selectedFile.type || "audio/mpeg",
           selectedFile.size
         );
-        await uploadToR2(uploadUrl, selectedFile);
+        await uploadToR2(uploadUrl, selectedFile, setAudioUploadProgress);
         await api.completeUpload(episodeId, duration, selectedFile.size);
       }
 
       setAudioUploadStatus("uploaded");
       setAudioUploadMessage("");
+      setAudioUploadProgress(null);
     } catch (err) {
       setAudioUploadStatus("error");
       setAudioUploadMessage(err instanceof Error ? err.message : "アップロードに失敗しました");
+      setAudioUploadProgress(null);
     }
   };
 
@@ -239,6 +244,7 @@ export default function EpisodeNew() {
       if (audioSource === "file" && file) {
         setStatus("uploading");
         setMessage("音声をアップロード中...");
+        setAudioUploadProgress({ loaded: 0, total: file.size, percent: 0 });
 
         const { uploadUrl } = await api.getUploadUrl(
           episode.id,
@@ -246,7 +252,8 @@ export default function EpisodeNew() {
           file.size
         );
 
-        await uploadToR2(uploadUrl, file);
+        await uploadToR2(uploadUrl, file, setAudioUploadProgress);
+        setAudioUploadProgress(null);
 
         setStatus("completing");
         setMessage("処理を完了中...");
@@ -270,6 +277,7 @@ export default function EpisodeNew() {
     } catch (err) {
       setStatus("error");
       setMessage(err instanceof Error ? err.message : "エラーが発生しました");
+      setAudioUploadProgress(null);
     }
   };
 
@@ -463,9 +471,14 @@ export default function EpisodeNew() {
                   )}
                   {/* 先行アップロードの状態表示 */}
                   {audioUploadStatus === "uploading" && (
-                    <div className="mt-2 flex items-center gap-2 text-sm text-[var(--color-info)]">
-                      <div className="w-4 h-4 border-2 border-[var(--color-info)]/30 border-t-[var(--color-info)] rounded-full animate-spin" />
-                      {audioUploadMessage || "アップロード中..."}
+                    <div className="mt-2 space-y-2">
+                      <div className="flex items-center gap-2 text-sm text-[var(--color-info)]">
+                        <div className="w-4 h-4 border-2 border-[var(--color-info)]/30 border-t-[var(--color-info)] rounded-full animate-spin" />
+                        {audioUploadMessage || "アップロード中..."}
+                      </div>
+                      {audioUploadProgress && (
+                        <UploadProgressBar progress={audioUploadProgress} />
+                      )}
                     </div>
                   )}
                   {audioUploadStatus === "uploaded" && (
@@ -653,9 +666,14 @@ export default function EpisodeNew() {
 
             {/* Status messages */}
             {status !== "idle" && status !== "done" && status !== "error" && (
-              <div className="flex items-center gap-3 p-4 bg-[var(--color-info-muted)] border border-[var(--color-info)] rounded-lg text-[var(--color-info)]">
-                <div className="w-5 h-5 border-2 border-[var(--color-info)]/30 border-t-[var(--color-info)] rounded-full animate-spin" />
-                {message}
+              <div className="p-4 bg-[var(--color-info-muted)] border border-[var(--color-info)] rounded-lg text-[var(--color-info)] space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 border-2 border-[var(--color-info)]/30 border-t-[var(--color-info)] rounded-full animate-spin" />
+                  {message}
+                </div>
+                {status === "uploading" && audioUploadProgress && (
+                  <UploadProgressBar progress={audioUploadProgress} />
+                )}
               </div>
             )}
 

@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { api, EpisodeDetail as EpisodeDetailType, formatDuration, formatFileSize, uploadToR2, getAudioDuration, utcToLocalDateTimeString, localDateTimeToISOString, fetchTranscriptSegments } from "../lib/api";
-import type { DescriptionTemplate, ReferenceLink, TranscriptSegment, PublishStatus, TranscribeStatus } from "../lib/api";
+import type { DescriptionTemplate, ReferenceLink, TranscriptSegment, PublishStatus, TranscribeStatus, UploadProgress } from "../lib/api";
+import { UploadProgressBar } from "../components/UploadProgressBar";
 import { HtmlEditor, type PreviewContext } from "../components/HtmlEditor";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { BlueskyPostEditor } from "../components/BlueskyPostEditor";
@@ -72,6 +73,7 @@ export default function EpisodeDetail() {
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState("");
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [audioSource, setAudioSource] = useState<"file" | "url">("file");
   const [audioUploadUrl, setAudioUploadUrl] = useState("");
 
@@ -248,7 +250,9 @@ export default function EpisodeDetail() {
       );
 
       setUploadMessage("音声をアップロード中...");
-      await uploadToR2(uploadUrl, targetFile);
+      setUploadProgress({ loaded: 0, total: targetFile.size, percent: 0 });
+      await uploadToR2(uploadUrl, targetFile, setUploadProgress);
+      setUploadProgress(null);
 
       setUploadMessage("処理を完了中...");
       const duration = await getAudioDuration(targetFile);
@@ -263,6 +267,7 @@ export default function EpisodeDetail() {
       setError(err instanceof Error ? err.message : "アップロードに失敗しました");
     } finally {
       setIsUploading(false);
+      setUploadProgress(null);
     }
   };
 
@@ -302,7 +307,9 @@ export default function EpisodeDetail() {
       );
 
       setUploadMessage("音声をアップロード中...");
-      await uploadToR2(uploadUrl, replaceFile);
+      setUploadProgress({ loaded: 0, total: replaceFile.size, percent: 0 });
+      await uploadToR2(uploadUrl, replaceFile, setUploadProgress);
+      setUploadProgress(null);
 
       setUploadMessage("処理を完了中...");
       const duration = await getAudioDuration(replaceFile);
@@ -319,6 +326,7 @@ export default function EpisodeDetail() {
       setError(err instanceof Error ? err.message : "差し替えに失敗しました");
     } finally {
       setIsUploading(false);
+      setUploadProgress(null);
     }
   };
 
@@ -610,6 +618,11 @@ export default function EpisodeDetail() {
                               >
                                 {isUploading ? uploadMessage : "差し替えを実行"}
                               </button>
+                              {isUploading && uploadProgress && (
+                                <div className="mt-3">
+                                  <UploadProgressBar progress={uploadProgress} />
+                                </div>
+                              )}
                             </div>
                           )}
                         </>
@@ -709,6 +722,11 @@ export default function EpisodeDetail() {
                       >
                         {isUploading ? uploadMessage : "再アップロード"}
                       </button>
+                      {isUploading && uploadProgress && (
+                        <div className="mt-3">
+                          <UploadProgressBar progress={uploadProgress} />
+                        </div>
+                      )}
                     </div>
                   )}
                 </>

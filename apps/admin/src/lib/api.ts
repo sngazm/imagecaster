@@ -493,18 +493,45 @@ export const api = {
     }),
 };
 
-export async function uploadToR2(uploadUrl: string, file: File): Promise<void> {
-  const res = await fetch(uploadUrl, {
-    method: "PUT",
-    body: file,
-    headers: {
-      "Content-Type": file.type,
-    },
-  });
+export interface UploadProgress {
+  loaded: number;
+  total: number;
+  percent: number;
+}
 
-  if (!res.ok) {
-    throw new Error("Failed to upload file to R2");
-  }
+export function uploadToR2(
+  uploadUrl: string,
+  file: File,
+  onProgress?: (progress: UploadProgress) => void
+): Promise<void> {
+  // fetch ではアップロード進捗が取得できないため XMLHttpRequest を使用
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", uploadUrl);
+    xhr.setRequestHeader("Content-Type", file.type);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress({
+          loaded: e.loaded,
+          total: e.total,
+          percent: Math.round((e.loaded / e.total) * 100),
+        });
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        reject(new Error("Failed to upload file to R2"));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Failed to upload file to R2"));
+    xhr.onabort = () => reject(new Error("Upload aborted"));
+
+    xhr.send(file);
+  });
 }
 
 export function getAudioDuration(file: File): Promise<number> {
