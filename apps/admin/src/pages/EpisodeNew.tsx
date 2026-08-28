@@ -19,7 +19,7 @@ export default function EpisodeNew() {
   const [audioSource, setAudioSource] = useState<AudioSource>("file");
   const [file, setFile] = useState<File | null>(null);
   const [audioUrl, setAudioUrl] = useState("");
-  const [skipTranscription, setSkipTranscription] = useState(true);
+  const [skipTranscription, setSkipTranscription] = useState(false);
   const [publishAt, setPublishAt] = useState<string>("");
   const [blueskyPostText, setBlueskyPostText] = useState("{{TITLE}}\n{{EPISODE_URL}}");
   const [blueskyPostEnabled, setBlueskyPostEnabled] = useState(false);

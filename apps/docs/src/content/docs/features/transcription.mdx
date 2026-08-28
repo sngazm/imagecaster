@@ -115,6 +115,8 @@ POST /api/episodes
 
 この場合、`transcribeStatus` は `skipped` のままになり、キューには追加されません。
 
+API のデフォルトは `false`（文字起こしを実行）です。管理画面の新規エピソード作成フォームでも、「文字起こしをスキップ」チェックボックスは初期状態でオフになっています。
+
 ## hideTranscription オプション
 
 `hideTranscription: true` を設定すると、文字起こしが完了していても公開サイトに表示されません。

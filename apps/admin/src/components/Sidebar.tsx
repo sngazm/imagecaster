@@ -1,7 +1,10 @@
+import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { BuildStatus } from "./BuildStatus";
 import { useTheme, type ThemeMode } from "../hooks/useTheme";
 import { useMobileMenu } from "../contexts/MobileMenuContext";
+import { api } from "../lib/api";
+import { getWebsiteUrl, getEnvironment } from "../lib/env";
 
 interface NavItem {
   to: string;
@@ -65,6 +68,26 @@ export function Sidebar() {
   const location = useLocation();
   const { mode, cycleTheme } = useTheme();
   const { isOpen, close } = useMobileMenu();
+  const [websiteUrl, setWebsiteUrl] = useState<string | null>(null);
+
+  // Webサイトへのリンク用URLを取得
+  useEffect(() => {
+    if (getEnvironment() === "local") {
+      // ローカル環境ではダミー値を渡す（getWebsiteUrlがローカルURLに変換する）
+      setWebsiteUrl(getWebsiteUrl("local"));
+      return;
+    }
+    api
+      .getSettings()
+      .then((settings) => {
+        if (settings.websiteUrl) {
+          setWebsiteUrl(getWebsiteUrl(settings.websiteUrl));
+        }
+      })
+      .catch((err) => {
+        console.error("設定の取得に失敗しました:", err);
+      });
+  }, []);
 
   // 新規作成・詳細ページのときもエピソードをアクティブにする
   const isEpisodesActive = location.pathname === "/" ||
@@ -105,6 +128,21 @@ export function Sidebar() {
                 管理画面
               </p>
             </div>
+            {/* Webサイトを開く */}
+            {websiteUrl && (
+              <a
+                href={websiteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 -mr-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+                title="Webサイトを開く"
+                aria-label="Webサイトを開く"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            )}
             {/* モバイル用閉じるボタン */}
             <button
               onClick={close}

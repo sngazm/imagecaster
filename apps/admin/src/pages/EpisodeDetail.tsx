@@ -477,25 +477,24 @@ export default function EpisodeDetail() {
               </div>
             )}
             {!isEditing && (
-              <div className="flex items-center gap-3 mt-1">
-                <p className="text-xs text-[var(--color-text-muted)] font-mono">{episode.slug || episode.id}</p>
-                {canShowWebLink && episodeWebUrl && (
-                  <a
-                    href={episodeWebUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] transition-colors"
-                  >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                    Webで見る
-                  </a>
-                )}
-              </div>
+              <p className="text-xs text-[var(--color-text-muted)] font-mono mt-1">{episode.slug || episode.id}</p>
             )}
           </div>
           <div className="flex items-center gap-2">
+            {/* Webページを開く */}
+            {canShowWebLink && episodeWebUrl && (
+              <a
+                href={episodeWebUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] border border-[var(--color-border)] hover:border-[var(--color-border-strong)] rounded-md transition-colors whitespace-nowrap"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+                Webで見る
+              </a>
+            )}
             {/* 文字起こし状態を表示（特定の状態のみ） */}
             {(episode.transcribeStatus === "pending" ||
               episode.transcribeStatus === "transcribing" ||
