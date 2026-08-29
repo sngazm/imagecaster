@@ -123,12 +123,16 @@ Podcast カバーアート用 Presigned URL を発行します。
       enabled: boolean;
       note?: string;   // なぜこのルールを入れたか
     }>;
+
+    // 同時発話を検出する範囲（冒頭からの秒数）。null なら検出しない
+    simultaneousUntilSec: number | null;
   };
 }
 ```
 
 不正な値（トラック番号が 0 以下、`from` が空のルールなど）は保存時に取り除かれます。
 話者名に空文字を渡した場合は `null`（非発話トラック）として保存されます。
+`simultaneousUntilSec` に 0 以下を渡した場合は `null`（検出しない）になります。
 
 設定を変えただけでは既存のエピソードは変わりません。過去の分に反映するには
 `POST /api/transcription/reprocess-all` を使います。

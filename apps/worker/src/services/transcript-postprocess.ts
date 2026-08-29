@@ -214,6 +214,8 @@ export const DEFAULT_POST_PROCESS_SETTINGS: TranscriptPostProcessSettings = {
   speakerDefaults: [],
   merge: DEFAULT_MERGE_OPTIONS,
   corrections: [],
+  // 既定では同時発話を検出しない。会話中の相槌のかぶりまで拾うと誤検出が多すぎるため
+  simultaneousUntilSec: null,
 };
 
 function toFiniteNumber(value: unknown, fallback: number): number {
@@ -324,10 +326,17 @@ export function sanitizePostProcessSettings(
 
   const entry = input as Record<string, unknown>;
 
+  const rawUntil = entry.simultaneousUntilSec;
+
   return {
     speakerDefaults: sanitizeSpeakerTracks(entry.speakerDefaults),
     merge: sanitizeMerge(entry.merge),
     corrections: sanitizeCorrections(entry.corrections),
+    // 0 以下は「検出しない」と同じ意味なので null に寄せる
+    simultaneousUntilSec:
+      typeof rawUntil === "number" && Number.isFinite(rawUntil) && rawUntil > 0
+        ? rawUntil
+        : null,
   };
 }
 

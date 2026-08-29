@@ -117,6 +117,8 @@ export interface TranscriptPostProcessSettings {
   speakerDefaults: SpeakerTrackAssignment[];
   merge: MergeSettings;
   corrections: CorrectionRule[];
+  /** 同時発話を検出する範囲（冒頭からの秒数）。null なら検出しない */
+  simultaneousUntilSec?: number | null;
 }
 
 export interface PodcastSettings {

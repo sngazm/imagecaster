@@ -281,6 +281,7 @@ describe("文字起こしの後処理設定", () => {
         speakerDefaults: unknown[];
         merge: { enabled: boolean; maxDurationSec: number };
         corrections: unknown[];
+        simultaneousUntilSec: number | null;
       };
     };
 
@@ -288,6 +289,52 @@ describe("文字起こしの後処理設定", () => {
     expect(json.transcriptPostProcess.merge.enabled).toBe(true);
     expect(json.transcriptPostProcess.speakerDefaults).toEqual([]);
     expect(json.transcriptPostProcess.corrections).toEqual([]);
+    // 既定では同時発話を検出しない
+    expect(json.transcriptPostProcess.simultaneousUntilSec).toBeNull();
+  });
+
+  it("同時発話の検出範囲を保存する", async () => {
+    await SELF.fetch("http://localhost/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        transcriptPostProcess: {
+          speakerDefaults: [],
+          merge: { enabled: true, maxGapSec: null, maxDurationSec: 10, maxChars: 200 },
+          corrections: [],
+          simultaneousUntilSec: 30,
+        },
+      }),
+    });
+
+    const response = await SELF.fetch("http://localhost/api/settings");
+    const json = (await response.json()) as {
+      transcriptPostProcess: { simultaneousUntilSec: number | null };
+    };
+
+    expect(json.transcriptPostProcess.simultaneousUntilSec).toBe(30);
+  });
+
+  it("0 以下の検出範囲は「検出しない」として保存する", async () => {
+    await SELF.fetch("http://localhost/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        transcriptPostProcess: {
+          speakerDefaults: [],
+          merge: { enabled: true, maxGapSec: null, maxDurationSec: 10, maxChars: 200 },
+          corrections: [],
+          simultaneousUntilSec: 0,
+        },
+      }),
+    });
+
+    const response = await SELF.fetch("http://localhost/api/settings");
+    const json = (await response.json()) as {
+      transcriptPostProcess: { simultaneousUntilSec: number | null };
+    };
+
+    expect(json.transcriptPostProcess.simultaneousUntilSec).toBeNull();
   });
 
   it("話者の既定割り当てと辞書を保存する", async () => {

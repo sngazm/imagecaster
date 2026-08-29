@@ -121,6 +121,7 @@ transcriptionQueue.get("/queue", async (c) => {
         });
         item.tracksZipUrl = signed.url;
         item.speakerTracks = resolveSpeakerTracks(meta.speakerTracks, settings);
+        item.simultaneousUntilSec = settings?.simultaneousUntilSec ?? null;
       }
 
       queueItems.push(item);

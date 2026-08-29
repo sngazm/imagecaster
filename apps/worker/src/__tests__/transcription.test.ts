@@ -806,12 +806,15 @@ describe("話者トラックと後処理", () => {
           id: string;
           tracksZipUrl?: string;
           speakerTracks?: Array<{ track: number; label: string | null }>;
+          simultaneousUntilSec?: number | null;
         }>;
       };
 
       const item = json.episodes.find((e) => e.id === id);
       expect(item).toBeDefined();
       expect(item?.tracksZipUrl).toContain("tracks.zip");
+      // 番組設定から解決される（未設定なら null = 検出しない）
+      expect(item).toHaveProperty("simultaneousUntilSec");
       expect(item?.speakerTracks).toEqual([
         { track: 1, label: "あずま" },
         { track: 2, label: "鉄塔" },

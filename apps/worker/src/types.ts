@@ -71,6 +71,14 @@ export interface TranscriptPostProcessSettings {
   speakerDefaults: SpeakerTrackAssignment[];
   merge: MergeSettings;
   corrections: CorrectionRule[];
+  /**
+   * 同時発話を検出する範囲（冒頭からの秒数）。null なら検出しない。
+   *
+   * 番組冒頭で声を揃える箇所のように、同時発話が起きる場所が決まっている場合にだけ
+   * 指定する。本編の会話中まで検出を効かせると、相槌のかぶりや同時に笑った箇所を
+   * 拾ってしまい、誤検出のほうが圧倒的に多くなる。
+   */
+  simultaneousUntilSec?: number | null;
 }
 
 /**
@@ -287,6 +295,8 @@ export interface TranscriptionQueueItem {
   tracksZipUrl?: string | null;
   // トラック番号 → 話者名。エピソード固有の設定があればそれ、なければ番組の既定値
   speakerTracks?: SpeakerTrackAssignment[];
+  // 同時発話を検出する範囲（冒頭からの秒数）。null / 未設定なら検出しない
+  simultaneousUntilSec?: number | null;
 }
 
 /**

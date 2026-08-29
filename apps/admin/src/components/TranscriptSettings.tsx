@@ -23,6 +23,7 @@ export function TranscriptSettings({ value, onSaved }: Props) {
     speakerDefaults: value.speakerDefaults ?? [],
     merge: { ...DEFAULT_MERGE, ...value.merge },
     corrections: value.corrections ?? [],
+    simultaneousUntilSec: value.simultaneousUntilSec ?? null,
   });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -173,6 +174,47 @@ export function TranscriptSettings({ value, onSaved }: Props) {
         <button type="button" onClick={addSpeaker} className="btn btn-ghost mt-3">
           トラックを追加
         </button>
+
+        <div className="border-t border-[var(--color-border)] mt-4 pt-4">
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={draft.simultaneousUntilSec !== null}
+              onChange={(e) =>
+                update({ simultaneousUntilSec: e.target.checked ? 30 : null })
+              }
+            />
+            <span className="text-sm">
+              冒頭で 2 人が声を揃える箇所がある
+              <span className="block text-xs text-[var(--color-text-muted)] mt-1">
+                指定した範囲の中で声が重なっている区間を「あずま &amp; 鉄塔」のような
+                連名で表示します。本編の会話中は相槌のかぶりや同時に笑った箇所まで
+                拾ってしまうため、範囲の外では検出しません。
+              </span>
+            </span>
+          </label>
+
+          {draft.simultaneousUntilSec !== null && (
+            <div className="mt-3 flex items-center gap-2">
+              <span className="text-sm text-[var(--color-text-secondary)]">冒頭から</span>
+              <div className="w-24">
+                <input
+                  type="number"
+                  min={1}
+                  value={draft.simultaneousUntilSec}
+                  onChange={(e) =>
+                    update({
+                      simultaneousUntilSec: parseInt(e.target.value, 10) || 1,
+                    })
+                  }
+                  className="input"
+                />
+              </div>
+              <span className="text-sm text-[var(--color-text-secondary)]">秒まで</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* セグメント統合 */}

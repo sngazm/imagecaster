@@ -63,6 +63,8 @@ interface TranscriptionQueueItem {
     track: number;               // zip 内のトラック番号
     label: string | null;        // 話者名。null は BGM 等の非発話トラック
   }>;
+  // 同時発話を検出する範囲（冒頭からの秒数）。null なら検出しない
+  simultaneousUntilSec?: number | null;
 }
 ```
 
