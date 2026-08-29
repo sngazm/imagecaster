@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import JSZip from "jszip";
 import { api, uploadToR2 } from "../lib/api";
+import { TranscriptSettings } from "../components/TranscriptSettings";
 import type { PodcastSettings, DescriptionTemplate, ExportManifest } from "../lib/api";
 import { HtmlEditor } from "../components/HtmlEditor";
 
@@ -34,7 +35,7 @@ const LANGUAGES = [
 ];
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState<"general" | "templates" | "import" | "backup" | "environment" | "danger">("general");
+  const [activeTab, setActiveTab] = useState<"general" | "transcript" | "templates" | "import" | "backup" | "environment" | "danger">("general");
   const [settings, setSettings] = useState<PodcastSettings | null>(null);
   const [templates, setTemplates] = useState<DescriptionTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -592,6 +593,16 @@ export default function Settings() {
           基本設定
         </button>
         <button
+          onClick={() => setActiveTab("transcript")}
+          className={`px-4 py-2.5 text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
+            activeTab === "transcript"
+              ? "text-[var(--color-accent)] border-b-2 border-[var(--color-accent)]"
+              : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+          }`}
+        >
+          文字起こし
+        </button>
+        <button
           onClick={() => setActiveTab("templates")}
           className={`px-4 py-2.5 text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
             activeTab === "templates"
@@ -1000,6 +1011,24 @@ export default function Settings() {
             </button>
           </div>
         </form>
+      )}
+
+      {/* 文字起こしの後処理 */}
+      {activeTab === "transcript" && settings && (
+        <TranscriptSettings
+          value={
+            settings.transcriptPostProcess ?? {
+              speakerDefaults: [],
+              merge: { enabled: true, maxGapSec: null, maxDurationSec: 10, maxChars: 200 },
+              corrections: [],
+            }
+          }
+          onSaved={(transcriptPostProcess) =>
+            setSettings((current) =>
+              current ? { ...current, transcriptPostProcess } : current
+            )
+          }
+        />
       )}
 
       {/* Templates */}

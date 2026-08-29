@@ -6,6 +6,7 @@ import type {
   UploadUrlResponse,
   UploadCompleteRequest,
   UploadFromUrlRequest,
+  TracksUploadCompleteRequest,
 } from "../types";
 import {
   getIndex,
@@ -13,7 +14,9 @@ import {
   saveEpisodeMeta,
   saveAudioFile,
   syncPublishedIndex,
+  createPresignedUrl,
 } from "../services/r2";
+import { sanitizeSpeakerTracks } from "../services/transcript-postprocess";
 import { regenerateFeed } from "../services/feed";
 import { postEpisodeToBluesky } from "../services/bluesky";
 import { triggerWebRebuild } from "../services/deploy";
@@ -603,6 +606,114 @@ upload.post("/:id/artwork/upload-complete", async (c) => {
 
     return c.json({ success: true, artworkUrl: body.artworkUrl });
   } catch {
+    return c.json({ error: "Episode not found" }, 404);
+  }
+});
+
+/**
+ * 話者トラック zip の R2 キー
+ */
+export function tracksKey(storageKey: string): string {
+  return `episodes/${storageKey}/tracks.zip`;
+}
+
+/**
+ * POST /api/episodes/:id/tracks/upload-url - 話者トラック zip の Presigned URL 発行
+ *
+ * 話者ごとに分かれた音声トラックの zip をアップロードするための URL を返す。
+ * 数百 MB になるため Worker は経由せず R2 へ直接 PUT する。
+ */
+upload.post("/:id/tracks/upload-url", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json<UploadUrlRequest>();
+
+  if (!body.contentType || !body.fileSize) {
+    return c.json({ error: "Missing required fields" }, 400);
+  }
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    const signed = await createPresignedUrl(c.env, tracksKey(meta.storageKey), {
+      method: "PUT",
+      contentType: body.contentType,
+    });
+
+    return c.json({ uploadUrl: signed.url, expiresIn: signed.expiresIn });
+  } catch (err) {
+    console.error(`[tracks/upload-url] Error for episode ${id}:`, err);
+    return c.json({ error: "Episode not found" }, 404);
+  }
+});
+
+/**
+ * POST /api/episodes/:id/tracks/upload-complete - 話者トラックのアップロード完了通知
+ *
+ * トラック番号への話者割り当ても同時に受け取る。ゲスト回でトラック構成が変わるため、
+ * 番組全体の既定値ではなくエピソードごとに指定できるようにしている。
+ */
+upload.post("/:id/tracks/upload-complete", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json<TracksUploadCompleteRequest>();
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    const object = await c.env.R2_BUCKET.head(tracksKey(meta.storageKey));
+    if (!object) {
+      // Presigned URL での PUT 直後は Workers バインディングから見えないことがある。
+      // 音声アップロードと同じく、リトライ可能な 503 を返して呼び出し側に委ねる。
+      return c.json({ error: "Tracks file not visible in R2 yet. Retry later." }, 503);
+    }
+
+    meta.tracksUploadedAt = new Date().toISOString();
+
+    if (body.speakerTracks !== undefined) {
+      meta.speakerTracks =
+        body.speakerTracks === null ? null : sanitizeSpeakerTracks(body.speakerTracks);
+    }
+
+    await saveEpisodeMeta(c.env, meta);
+
+    return c.json({
+      success: true,
+      tracksUploadedAt: meta.tracksUploadedAt,
+      speakerTracks: meta.speakerTracks ?? null,
+    });
+  } catch (err) {
+    console.error(`[tracks/upload-complete] Error for episode ${id}:`, err);
+    return c.json({ error: "Episode not found" }, 404);
+  }
+});
+
+/**
+ * DELETE /api/episodes/:id/tracks - 話者トラック zip を削除
+ *
+ * 話者判定が済めば不要になる。数百 MB あるため残しておく理由がない。
+ */
+upload.delete("/:id/tracks", async (c) => {
+  const id = c.req.param("id");
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    await c.env.R2_BUCKET.delete(tracksKey(meta.storageKey));
+
+    meta.tracksUploadedAt = null;
+    await saveEpisodeMeta(c.env, meta);
+
+    return c.json({ success: true });
+  } catch (err) {
+    console.error(`[tracks/delete] Error for episode ${id}:`, err);
     return c.json({ error: "Episode not found" }, 404);
   }
 });

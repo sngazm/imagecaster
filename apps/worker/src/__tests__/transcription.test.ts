@@ -274,13 +274,13 @@ describe("Transcription Queue API", () => {
       const index = JSON.parse(await indexObj!.text());
       expect(index.transcriptionQueueIds).toContain(id);
 
-      // transcript.json を置いて完了させる
+      // transcript.raw.json を置いて完了させる
       const transcriptData: TranscriptData = {
         segments: [{ start: 0, end: 1, text: "テスト" }],
         language: "ja",
       };
       await env.R2_BUCKET.put(
-        `episodes/${storageKey}/transcript.json`,
+        `episodes/${storageKey}/transcript.raw.json`,
         JSON.stringify(transcriptData)
       );
 
@@ -423,7 +423,7 @@ describe("Transcription Episode APIs", () => {
       const json = (await response.json()) as { uploadUrl: string; expiresIn: number };
       expect(json.uploadUrl).toBeDefined();
       expect(json.uploadUrl).toContain("r2.cloudflarestorage.com");
-      expect(json.uploadUrl).toContain("transcript.json");
+      expect(json.uploadUrl).toContain("transcript.raw.json");
       expect(json.expiresIn).toBe(3600);
     });
 
@@ -545,7 +545,7 @@ describe("Transcription Episode APIs", () => {
 
 describe("Transcription Complete with JSON", () => {
   describe("POST /api/episodes/:id/transcription-complete", () => {
-    it("returns a retryable 503 when transcript.json is not visible yet", async () => {
+    it("returns a retryable 503 when transcript.raw.json is not visible yet", async () => {
       const { id, storageKey } = await createTestEpisode({
         title: "Transcription Complete Test",
         publishAt: new Date(Date.now() + 86400000).toISOString(),
@@ -554,7 +554,7 @@ describe("Transcription Complete with JSON", () => {
 
       await setEpisodeToTranscribing(storageKey, id);
 
-      // transcript.json をアップロードせずに完了を通知
+      // transcript.raw.json をアップロードせずに完了を通知
       const response = await SELF.fetch(
         `http://localhost/api/episodes/${id}/transcription-complete`,
         {
@@ -627,7 +627,7 @@ describe("Transcription Complete with JSON", () => {
 
       await setEpisodeToTranscribing(storageKey, id);
 
-      // transcript.json をR2にアップロード
+      // transcript.raw.json をR2にアップロード
       const transcriptData: TranscriptData = {
         segments: [
           { start: 0, end: 2.5, text: "テストセグメント1" },
@@ -637,7 +637,7 @@ describe("Transcription Complete with JSON", () => {
       };
 
       await env.R2_BUCKET.put(
-        `episodes/${storageKey}/transcript.json`,
+        `episodes/${storageKey}/transcript.raw.json`,
         JSON.stringify(transcriptData),
         { httpMetadata: { contentType: "application/json" } }
       );
@@ -691,7 +691,7 @@ describe("Transcription Complete with JSON", () => {
         language: "ja",
       };
       await env.R2_BUCKET.put(
-        `episodes/${storageKey}/transcript.json`,
+        `episodes/${storageKey}/transcript.raw.json`,
         JSON.stringify(transcriptData)
       );
 
@@ -727,7 +727,7 @@ describe("Transcription Complete with JSON", () => {
 
       // 不正な構造のJSONをアップロード
       await env.R2_BUCKET.put(
-        `episodes/${storageKey}/transcript.json`,
+        `episodes/${storageKey}/transcript.raw.json`,
         JSON.stringify({ invalid: "structure" }),
         { httpMetadata: { contentType: "application/json" } }
       );
@@ -775,6 +775,184 @@ describe("Transcription Complete with JSON", () => {
       const metaObj = await env.R2_BUCKET.get(`episodes/${storageKey}/meta.json`);
       const meta = JSON.parse(await metaObj!.text());
       expect(meta.transcriptionLockedAt).toBeNull();
+    });
+  });
+});
+
+describe("話者トラックと後処理", () => {
+  describe("GET /api/transcription/queue", () => {
+    it("話者トラックがあれば zip の URL と話者の割り当てを返す", async () => {
+      const { id, storageKey } = await createTestEpisode({
+        title: "Queue With Tracks",
+      });
+      await setEpisodeToTranscribing(storageKey, id);
+
+      await env.R2_BUCKET.put(`episodes/${storageKey}/tracks.zip`, "dummy");
+      await SELF.fetch(`http://localhost/api/episodes/${id}/tracks/upload-complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          speakerTracks: [
+            { track: 1, label: "あずま" },
+            { track: 2, label: "鉄塔" },
+            { track: 3, label: null },
+          ],
+        }),
+      });
+
+      const response = await SELF.fetch("http://localhost/api/transcription/queue");
+      const json = (await response.json()) as {
+        episodes: Array<{
+          id: string;
+          tracksZipUrl?: string;
+          speakerTracks?: Array<{ track: number; label: string | null }>;
+        }>;
+      };
+
+      const item = json.episodes.find((e) => e.id === id);
+      expect(item).toBeDefined();
+      expect(item?.tracksZipUrl).toContain("tracks.zip");
+      expect(item?.speakerTracks).toEqual([
+        { track: 1, label: "あずま" },
+        { track: 2, label: "鉄塔" },
+        { track: 3, label: null },
+      ]);
+    });
+
+    it("話者トラックが無ければ zip の URL は含めない", async () => {
+      const { id, storageKey } = await createTestEpisode({
+        title: "Queue Without Tracks",
+      });
+      await setEpisodeToTranscribing(storageKey, id);
+
+      const response = await SELF.fetch("http://localhost/api/transcription/queue");
+      const json = (await response.json()) as {
+        episodes: Array<{ id: string; tracksZipUrl?: string }>;
+      };
+
+      const item = json.episodes.find((e) => e.id === id);
+      expect(item?.tracksZipUrl).toBeUndefined();
+    });
+  });
+
+  describe("POST /api/episodes/:id/transcript/reprocess", () => {
+    /** 生データを置いて文字起こし済みの状態にする */
+    async function completeWithRaw(
+      id: string,
+      storageKey: string,
+      data: TranscriptData
+    ): Promise<void> {
+      await setEpisodeToTranscribing(storageKey, id);
+      await env.R2_BUCKET.put(
+        `episodes/${storageKey}/transcript.raw.json`,
+        JSON.stringify(data)
+      );
+      await SELF.fetch(
+        `http://localhost/api/episodes/${id}/transcription-complete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transcribeStatus: "completed" }),
+        }
+      );
+    }
+
+    it("生データから作り直す", async () => {
+      const { id, storageKey } = await createTestEpisode({ title: "Reprocess" });
+      await completeWithRaw(id, storageKey, {
+        language: "ja",
+        segments: [
+          { start: 0, end: 2, text: "こんにちは", speaker: "あずま" },
+          { start: 2, end: 4, text: "どうも", speaker: "あずま" },
+        ],
+      });
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/transcript/reprocess`,
+        { method: "POST" }
+      );
+
+      expect(response.status).toBe(200);
+      const json = (await response.json()) as { segments: number };
+      // 同一話者なので 1 つに統合される
+      expect(json.segments).toBe(1);
+    });
+
+    it("辞書の変更が既存エピソードに反映される", async () => {
+      const { id, storageKey } = await createTestEpisode({
+        title: "Reprocess With Dictionary",
+      });
+      await completeWithRaw(id, storageKey, {
+        language: "ja",
+        segments: [{ start: 0, end: 2, text: "テトです", speaker: "鉄塔" }],
+      });
+
+      // 辞書を登録してから再処理する
+      await SELF.fetch("http://localhost/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          transcriptPostProcess: {
+            speakerDefaults: [],
+            merge: { enabled: true, maxGapSec: null, maxDurationSec: 10, maxChars: 200 },
+            corrections: [{ from: "テト", to: "鉄塔", enabled: true }],
+          },
+        }),
+      });
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/transcript/reprocess`,
+        { method: "POST" }
+      );
+
+      expect(response.status).toBe(200);
+      const json = (await response.json()) as {
+        applied: Array<{ from: string; to: string; count: number }>;
+      };
+      expect(json.applied).toEqual([{ from: "テト", to: "鉄塔", count: 1 }]);
+
+      const vtt = await env.R2_BUCKET.get(`episodes/${storageKey}/transcript.vtt`);
+      expect(await vtt?.text()).toContain("鉄塔です");
+    });
+
+    it("生データが無ければ 400 を返す", async () => {
+      const { id } = await createTestEpisode({ title: "Reprocess Without Raw" });
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/transcript/reprocess`,
+        { method: "POST" }
+      );
+
+      expect(response.status).toBe(400);
+    });
+
+  });
+
+  describe("POST /api/transcription/reprocess-all", () => {
+    it("公開済みエピソードを再処理待ちに積む", async () => {
+      // index.json に載るのは公開済みエピソードなので、それを直接用意する
+      const indexObj = await env.R2_BUCKET.get("index.json");
+      const index = JSON.parse((await indexObj?.text()) ?? "{}");
+      index.episodes = [
+        { id: "published-1", storageKey: "published-1-key" },
+        { id: "published-2", storageKey: "published-2-key" },
+      ];
+      await env.R2_BUCKET.put("index.json", JSON.stringify(index));
+
+      const response = await SELF.fetch(
+        "http://localhost/api/transcription/reprocess-all",
+        { method: "POST" }
+      );
+
+      expect(response.status).toBe(200);
+      const json = (await response.json()) as { queued: number };
+      expect(json.queued).toBe(2);
+
+      // Cron が消化するためのリストが積まれている
+      const after = JSON.parse(
+        (await (await env.R2_BUCKET.get("index.json"))?.text()) ?? "{}"
+      );
+      expect(after.transcriptReprocessIds).toEqual(["published-1", "published-2"]);
     });
   });
 });

@@ -80,6 +80,7 @@ pnpm test
 | デプロイ手順の変更 | `deployment/guide.md` |
 | 開発コマンドの変更 | `development/local.md` |
 | テストファイルの追加 | `development/testing.md` |
+| 話者分離・後処理の変更 | `features/speaker-separation.md` |
 
 ## 技術スタック
 
@@ -132,6 +133,10 @@ await jwtVerify(jwt, JWKS, { audience: ACCESS_AUD });
 | POST | /api/episodes/:id/transcription-complete | 文字起こし完了 |
 | POST | /api/episodes/:id/artwork/upload-url | アートワークURL発行 |
 | POST | /api/episodes/:id/artwork/upload-complete | アートワーク完了通知 |
+| POST | /api/episodes/:id/tracks/upload-url | 話者トラックzipのURL発行 |
+| POST | /api/episodes/:id/tracks/upload-complete | 話者トラック完了通知 |
+| DELETE | /api/episodes/:id/tracks | 話者トラック削除 |
+| POST | /api/episodes/:id/transcript/reprocess | 後処理のやり直し |
 
 ### Settings
 | Method | Path | 説明 |
@@ -155,6 +160,7 @@ await jwtVerify(jwt, JWKS, { audience: ACCESS_AUD });
 |--------|------|------|
 | POST | /api/import/rss | RSSインポート |
 | POST | /api/import/rss/preview | RSSプレビュー |
+| POST | /api/transcription/reprocess-all | 全エピソードの後処理やり直し |
 | GET | /api/deployments | デプロイ状況 |
 | GET | /api/health | ヘルスチェック（認証不要） |
 
@@ -191,10 +197,13 @@ pnpm deploy:admin     # 管理画面デプロイ
 podcast-bucket/
 ├── episodes/
 │   └── {slug}/
-│       ├── meta.json       # メタデータ
-│       ├── audio.mp3       # 音声
-│       ├── transcript.vtt  # 文字起こし
-│       └── artwork.jpg     # エピソードアートワーク（任意）
+│       ├── meta.json            # メタデータ
+│       ├── audio.mp3            # 音声
+│       ├── tracks.zip           # 話者トラック（任意・処理後は削除可）
+│       ├── transcript.raw.json  # Whisperの生出力（後処理の入力）
+│       ├── transcript.json      # 後処理済み
+│       ├── transcript.vtt       # 後処理済みVTT（公開サイトが読む）
+│       └── artwork.jpg          # エピソードアートワーク（任意）
 ├── templates.json          # テンプレート一覧
 ├── index.json              # エピソード一覧 + Podcast設定
 ├── feed.xml                # RSSフィード

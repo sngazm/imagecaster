@@ -13,7 +13,15 @@ import {
   saveEpisodeMeta,
   getIndex,
   saveIndex,
+  createPresignedUrl,
 } from "../services/r2";
+import {
+  applyPostProcessAndSave,
+  resolveSpeakerTracks,
+  transcriptKeys,
+} from "../services/transcript-postprocess";
+import { triggerWebRebuild } from "../services/deploy";
+import { tracksKey } from "./upload";
 
 /**
  * ソフトロックのタイムアウト時間（1時間）
@@ -85,6 +93,8 @@ transcriptionQueue.get("/queue", async (c) => {
 
   const candidates = await getQueueCandidates(c.env);
   const queueItems: TranscriptionQueueItem[] = [];
+  const index = await getIndex(c.env);
+  const settings = index.podcast.transcriptPostProcess;
 
   for (const meta of candidates) {
     if (queueItems.length >= limit) {
@@ -94,7 +104,7 @@ transcriptionQueue.get("/queue", async (c) => {
     // pending または transcribing でロックが無効なエピソードのみ取得
     const isPendingOrTranscribing = meta.transcribeStatus === "pending" || meta.transcribeStatus === "transcribing";
     if (isPendingOrTranscribing && !isLockValid(meta.transcriptionLockedAt)) {
-      queueItems.push({
+      const item: TranscriptionQueueItem = {
         id: meta.id,
         slug: meta.slug,
         title: meta.title,
@@ -102,7 +112,18 @@ transcriptionQueue.get("/queue", async (c) => {
         sourceAudioUrl: meta.sourceAudioUrl,
         duration: meta.duration,
         lockedAt: meta.transcriptionLockedAt || "",
-      });
+      };
+
+      // 話者トラックがあれば、ダウンロード URL と話者の割り当てを渡す
+      if (meta.tracksUploadedAt) {
+        const signed = await createPresignedUrl(c.env, tracksKey(meta.storageKey), {
+          method: "GET",
+        });
+        item.tracksZipUrl = signed.url;
+        item.speakerTracks = resolveSpeakerTracks(meta.speakerTracks, settings);
+      }
+
+      queueItems.push(item);
     }
   }
 
@@ -176,7 +197,7 @@ transcriptionEpisodes.get("/:id/audio-url", async (c) => {
 });
 
 /**
- * POST /api/episodes/:id/transcript/upload-url - 文字起こしJSONアップロード用Presigned URL発行
+ * POST /api/episodes/:id/transcript/upload-url - 文字起こし生データのアップロード用Presigned URL発行
  */
 transcriptionEpisodes.post("/:id/transcript/upload-url", async (c) => {
   const id = c.req.param("id");
@@ -192,29 +213,17 @@ transcriptionEpisodes.post("/:id/transcript/upload-url", async (c) => {
       return c.json({ error: "Episode is not in pending or transcribing status" }, 400);
     }
 
-    // Presigned URL 生成
-    const r2 = new AwsClient({
-      accessKeyId: c.env.R2_ACCESS_KEY_ID,
-      secretAccessKey: c.env.R2_SECRET_ACCESS_KEY,
-    });
-
-    const key = `episodes/${meta.storageKey}/transcript.json`;
-    const url = new URL(
-      `https://${c.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${c.env.R2_BUCKET_NAME}/${key}`
-    );
-    url.searchParams.set("X-Amz-Expires", "3600");
-
-    const signed = await r2.sign(
-      new Request(url, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-      }),
-      { aws: { signQuery: true } }
+    // Whisper の生出力として保存する。統合や誤字修正はこれを入力に Worker 側で行い、
+    // 公開用の transcript.json / transcript.vtt を別に書き出す。
+    const signed = await createPresignedUrl(
+      c.env,
+      transcriptKeys(meta.storageKey).raw,
+      { method: "PUT", contentType: "application/json" }
     );
 
     const response: UploadUrlResponse = {
       uploadUrl: signed.url,
-      expiresIn: 3600,
+      expiresIn: signed.expiresIn,
     };
 
     return c.json(response);
@@ -291,6 +300,71 @@ transcriptionEpisodes.delete("/:id/transcription-lock", async (c) => {
   } catch {
     return c.json({ error: "Episode not found" }, 404);
   }
+});
+
+/**
+ * POST /api/episodes/:id/transcript/reprocess - 後処理をやり直す
+ *
+ * Whisper の生出力から統合と誤字修正をかけ直す。文字起こし自体は再実行しないので、
+ * 辞書や統合条件を変えたときに即座に反映できる。
+ */
+transcriptionEpisodes.post("/:id/transcript/reprocess", async (c) => {
+  const id = c.req.param("id");
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    const index = await getIndex(c.env);
+    const result = await applyPostProcessAndSave(
+      c.env,
+      meta,
+      index.podcast.transcriptPostProcess
+    );
+
+    if (!result) {
+      return c.json({ error: "No transcript available to reprocess" }, 400);
+    }
+
+    await saveEpisodeMeta(c.env, meta);
+
+    // 公開済みなら公開サイトの文字起こしも作り直す
+    if (meta.publishStatus === "published") {
+      await triggerWebRebuild(c.env);
+    }
+
+    return c.json({
+      success: true,
+      segments: result.segments,
+      applied: result.applied,
+    });
+  } catch (err) {
+    console.error(`[transcript/reprocess] Error for episode ${id}:`, err);
+    return c.json({ error: "Failed to reprocess transcript" }, 500);
+  }
+});
+
+/**
+ * POST /api/transcription/reprocess-all - 全エピソードの後処理をやり直す
+ *
+ * 辞書を育てたときに過去のエピソードへ一括で反映するために使う。エピソード数が
+ * 多いとリソース制限に当たるため、対象を index.json に積んで Cron に少しずつ
+ * 処理させる（予約公開やフィード再生成と同じやり方）。
+ */
+transcriptionQueue.post("/reprocess-all", async (c) => {
+  const index = await getIndex(c.env);
+
+  // 対象は公開済みエピソード（index.json に載っているもの）。公開サイトに出ている
+  // 文字起こしを作り直すのが目的で、未公開のものは公開前に個別に再処理すればよい。
+  // 全件を走査すると Worker のリソース制限に当たるため、ここでは index だけを見る。
+  const targets = index.episodes.map((ep) => ep.id);
+
+  index.transcriptReprocessIds = targets;
+  await saveIndex(c.env, index);
+
+  return c.json({ success: true, queued: targets.length });
 });
 
 export { transcriptionQueue, transcriptionEpisodes };

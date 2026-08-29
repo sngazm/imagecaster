@@ -19,18 +19,24 @@ Worker                      外部文字起こしサービス
    │                                │
    │◄─ GET /api/transcription/queue ┤  （定期ポーリング）
    │                                │
-   ├─────────────────────────────► ─┤  音声ダウンロード
+   ├─────────────────────────────► ─┤  音声・話者トラックをダウンロード
    │                                │  Whisper 等で処理
-   │                                ├─ transcript.json を R2 に PUT
+   │                                │  （話者トラックがあれば話者を判定）
+   │                                ├─ transcript.raw.json を R2 に PUT
    │                                │
    │◄─ POST /api/episodes/:id/      │
    │       transcription-complete ──┤
    │                                │
-   ├─ JSON を検証して VTT に変換     │
-   ├─ transcript.vtt を R2 に保存    │
+   ├─ 生データを検証                 │
+   ├─ 後処理（統合・誤字修正）        │
+   ├─ transcript.json / .vtt を保存  │
    ├─ transcribeStatus: "completed" │
    └─ transcriptUrl を更新          │
 ```
+
+生データ（`transcript.raw.json`）と公開用（`transcript.json` / `transcript.vtt`）を分けて
+保存しています。統合の条件や誤字の辞書を変えたときに、文字起こしをやり直さずに
+公開用だけを作り直せるようにするためです。
 
 ## 文字起こしキュー API
 
@@ -51,6 +57,12 @@ interface TranscriptionQueueItem {
   sourceAudioUrl: string | null;
   duration: number;
   lockedAt: string;              // ロック取得時刻（1時間で自動解除）
+  // 話者トラックがアップロードされている場合のみ
+  tracksZipUrl?: string | null;  // zip のダウンロード URL（Presigned）
+  speakerTracks?: Array<{
+    track: number;               // zip 内のトラック番号
+    label: string | null;        // 話者名。null は BGM 等の非発話トラック
+  }>;
 }
 ```
 
@@ -153,3 +165,41 @@ PUT /api/episodes/:id
 <Aside type="note">
 文字起こしサービスの実装例については `docs/TRANSCRIBER.md` を参照してください。
 </Aside>
+
+## 後処理のやり直し
+
+Whisper の生出力は `transcript.raw.json` として残るため、文字起こしを実行し直さずに
+統合の条件や誤字の辞書だけを適用し直せます。
+
+### POST /api/episodes/:id/transcript/reprocess
+
+1 エピソードの公開用ファイル（`transcript.json` / `transcript.vtt`）を作り直します。
+
+```typescript
+{
+  success: boolean;
+  segments: number;   // 後処理後のセグメント数
+  applied: Array<{    // 効いた置き換えルールと件数
+    from: string;
+    to: string;
+    count: number;
+  }>;
+}
+```
+
+話者分離の導入前に作られたエピソードには生データがありません。その場合は
+後処理前のデータが入っている `transcript.json` を一度だけ生データとして複製し、
+以後の入力にします。複製しないと、後処理済みのファイルを入力にしてしまい
+統合や置き換えが二重にかかります。
+
+### POST /api/transcription/reprocess-all
+
+公開済みエピソード（`index.json` に載っているもの）をまとめて再処理待ちに積みます。
+
+```typescript
+{ success: boolean; queued: number }
+```
+
+全件を 1 リクエストで処理すると Worker のリソース制限に達するため、対象を
+`index.json` の `transcriptReprocessIds` に積み、Cron が 1 回あたり 10 件ずつ
+消化します。すべて終わると公開サイトのビルドが走ります。

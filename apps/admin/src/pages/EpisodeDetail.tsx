@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { api, EpisodeDetail as EpisodeDetailType, formatDuration, formatFileSize, uploadToR2, getAudioDuration, utcToLocalDateTimeString, localDateTimeToISOString, fetchTranscriptSegments } from "../lib/api";
-import type { DescriptionTemplate, ReferenceLink, TranscriptSegment, PublishStatus, TranscribeStatus, UploadProgress } from "../lib/api";
+import { SpeakerTracksPanel } from "../components/SpeakerTracksPanel";
+import type { DescriptionTemplate, ReferenceLink, TranscriptSegment, PublishStatus, TranscribeStatus, UploadProgress, SpeakerTrackAssignment } from "../lib/api";
 import { UploadProgressBar } from "../components/UploadProgressBar";
 import { HtmlEditor, type PreviewContext } from "../components/HtmlEditor";
 import { DateTimePicker } from "../components/DateTimePicker";
@@ -74,6 +75,8 @@ export default function EpisodeDetail() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState("");
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
+  // 話者トラックの既定割り当て（番組設定から）
+  const [speakerDefaults, setSpeakerDefaults] = useState<SpeakerTrackAssignment[]>([]);
   const [audioSource, setAudioSource] = useState<"file" | "url">("file");
   const [audioUploadUrl, setAudioUploadUrl] = useState("");
 
@@ -128,18 +131,20 @@ export default function EpisodeDetail() {
           fetchTranscriptSegments(data.transcriptUrl).then(setTranscriptSegments);
         }
 
-        // websiteUrlの取得（settingsから）
-        if (env === "local") {
-          // ローカル環境ではダミー値を設定（getWebsiteUrlがローカルURLに変換する）
-          setBaseWebsiteUrl("local");
-        } else {
-          try {
-            const settingsData = await api.getSettings();
-            if (settingsData.websiteUrl) {
-              setBaseWebsiteUrl(settingsData.websiteUrl);
-            }
-          } catch (err) {
-            console.error("設定の取得に失敗しました:", err);
+        // 番組設定の取得（公開サイトURL・話者トラックの既定割り当て）
+        try {
+          const settingsData = await api.getSettings();
+          if (env === "local") {
+            // ローカル環境ではダミー値を設定（getWebsiteUrlがローカルURLに変換する）
+            setBaseWebsiteUrl("local");
+          } else if (settingsData.websiteUrl) {
+            setBaseWebsiteUrl(settingsData.websiteUrl);
+          }
+          setSpeakerDefaults(settingsData.transcriptPostProcess?.speakerDefaults ?? []);
+        } catch (err) {
+          console.error("設定の取得に失敗しました:", err);
+          if (env === "local") {
+            setBaseWebsiteUrl("local");
           }
         }
       } catch (err) {
@@ -215,6 +220,15 @@ export default function EpisodeDetail() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "削除に失敗しました");
       setIsDeleting(false);
+    }
+  };
+
+  const reloadEpisode = async () => {
+    if (!id) return;
+    try {
+      setEpisode(await api.getEpisode(id));
+    } catch (err) {
+      console.error("エピソードの再読み込みに失敗しました:", err);
     }
   };
 
@@ -976,6 +990,20 @@ export default function EpisodeDetail() {
                     </svg>
                     文字起こしを表示
                   </a>
+                )}
+
+                {/* 話者トラック（音量で話者を判定するための素材） */}
+                {!episode.skipTranscription && (
+                  <div className="border-t border-[var(--color-border)] pt-4">
+                    <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-3">
+                      話者トラック
+                    </h3>
+                    <SpeakerTracksPanel
+                      episode={episode}
+                      defaults={speakerDefaults}
+                      onUpdated={reloadEpisode}
+                    />
+                  </div>
                 )}
               </div>
             ) : (

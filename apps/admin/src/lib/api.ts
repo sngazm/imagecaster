@@ -76,6 +76,47 @@ export interface EpisodeDetail {
   spotifyUrl: string | null;
   // 文字起こしエラー
   transcriptionErrorMessage?: string | null;
+  // 話者トラック（zip）
+  tracksUploadedAt?: string | null;
+  speakerTracks?: SpeakerTrackAssignment[] | null;
+  transcriptRawUrl?: string | null;
+}
+
+/**
+ * 話者トラックの割り当て
+ *
+ * label が null のトラックは BGM などの非発話トラックで、話者判定から除外される。
+ */
+export interface SpeakerTrackAssignment {
+  track: number;
+  label: string | null;
+}
+
+/**
+ * セグメント統合の設定
+ */
+export interface MergeSettings {
+  enabled: boolean;
+  /** これ以上の間が空いていたら統合しない（秒）。null なら間を条件にしない */
+  maxGapSec: number | null;
+  maxDurationSec: number;
+  maxChars: number;
+}
+
+/**
+ * 誤字修正の置換ルール
+ */
+export interface CorrectionRule {
+  from: string;
+  to: string;
+  enabled: boolean;
+  note?: string;
+}
+
+export interface TranscriptPostProcessSettings {
+  speakerDefaults: SpeakerTrackAssignment[];
+  merge: MergeSettings;
+  corrections: CorrectionRule[];
 }
 
 export interface PodcastSettings {
@@ -98,6 +139,8 @@ export interface PodcastSettings {
   spotifyUrl?: string;
   // アナリティクス
   analyticsPrefix?: string;
+  // 文字起こしの後処理設定
+  transcriptPostProcess?: TranscriptPostProcessSettings;
 }
 
 export interface DescriptionTemplate {
@@ -359,6 +402,45 @@ export const api = {
     request<{ success: boolean; transcribeStatus: TranscribeStatus }>(`/api/episodes/${id}/retry-transcription`, {
       method: "POST",
     }),
+
+  // 話者トラック（zip）
+  getTracksUploadUrl: (id: string, contentType: string, fileSize: number) =>
+    request<{ uploadUrl: string; expiresIn: number }>(
+      `/api/episodes/${id}/tracks/upload-url`,
+      { method: "POST", body: JSON.stringify({ contentType, fileSize }) }
+    ),
+
+  completeTracksUpload: (
+    id: string,
+    speakerTracks?: SpeakerTrackAssignment[] | null
+  ) =>
+    request<{
+      success: boolean;
+      tracksUploadedAt: string;
+      speakerTracks: SpeakerTrackAssignment[] | null;
+    }>(`/api/episodes/${id}/tracks/upload-complete`, {
+      method: "POST",
+      body: JSON.stringify({ speakerTracks }),
+    }),
+
+  deleteTracks: (id: string) =>
+    request<{ success: boolean }>(`/api/episodes/${id}/tracks`, {
+      method: "DELETE",
+    }),
+
+  // 文字起こしの後処理
+  reprocessTranscript: (id: string) =>
+    request<{
+      success: boolean;
+      segments: number;
+      applied: Array<{ from: string; to: string; count: number }>;
+    }>(`/api/episodes/${id}/transcript/reprocess`, { method: "POST" }),
+
+  reprocessAllTranscripts: () =>
+    request<{ success: boolean; queued: number }>(
+      "/api/transcription/reprocess-all",
+      { method: "POST" }
+    ),
 
   // Settings
   getSettings: () =>

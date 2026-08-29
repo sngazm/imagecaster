@@ -29,6 +29,51 @@ export interface Env {
 }
 
 /**
+ * 話者トラックの割り当て
+ *
+ * label が null のトラックは BGM などの非発話トラックで、話者判定の候補から外す。
+ */
+export interface SpeakerTrackAssignment {
+  track: number;
+  label: string | null;
+}
+
+/**
+ * セグメント統合の設定
+ */
+export interface MergeSettings {
+  enabled: boolean;
+  /** これ以上の間が空いていたら統合しない（秒）。null なら間を条件にしない */
+  maxGapSec: number | null;
+  /** 統合後の 1 セグメントの最大長（秒） */
+  maxDurationSec: number;
+  /** 統合後の 1 セグメントの最大文字数 */
+  maxChars: number;
+}
+
+/**
+ * 誤字修正の置換ルール
+ */
+export interface CorrectionRule {
+  from: string;
+  to: string;
+  enabled: boolean;
+  /** なぜこのルールを入れたか（管理画面での判断材料） */
+  note?: string;
+}
+
+/**
+ * 文字起こし後処理の設定
+ *
+ * 番組全体の既定値。エピソードごとの話者割り当ては EpisodeMeta.speakerTracks で上書きする。
+ */
+export interface TranscriptPostProcessSettings {
+  speakerDefaults: SpeakerTrackAssignment[];
+  merge: MergeSettings;
+  corrections: CorrectionRule[];
+}
+
+/**
  * Podcast 全体のインデックス (index.json)
  * 公開用: published のエピソードのみ含む
  */
@@ -52,6 +97,8 @@ export interface PodcastIndex {
     spotifyUrl?: string;
     // 配信アナリティクス
     analyticsPrefix?: string; // オーディオURLに付与するプレフィックス (例: https://op3.dev/e/)
+    // 文字起こしの後処理設定（話者の既定割り当て・統合条件・誤字辞書）
+    transcriptPostProcess?: TranscriptPostProcessSettings;
   };
   episodes: Array<{
     id: string;
@@ -62,6 +109,9 @@ export interface PodcastIndex {
   // 文字起こし待ち/処理中エピソードのID一覧（キュー取得の全件走査を避けるため）
   // undefined の場合は未構築を意味し、次回のキュー取得時に全件走査で初期化される
   transcriptionQueueIds?: string[];
+  // 後処理のやり直し待ちエピソードのID一覧（Cronが少しずつ処理する）
+  // 辞書や統合条件を変えたときに全エピソードへ再適用するために使う
+  transcriptReprocessIds?: string[];
 }
 
 /**
@@ -143,6 +193,12 @@ export interface EpisodeMeta {
   transcriptionLockedAt?: string | null;
   // 文字起こし失敗時のエラーメッセージ
   transcriptionErrorMessage?: string | null;
+  // 話者トラック（zip）をアップロード済みの場合の日時
+  tracksUploadedAt?: string | null;
+  // エピソード固有の話者割り当て。null / undefined なら番組の既定値を使う
+  speakerTracks?: SpeakerTrackAssignment[] | null;
+  // Whisper の生出力（話者判定済み・後処理前）の URL
+  transcriptRawUrl?: string | null;
 }
 
 /**
@@ -179,6 +235,14 @@ export interface UpdateEpisodeRequest {
   spotifyUrl?: string | null;
   // 文字起こしリトライ用（failed → pending）
   transcribeStatus?: TranscribeStatus;
+}
+
+/**
+ * 話者トラック zip のアップロード完了通知
+ */
+export interface TracksUploadCompleteRequest {
+  /** トラック番号への話者割り当て。省略時は番組の既定値を使う */
+  speakerTracks?: SpeakerTrackAssignment[] | null;
 }
 
 /**
@@ -219,6 +283,10 @@ export interface TranscriptionQueueItem {
   sourceAudioUrl: string | null; // 外部参照URL（RSSインポート時）
   duration: number;
   lockedAt: string; // ロック取得時刻
+  // 話者トラックの zip がある場合のダウンロード URL（Presigned、有効期限あり）
+  tracksZipUrl?: string | null;
+  // トラック番号 → 話者名。エピソード固有の設定があればそれ、なければ番組の既定値
+  speakerTracks?: SpeakerTrackAssignment[];
 }
 
 /**
@@ -333,6 +401,8 @@ export interface UpdatePodcastSettingsRequest {
   spotifyUrl?: string;
   // 配信アナリティクス
   analyticsPrefix?: string | null;
+  // 文字起こしの後処理設定（話者の既定割り当て・統合条件・誤字辞書）
+  transcriptPostProcess?: TranscriptPostProcessSettings;
 }
 
 /**

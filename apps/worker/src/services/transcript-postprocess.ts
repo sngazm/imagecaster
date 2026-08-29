@@ -7,7 +7,17 @@
  * 一括で反映できるのはこの分離のため。
  */
 
-import type { TranscriptData, TranscriptSegment } from "../types";
+import type {
+  CorrectionRule,
+  Env,
+  EpisodeMeta,
+  MergeSettings,
+  SpeakerTrackAssignment,
+  TranscriptData,
+  TranscriptPostProcessSettings,
+  TranscriptSegment,
+} from "../types";
+import { convertToVtt, validateTranscriptData } from "./vtt";
 
 /**
  * セグメント統合の設定
@@ -15,40 +25,12 @@ import type { TranscriptData, TranscriptSegment } from "../types";
  * Whisper は音響的な切れ目でセグメントを分けるため、同じ人の続きの発話が
  * 複数のチャンクに割れる。話者が同じで間が短いものをまとめて読みやすくする。
  */
-export interface MergeOptions {
-  enabled: boolean;
-  /**
-   * これ以上の間が空いていたら、話者が同じでも統合しない（秒）
-   * null なら間の長さを考慮しない（会話では無音が入らないことが多いため既定は null）
-   */
-  maxGapSec: number | null;
-  /** 統合後の 1 セグメントの最大長（秒） */
-  maxDurationSec: number;
-  /** 統合後の 1 セグメントの最大文字数（長さの上限に対する保険） */
-  maxChars: number;
-}
-
-export const DEFAULT_MERGE_OPTIONS: MergeOptions = {
+export const DEFAULT_MERGE_OPTIONS: MergeSettings = {
   enabled: true,
   maxGapSec: null,
   maxDurationSec: 10,
   maxChars: 200,
 };
-
-/**
- * 誤字の置換ルール
- *
- * Whisper は固有名詞を取り違える（「鉄塔」が「テト」「テッド」になる等）。
- * LLM に本文を直接書き換えさせると毎回結果が変わって検証できないため、
- * 実際の置換はこの辞書による決定的な処理で行う。LLM は候補の提案に使う。
- */
-export interface Correction {
-  from: string;
-  to: string;
-  enabled: boolean;
-  /** なぜこのルールを入れたか（管理画面での判断材料） */
-  note?: string;
-}
 
 /** どのルールが何回効いたか。辞書を育てるための手がかりにする */
 export interface AppliedCorrection {
@@ -63,8 +45,8 @@ export interface CorrectionResult {
 }
 
 export interface PostProcessOptions {
-  merge?: Partial<MergeOptions>;
-  corrections?: Correction[];
+  merge?: Partial<MergeSettings>;
+  corrections?: CorrectionRule[];
 }
 
 /**
@@ -99,9 +81,9 @@ function isSameSpeaker(a: TranscriptSegment, b: TranscriptSegment): boolean {
  */
 export function mergeSegments(
   segments: TranscriptSegment[],
-  options: Partial<MergeOptions> = {}
+  options: Partial<MergeSettings> = {}
 ): TranscriptSegment[] {
-  const opts: MergeOptions = { ...DEFAULT_MERGE_OPTIONS, ...options };
+  const opts: MergeSettings = { ...DEFAULT_MERGE_OPTIONS, ...options };
 
   if (!opts.enabled || segments.length === 0) {
     return segments.map((seg) => ({ ...seg }));
@@ -171,7 +153,7 @@ function replaceAll(text: string, from: string, to: string): { text: string; cou
  */
 export function applyCorrections(
   segments: TranscriptSegment[],
-  corrections: Correction[]
+  corrections: CorrectionRule[]
 ): CorrectionResult {
   const active = corrections.filter((rule) => rule.enabled && rule.from);
 
@@ -179,7 +161,7 @@ export function applyCorrections(
     return { segments: segments.map((seg) => ({ ...seg })), applied: [] };
   }
 
-  const counts = new Map<Correction, number>();
+  const counts = new Map<CorrectionRule, number>();
 
   const replaced = segments.map((segment) => {
     let text = segment.text;
@@ -223,4 +205,240 @@ export function postProcess(
     ...data,
     segments,
   };
+}
+
+/**
+ * 後処理設定の既定値
+ */
+export const DEFAULT_POST_PROCESS_SETTINGS: TranscriptPostProcessSettings = {
+  speakerDefaults: [],
+  merge: DEFAULT_MERGE_OPTIONS,
+  corrections: [],
+};
+
+function toFiniteNumber(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+/**
+ * 話者割り当ての配列を正規化する
+ *
+ * label は空文字を null（非発話トラック）として扱う。管理画面のテキスト入力を
+ * 空にしたときに「BGM なので判定から外す」を表現できるようにするため。
+ */
+export function sanitizeSpeakerTracks(input: unknown): SpeakerTrackAssignment[] {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  const seen = new Set<number>();
+  const result: SpeakerTrackAssignment[] = [];
+
+  for (const item of input) {
+    if (typeof item !== "object" || item === null) continue;
+
+    const entry = item as Record<string, unknown>;
+    const track = entry.track;
+
+    if (typeof track !== "number" || !Number.isInteger(track) || track < 1) continue;
+    if (seen.has(track)) continue;
+
+    seen.add(track);
+
+    const rawLabel = entry.label;
+    const label =
+      typeof rawLabel === "string" && rawLabel.trim() !== "" ? rawLabel.trim() : null;
+
+    result.push({ track, label });
+  }
+
+  return result.sort((a, b) => a.track - b.track);
+}
+
+function sanitizeCorrections(input: unknown): CorrectionRule[] {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  const result: CorrectionRule[] = [];
+
+  for (const item of input) {
+    if (typeof item !== "object" || item === null) continue;
+
+    const entry = item as Record<string, unknown>;
+    const from = typeof entry.from === "string" ? entry.from : "";
+    const to = typeof entry.to === "string" ? entry.to : "";
+
+    if (from === "") continue;
+
+    const rule: CorrectionRule = {
+      from,
+      to,
+      enabled: entry.enabled !== false,
+    };
+
+    if (typeof entry.note === "string" && entry.note.trim() !== "") {
+      rule.note = entry.note.trim();
+    }
+
+    result.push(rule);
+  }
+
+  return result;
+}
+
+function sanitizeMerge(input: unknown): MergeSettings {
+  if (typeof input !== "object" || input === null) {
+    return { ...DEFAULT_MERGE_OPTIONS };
+  }
+
+  const entry = input as Record<string, unknown>;
+  const rawGap = entry.maxGapSec;
+
+  return {
+    enabled: entry.enabled !== false,
+    // null は「間の長さを条件にしない」という意味なので、既定値で埋めずに保つ
+    maxGapSec:
+      rawGap === null
+        ? null
+        : typeof rawGap === "number" && Number.isFinite(rawGap)
+          ? rawGap
+          : DEFAULT_MERGE_OPTIONS.maxGapSec,
+    maxDurationSec: toFiniteNumber(
+      entry.maxDurationSec,
+      DEFAULT_MERGE_OPTIONS.maxDurationSec
+    ),
+    maxChars: toFiniteNumber(entry.maxChars, DEFAULT_MERGE_OPTIONS.maxChars),
+  };
+}
+
+/**
+ * 管理画面から届いた後処理設定を、保存できる形に正規化する
+ */
+export function sanitizePostProcessSettings(
+  input: unknown
+): TranscriptPostProcessSettings {
+  if (typeof input !== "object" || input === null) {
+    return { ...DEFAULT_POST_PROCESS_SETTINGS };
+  }
+
+  const entry = input as Record<string, unknown>;
+
+  return {
+    speakerDefaults: sanitizeSpeakerTracks(entry.speakerDefaults),
+    merge: sanitizeMerge(entry.merge),
+    corrections: sanitizeCorrections(entry.corrections),
+  };
+}
+
+/**
+ * エピソードに適用する話者割り当てを決める
+ *
+ * エピソード固有の設定があればそれを使い、無ければ番組の既定値にする。
+ * ゲスト回でトラック構成が変わる場合にエピソード側で上書きできるようにするため。
+ */
+export function resolveSpeakerTracks(
+  episodeTracks: SpeakerTrackAssignment[] | null | undefined,
+  settings: TranscriptPostProcessSettings | undefined
+): SpeakerTrackAssignment[] {
+  if (episodeTracks && episodeTracks.length > 0) {
+    return episodeTracks;
+  }
+  return settings?.speakerDefaults ?? [];
+}
+
+/**
+ * R2 上の文字起こしファイルのキー
+ */
+export function transcriptKeys(storageKey: string) {
+  return {
+    /** Whisper の生出力（話者判定済み・後処理前）。後処理をやり直す入力 */
+    raw: `episodes/${storageKey}/transcript.raw.json`,
+    /** 後処理済み JSON */
+    json: `episodes/${storageKey}/transcript.json`,
+    /** 後処理済み VTT（公開サイトが読む） */
+    vtt: `episodes/${storageKey}/transcript.vtt`,
+  };
+}
+
+/**
+ * 後処理の入力になる生データを取得する
+ *
+ * 話者分離の導入前に作られたエピソードは、後処理前のデータが transcript.json に
+ * 入っている。その場合は一度だけ raw として複製し、以後の入力をそちらに寄せる。
+ * こうしないと、後処理済みの transcript.json を入力に再処理してしまい、
+ * 統合や置換が二重にかかる。
+ */
+export async function getRawTranscript(
+  env: Env,
+  storageKey: string
+): Promise<TranscriptData | null> {
+  const keys = transcriptKeys(storageKey);
+
+  const raw = await env.R2_BUCKET.get(keys.raw);
+  if (raw) {
+    return JSON.parse(await raw.text()) as TranscriptData;
+  }
+
+  const legacy = await env.R2_BUCKET.get(keys.json);
+  if (!legacy) {
+    return null;
+  }
+
+  const text = await legacy.text();
+  await env.R2_BUCKET.put(keys.raw, text, {
+    httpMetadata: { contentType: "application/json" },
+  });
+
+  return JSON.parse(text) as TranscriptData;
+}
+
+/**
+ * 生データに後処理をかけ、公開用の JSON と VTT を書き出す
+ *
+ * meta の transcriptUrl / transcriptRawUrl を書き換えるが、保存は呼び出し側で行う。
+ */
+export async function savePostProcessed(
+  env: Env,
+  meta: EpisodeMeta,
+  raw: TranscriptData,
+  settings: TranscriptPostProcessSettings | undefined
+): Promise<{ segments: number; applied: AppliedCorrection[] }> {
+  const keys = transcriptKeys(meta.storageKey);
+
+  const merged = mergeSegments(raw.segments, settings?.merge);
+  const { segments, applied } = applyCorrections(merged, settings?.corrections ?? []);
+  const processed: TranscriptData = { ...raw, segments };
+
+  await env.R2_BUCKET.put(keys.json, JSON.stringify(processed), {
+    httpMetadata: { contentType: "application/json" },
+  });
+
+  await env.R2_BUCKET.put(keys.vtt, convertToVtt(processed), {
+    httpMetadata: { contentType: "text/vtt" },
+  });
+
+  meta.transcriptRawUrl = `${env.R2_PUBLIC_URL}/${keys.raw}`;
+  meta.transcriptUrl = `${env.R2_PUBLIC_URL}/${keys.vtt}`;
+
+  return { segments: segments.length, applied };
+}
+
+/**
+ * 生データを読み直して後処理をかける
+ *
+ * 辞書や統合条件を変えたあとに、文字起こしをやり直さずに適用し直すために使う。
+ */
+export async function applyPostProcessAndSave(
+  env: Env,
+  meta: EpisodeMeta,
+  settings: TranscriptPostProcessSettings | undefined
+): Promise<{ segments: number; applied: AppliedCorrection[] } | null> {
+  const raw = await getRawTranscript(env, meta.storageKey);
+
+  if (!raw || !validateTranscriptData(raw)) {
+    return null;
+  }
+
+  return savePostProcessed(env, meta, raw, settings);
 }

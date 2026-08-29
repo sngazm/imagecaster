@@ -20,6 +20,9 @@ sidebar:
 | `POST` | `/api/episodes/:id/transcription-complete` | 文字起こし完了通知 |
 | `POST` | `/api/episodes/:id/artwork/upload-url` | Presigned URL 発行（アートワーク） |
 | `POST` | `/api/episodes/:id/artwork/upload-complete` | アートワーク完了通知 |
+| `POST` | `/api/episodes/:id/tracks/upload-url` | Presigned URL 発行（話者トラック zip） |
+| `POST` | `/api/episodes/:id/tracks/upload-complete` | 話者トラック完了通知 |
+| `DELETE` | `/api/episodes/:id/tracks` | 話者トラックを削除 |
 
 ---
 
@@ -224,3 +227,80 @@ Presigned URL（S3 API）で PUT した直後は、Worker 側の R2 バインデ
 ## POST /api/episodes/:id/artwork/upload-complete
 
 アートワークのアップロード完了を通知します。`meta.json` の `artworkUrl` が更新されます。
+
+---
+
+## POST /api/episodes/:id/tracks/upload-url
+
+話者ごとに分かれた音声トラックの zip をアップロードするための Presigned URL を発行します。
+音声と同じく数百 MB になるため、Worker を経由せず R2 へ直接 PUT します。
+
+### リクエスト
+
+```typescript
+{
+  contentType: string;  // "application/zip"
+  fileSize: number;
+}
+```
+
+### レスポンス
+
+```typescript
+{
+  uploadUrl: string;
+  expiresIn: number;    // 3600（秒）
+}
+```
+
+---
+
+## POST /api/episodes/:id/tracks/upload-complete
+
+話者トラックのアップロード完了を通知します。トラック番号への話者の割り当ても同時に
+受け取ります。
+
+### リクエスト
+
+```typescript
+{
+  // 省略した場合は番組の既定値（設定 → 文字起こし）が使われる
+  speakerTracks?: Array<{
+    track: number;       // zip 内のトラック番号
+    label: string | null; // 話者名。null や空文字は BGM 等の非発話トラック
+  }> | null;
+}
+```
+
+### レスポンス
+
+```typescript
+{
+  success: boolean;
+  tracksUploadedAt: string;
+  speakerTracks: Array<{ track: number; label: string | null }> | null;
+}
+```
+
+### エラー
+
+| ステータス | 意味 |
+|----------|------|
+| `404` | エピソードが存在しない |
+| `503` | zip が R2 からまだ見えない（リトライ可能） |
+
+Presigned URL での PUT 直後は Workers バインディング側からファイルが見えないことが
+あるため、音声アップロードと同様にリトライ可能な `503` を返します。
+
+---
+
+## DELETE /api/episodes/:id/tracks
+
+話者トラックの zip を削除します。話者判定が済めば不要になるため、ストレージを
+空けるのに使います。
+
+### レスポンス
+
+```typescript
+{ success: boolean }
+```

@@ -93,3 +93,42 @@ Podcast カバーアート用 Presigned URL を発行します。
 ## POST /api/settings/artwork/upload-complete
 
 カバーアートのアップロード完了を通知します。`index.json` の `podcast.artworkUrl` が更新されます。
+
+---
+
+## 文字起こしの後処理設定
+
+`GET /api/settings` のレスポンスと `PUT /api/settings` のリクエストには、
+文字起こしの後処理設定が含まれます。未設定の場合は既定値が返ります。
+
+```typescript
+{
+  transcriptPostProcess: {
+    // トラック番号への話者名の既定割り当て
+    // label が null のトラックは BGM 等の非発話として話者判定から除外される
+    speakerDefaults: Array<{ track: number; label: string | null }>;
+
+    // 同じ話者の連続したセグメントをまとめる条件
+    merge: {
+      enabled: boolean;
+      maxGapSec: number | null;  // null なら発話の間の長さを条件にしない
+      maxDurationSec: number;    // まとめた結果がこれを超えないようにする
+      maxChars: number;
+    };
+
+    // 誤字の置き換え。上から順に適用される
+    corrections: Array<{
+      from: string;
+      to: string;
+      enabled: boolean;
+      note?: string;   // なぜこのルールを入れたか
+    }>;
+  };
+}
+```
+
+不正な値（トラック番号が 0 以下、`from` が空のルールなど）は保存時に取り除かれます。
+話者名に空文字を渡した場合は `null`（非発話トラック）として保存されます。
+
+設定を変えただけでは既存のエピソードは変わりません。過去の分に反映するには
+`POST /api/transcription/reprocess-all` を使います。

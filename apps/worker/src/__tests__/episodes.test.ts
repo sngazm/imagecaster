@@ -385,7 +385,7 @@ describe("Episodes API - CRUD Operations", () => {
 });
 
 /**
- * テスト用ヘルパー: transcript.json をR2にアップロード
+ * テスト用ヘルパー: transcript.raw.json をR2にアップロード
  */
 async function uploadTranscriptJson(storageKey: string): Promise<void> {
   const transcriptData: TranscriptData = {
@@ -395,7 +395,7 @@ async function uploadTranscriptJson(storageKey: string): Promise<void> {
     language: "ja",
   };
   await env.R2_BUCKET.put(
-    `episodes/${storageKey}/transcript.json`,
+    `episodes/${storageKey}/transcript.raw.json`,
     JSON.stringify(transcriptData),
     { httpMetadata: { contentType: "application/json" } }
   );
@@ -411,7 +411,7 @@ describe("Episodes API - Transcription", () => {
         skipTranscription: false,
       });
 
-      // transcript.json をR2にアップロード
+      // transcript.raw.json をR2にアップロード
       await uploadTranscriptJson(storageKey);
 
       const response = await SELF.fetch(
@@ -497,7 +497,7 @@ describe("Episodes API - Transcription", () => {
 
       // 不正なJSONをR2にアップロード
       await env.R2_BUCKET.put(
-        `episodes/${storageKey}/transcript.json`,
+        `episodes/${storageKey}/transcript.raw.json`,
         "this is not json",
         { httpMetadata: { contentType: "application/json" } }
       );
@@ -541,7 +541,7 @@ describe("Episodes API - Transcription", () => {
         }
       );
 
-      // transcript.json をR2にアップロードして成功させる
+      // transcript.raw.json をR2にアップロードして成功させる
       await uploadTranscriptJson(storageKey);
 
       const response = await SELF.fetch(
@@ -570,7 +570,7 @@ describe("Episodes API - Transcription", () => {
         publishAt: null,
       });
 
-      // transcript.json をR2にアップロード
+      // transcript.raw.json をR2にアップロード
       await uploadTranscriptJson(storageKey);
 
       const response = await SELF.fetch(

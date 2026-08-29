@@ -26,7 +26,11 @@ import {
 import { regenerateFeed } from "../services/feed";
 import { postEpisodeToBluesky } from "../services/bluesky";
 import { triggerWebRebuild } from "../services/deploy";
-import { convertToVtt, validateTranscriptData } from "../services/vtt";
+import { validateTranscriptData } from "../services/vtt";
+import {
+  savePostProcessed,
+  transcriptKeys,
+} from "../services/transcript-postprocess";
 
 const episodes = new Hono<{ Bindings: Env }>();
 
@@ -389,8 +393,8 @@ episodes.delete("/:id", async (c) => {
  * POST /api/episodes/:id/transcription-complete - 文字起こし完了通知
  *
  * 完了時の処理:
- * 1. R2から transcript.json を読み込み
- * 2. VTT形式に変換して transcript.vtt として保存
+ * 1. R2から transcript.raw.json（Whisperの生出力）を読み込み
+ * 2. 後処理（セグメント統合・誤字修正）をかけて transcript.json / transcript.vtt を保存
  * 3. メタデータ更新（transcriptUrl, ステータス変更）
  * 4. ロック解除
  */
@@ -405,11 +409,11 @@ episodes.post("/:id/transcription-complete", async (c) => {
     }
 
     if (body.transcribeStatus === "completed") {
-      // R2 から transcript.json を読み込み
-      const jsonKey = `episodes/${meta.storageKey}/transcript.json`;
-      const jsonObj = await c.env.R2_BUCKET.get(jsonKey);
+      // R2 から Whisper の生出力を読み込み
+      const rawKey = transcriptKeys(meta.storageKey).raw;
+      const rawObj = await c.env.R2_BUCKET.get(rawKey);
 
-      if (!jsonObj) {
+      if (!rawObj) {
         // Presigned URL (S3 API) で PUT された直後は、Workers バインディング側から
         // まだ見えないことがある。ここで failed 扱いにすると、実際には成功している
         // 文字起こしが失われるため、リトライ可能な 503 を返して呼び出し側に委ねる。
@@ -417,16 +421,16 @@ episodes.post("/:id/transcription-complete", async (c) => {
         // ステータスは transcribing のまま、ロックも保持したままにする。
         const errorMsg = "Transcript JSON not visible in R2 yet. Retry later.";
         console.warn(
-          `[transcription-complete] ${errorMsg} episode=${meta.id} key=${jsonKey}`
+          `[transcription-complete] ${errorMsg} episode=${meta.id} key=${rawKey}`
         );
         return c.json({ error: errorMsg }, 503);
       }
 
-      const jsonText = await jsonObj.text();
+      const rawText = await rawObj.text();
       let transcriptData: unknown;
 
       try {
-        transcriptData = JSON.parse(jsonText);
+        transcriptData = JSON.parse(rawText);
       } catch {
         // Worker側エラー: JSON パース失敗 → failed として記録
         const errorMsg = "Invalid JSON format in transcript file";
@@ -448,19 +452,15 @@ episodes.post("/:id/transcription-complete", async (c) => {
         return c.json({ error: errorMsg }, 400);
       }
 
-      // VTT に変換
-      const vttContent = convertToVtt(transcriptData);
+      // 後処理（セグメント統合・誤字修正）をかけて公開用の JSON と VTT を書き出す
+      const settingsIndex = await getIndex(c.env);
+      await savePostProcessed(
+        c.env,
+        meta,
+        transcriptData,
+        settingsIndex.podcast.transcriptPostProcess
+      );
 
-      // VTT を R2 に保存
-      const vttKey = `episodes/${meta.storageKey}/transcript.vtt`;
-      await c.env.R2_BUCKET.put(vttKey, vttContent, {
-        httpMetadata: {
-          contentType: "text/vtt",
-        },
-      });
-
-      // メタデータ更新
-      meta.transcriptUrl = `${c.env.R2_PUBLIC_URL}/${vttKey}`;
       meta.transcribeStatus = "completed";
       meta.transcriptionErrorMessage = null;
 

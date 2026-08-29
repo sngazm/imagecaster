@@ -272,3 +272,107 @@ describe("Settings API", () => {
     });
   });
 });
+
+describe("文字起こしの後処理設定", () => {
+  it("未設定でも既定値を返す", async () => {
+    const response = await SELF.fetch("http://localhost/api/settings");
+    const json = (await response.json()) as {
+      transcriptPostProcess: {
+        speakerDefaults: unknown[];
+        merge: { enabled: boolean; maxDurationSec: number };
+        corrections: unknown[];
+      };
+    };
+
+    expect(json.transcriptPostProcess).toBeDefined();
+    expect(json.transcriptPostProcess.merge.enabled).toBe(true);
+    expect(json.transcriptPostProcess.speakerDefaults).toEqual([]);
+    expect(json.transcriptPostProcess.corrections).toEqual([]);
+  });
+
+  it("話者の既定割り当てと辞書を保存する", async () => {
+    const response = await SELF.fetch("http://localhost/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        transcriptPostProcess: {
+          speakerDefaults: [
+            { track: 1, label: "あずま" },
+            { track: 2, label: "鉄塔" },
+            { track: 3, label: "" },
+          ],
+          merge: { enabled: true, maxGapSec: null, maxDurationSec: 10, maxChars: 200 },
+          corrections: [
+            { from: "テト", to: "鉄塔", enabled: true, note: "自己紹介の定型" },
+          ],
+        },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+
+    const getResponse = await SELF.fetch("http://localhost/api/settings");
+    const json = (await getResponse.json()) as {
+      transcriptPostProcess: {
+        speakerDefaults: Array<{ track: number; label: string | null }>;
+        merge: { maxGapSec: number | null };
+        corrections: Array<{ from: string; to: string; enabled: boolean; note?: string }>;
+      };
+    };
+
+    // 空文字のラベルは非発話トラック（null）として保存される
+    expect(json.transcriptPostProcess.speakerDefaults).toEqual([
+      { track: 1, label: "あずま" },
+      { track: 2, label: "鉄塔" },
+      { track: 3, label: null },
+    ]);
+    // null は「間の長さを条件にしない」という意味なので既定値で埋めない
+    expect(json.transcriptPostProcess.merge.maxGapSec).toBeNull();
+    expect(json.transcriptPostProcess.corrections[0]).toEqual({
+      from: "テト",
+      to: "鉄塔",
+      enabled: true,
+      note: "自己紹介の定型",
+    });
+  });
+
+  it("不正な値は落として保存する", async () => {
+    await SELF.fetch("http://localhost/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        transcriptPostProcess: {
+          speakerDefaults: [
+            { track: 1, label: "あずま" },
+            { track: 0, label: "不正なトラック番号" },
+            { track: 1, label: "重複" },
+            "文字列",
+          ],
+          merge: { maxDurationSec: "十秒" },
+          corrections: [
+            { from: "", to: "空のfromは無効" },
+            { from: "有効", to: "置換先" },
+          ],
+        },
+      }),
+    });
+
+    const response = await SELF.fetch("http://localhost/api/settings");
+    const json = (await response.json()) as {
+      transcriptPostProcess: {
+        speakerDefaults: Array<{ track: number }>;
+        merge: { maxDurationSec: number };
+        corrections: Array<{ from: string }>;
+      };
+    };
+
+    expect(json.transcriptPostProcess.speakerDefaults).toEqual([
+      { track: 1, label: "あずま" },
+    ]);
+    // 数値でない値は既定値に戻す
+    expect(json.transcriptPostProcess.merge.maxDurationSec).toBe(10);
+    expect(json.transcriptPostProcess.corrections).toEqual([
+      { from: "有効", to: "置換先", enabled: true },
+    ]);
+  });
+});

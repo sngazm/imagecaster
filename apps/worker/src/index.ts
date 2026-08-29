@@ -17,6 +17,7 @@ import { getIndex, saveIndex, findEpisodeBySlug, saveEpisodeMeta, syncPublishedI
 import { regenerateFeed } from "./services/feed";
 import { postEpisodeToBluesky } from "./services/bluesky";
 import { triggerWebRebuild } from "./services/deploy";
+import { applyPostProcessAndSave } from "./services/transcript-postprocess";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -228,6 +229,62 @@ app.onError((err, c) => {
 });
 
 /**
+ * Cron 処理: 文字起こしの後処理やり直しを少しずつ進める
+ *
+ * 辞書や統合条件を変えたあと、過去のエピソードへ一括で再適用するために使う。
+ * 全件を 1 回のリクエストで回すと Worker のリソース制限（Error 1102）に当たるため、
+ * index.json に積んだ対象を Cron が少しずつ消化する。
+ */
+async function handleTranscriptReprocess(env: Env): Promise<void> {
+  const index = await getIndex(env);
+  const pending = index.transcriptReprocessIds || [];
+
+  if (pending.length === 0) {
+    return;
+  }
+
+  const BATCH_SIZE = 10;
+  const batch = pending.slice(0, BATCH_SIZE);
+  const remaining = pending.slice(BATCH_SIZE);
+
+  console.log(
+    `[Transcript Reprocess] ${batch.length} episode(s) this run, ${remaining.length} remaining`
+  );
+
+  let processed = 0;
+
+  for (const id of batch) {
+    const meta = await findEpisodeBySlug(env, id);
+    if (!meta) {
+      continue;
+    }
+
+    const result = await applyPostProcessAndSave(
+      env,
+      meta,
+      index.podcast.transcriptPostProcess
+    );
+
+    if (result) {
+      await saveEpisodeMeta(env, meta);
+      processed++;
+    }
+  }
+
+  // 消化中に他の更新が入っている可能性があるので、読み直してから残りを書き戻す
+  const current = await getIndex(env);
+  current.transcriptReprocessIds = remaining.length > 0 ? remaining : undefined;
+  await saveIndex(env, current);
+
+  console.log(`[Transcript Reprocess] Reprocessed ${processed} episode(s)`);
+
+  // すべて終わったら公開サイトを作り直す（文字起こしはビルド時に埋め込まれるため）
+  if (remaining.length === 0) {
+    await triggerWebRebuild(env);
+  }
+}
+
+/**
  * Cron 処理: 予約投稿をチェックして公開
  * index.json の scheduledEpisodeIds から対象エピソードのみ取得して公開
  */
@@ -333,6 +390,12 @@ export default {
       await handleDirtyFeed(env);
     } catch (err) {
       console.error("[Cron] Feed regeneration error:", err);
+    }
+    // 文字起こしの後処理やり直しも独立して試みる
+    try {
+      await handleTranscriptReprocess(env);
+    } catch (err) {
+      console.error("[Cron] Transcript reprocess error:", err);
     }
     console.log("[Cron] Scheduled task complete");
   },

@@ -631,4 +631,118 @@ describe("Upload API", () => {
       expect([404, 500]).toContain(response.status);
     });
   });
+
+  describe("話者トラック（zip）", () => {
+    it("アップロード用の Presigned URL を発行する", async () => {
+      const { id } = await createTestEpisode({ title: "Tracks URL Test" });
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/tracks/upload-url`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contentType: "application/zip",
+            fileSize: 380000000,
+          }),
+        }
+      );
+
+      expect(response.status).toBe(200);
+      const json = (await response.json()) as { uploadUrl: string };
+      expect(json.uploadUrl).toContain("tracks.zip");
+    });
+
+    it("contentType が無ければ 400 を返す", async () => {
+      const { id } = await createTestEpisode({ title: "Tracks Validation" });
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/tracks/upload-url`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fileSize: 100 }),
+        }
+      );
+
+      expect(response.status).toBe(400);
+    });
+
+    it("完了通知で話者の割り当てを保存する", async () => {
+      const { id, storageKey } = await createTestEpisode({
+        title: "Tracks Complete",
+      });
+
+      await env.R2_BUCKET.put(`episodes/${storageKey}/tracks.zip`, "dummy");
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/tracks/upload-complete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            speakerTracks: [
+              { track: 1, label: "あずま" },
+              { track: 2, label: "鉄塔" },
+              { track: 3, label: "" },
+            ],
+          }),
+        }
+      );
+
+      expect(response.status).toBe(200);
+      const json = (await response.json()) as {
+        tracksUploadedAt: string;
+        speakerTracks: Array<{ track: number; label: string | null }>;
+      };
+
+      expect(json.tracksUploadedAt).toBeTruthy();
+      // 空文字のラベルは非発話トラック（null）として保存される
+      expect(json.speakerTracks).toEqual([
+        { track: 1, label: "あずま" },
+        { track: 2, label: "鉄塔" },
+        { track: 3, label: null },
+      ]);
+    });
+
+    it("zip が見えないうちはリトライ可能な 503 を返す", async () => {
+      const { id } = await createTestEpisode({ title: "Tracks Not Visible" });
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/tracks/upload-complete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        }
+      );
+
+      expect(response.status).toBe(503);
+    });
+
+    it("zip を削除できる", async () => {
+      const { id, storageKey } = await createTestEpisode({
+        title: "Tracks Delete",
+      });
+
+      await env.R2_BUCKET.put(`episodes/${storageKey}/tracks.zip`, "dummy");
+      await SELF.fetch(`http://localhost/api/episodes/${id}/tracks/upload-complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/tracks`,
+        { method: "DELETE" }
+      );
+
+      expect(response.status).toBe(200);
+      expect(await env.R2_BUCKET.head(`episodes/${storageKey}/tracks.zip`)).toBeNull();
+
+      const detail = await SELF.fetch(`http://localhost/api/episodes/${id}`);
+      const meta = (await detail.json()) as { tracksUploadedAt: string | null };
+      expect(meta.tracksUploadedAt).toBeNull();
+    });
+  });
 });

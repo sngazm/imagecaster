@@ -1,4 +1,39 @@
+import { AwsClient } from "aws4fetch";
 import type { Env, PodcastIndex, EpisodeMeta, TemplatesIndex, DescriptionTemplate, PublishStatus, TranscribeStatus } from "../types";
+
+/**
+ * R2 オブジェクトへの Presigned URL を発行する
+ *
+ * ブラウザや文字起こしワーカーが Worker を経由せず R2 と直接やり取りするために使う。
+ * 音声や話者トラックの zip は数百 MB になるため、Worker を通すとリソース制限に当たる。
+ */
+export async function createPresignedUrl(
+  env: Env,
+  key: string,
+  options: { method: "GET" | "PUT"; contentType?: string; expiresIn?: number }
+): Promise<{ url: string; expiresIn: number }> {
+  const expiresIn = options.expiresIn ?? 3600;
+
+  const r2 = new AwsClient({
+    accessKeyId: env.R2_ACCESS_KEY_ID,
+    secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+  });
+
+  const url = new URL(
+    `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${env.R2_BUCKET_NAME}/${key}`
+  );
+  url.searchParams.set("X-Amz-Expires", String(expiresIn));
+
+  const signed = await r2.sign(
+    new Request(url, {
+      method: options.method,
+      headers: options.contentType ? { "Content-Type": options.contentType } : undefined,
+    }),
+    { aws: { signQuery: true } }
+  );
+
+  return { url: signed.url, expiresIn };
+}
 
 /**
  * storageKey 用のランダム文字列を生成（8文字の英数小文字）
