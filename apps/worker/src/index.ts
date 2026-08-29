@@ -286,6 +286,31 @@ async function handleScheduledPublish(env: Env): Promise<void> {
   }
 }
 
+/**
+ * feedDirty フラグが立っていれば feed.xml を再生成する
+ *
+ * フィード再生成は published エピソード全件の meta.json を読むため重く、
+ * リクエスト中に実行すると Worker のリソース制限 (Error 1102) に達しうる。
+ * 文字起こし完了通知などはフラグを立てるだけにして、実処理をここに集約する。
+ */
+async function handleDirtyFeed(env: Env): Promise<void> {
+  const index = await getIndex(env);
+
+  if (!index.feedDirty) {
+    return;
+  }
+
+  await regenerateFeed(env);
+  await triggerWebRebuild(env);
+
+  // 再生成中に別の更新でフラグが立て直された可能性があるため読み直す
+  const current = await getIndex(env);
+  current.feedDirty = false;
+  await saveIndex(env, current);
+
+  console.log("[Cron] Feed regenerated from feedDirty flag");
+}
+
 // Worker エクスポート
 export default {
   fetch: app.fetch,
@@ -302,6 +327,12 @@ export default {
       console.log("[Cron] handleScheduledPublish done");
     } catch (err) {
       console.error("[Cron] Error:", err);
+    }
+    // 予約公開が失敗してもフィード再生成は独立して試みる
+    try {
+      await handleDirtyFeed(env);
+    } catch (err) {
+      console.error("[Cron] Feed regeneration error:", err);
     }
     console.log("[Cron] Scheduled task complete");
   },

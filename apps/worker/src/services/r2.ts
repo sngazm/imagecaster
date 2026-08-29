@@ -65,6 +65,24 @@ export async function saveIndex(env: Env, index: PodcastIndex): Promise<void> {
 }
 
 /**
+ * feed.xml の再生成が必要であることを記録する
+ *
+ * フィード再生成は published エピソード全件の meta.json を読むため CPU を大量に
+ * 消費し、リクエスト中に実行すると Worker のリソース制限 (Error 1102) に達する
+ * ことがある。フラグだけ立てて Cron に処理させることで、リクエスト側は軽く保つ。
+ */
+export async function markFeedDirty(env: Env): Promise<void> {
+  const index = await getIndex(env);
+
+  if (index.feedDirty) {
+    return;
+  }
+
+  index.feedDirty = true;
+  await saveIndex(env, index);
+}
+
+/**
  * R2 binding の list() を使って全エピソードを列挙
  * index.json を使わず、R2のディレクトリ構造から直接取得
  */

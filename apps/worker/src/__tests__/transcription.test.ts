@@ -629,6 +629,46 @@ describe("Transcription Complete with JSON", () => {
       expect(meta.transcriptionLockedAt).toBeNull();
     });
 
+    it("defers feed regeneration to the cron via feedDirty", async () => {
+      const { id, storageKey } = await createTestEpisode({
+        title: "Feed Dirty Flag Test",
+        // 過去日時にして published に遷移させる
+        publishAt: new Date(Date.now() - 86400000).toISOString(),
+        skipTranscription: false,
+      });
+
+      await setEpisodeToTranscribing(storageKey, id);
+
+      const transcriptData: TranscriptData = {
+        segments: [{ start: 0, end: 1.5, text: "テスト" }],
+        language: "ja",
+      };
+      await env.R2_BUCKET.put(
+        `episodes/${storageKey}/transcript.json`,
+        JSON.stringify(transcriptData)
+      );
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/transcription-complete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transcribeStatus: "completed" }),
+        }
+      );
+
+      expect(response.status).toBe(200);
+
+      const json = (await response.json()) as { publishStatus: string };
+      expect(json.publishStatus).toBe("published");
+
+      // 全件読み込みを伴うフィード再生成はリクエスト中に行わず、
+      // フラグだけ立てて Cron に委ねる（Error 1102 回避）
+      const indexObj = await env.R2_BUCKET.get("index.json");
+      const index = JSON.parse(await indexObj!.text());
+      expect(index.feedDirty).toBe(true);
+    });
+
     it("rejects invalid JSON structure", async () => {
       const { id, storageKey } = await createTestEpisode({
         title: "Invalid JSON Test",

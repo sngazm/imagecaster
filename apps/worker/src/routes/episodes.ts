@@ -20,6 +20,7 @@ import {
   listAllEpisodes,
   syncPublishedIndex,
   generateStorageKey,
+  markFeedDirty,
 } from "../services/r2";
 import { regenerateFeed } from "../services/feed";
 import { postEpisodeToBluesky } from "../services/bluesky";
@@ -503,10 +504,15 @@ episodes.post("/:id/transcription-complete", async (c) => {
     await saveEpisodeMeta(c.env, meta);
     await syncPublishedIndex(c.env, meta);
 
-    // 公開された場合はフィードを再生成してWebをリビルド
+    // 公開された場合はフィード再生成を予約する。
+    //
+    // ここで regenerateFeed を直接呼ぶと published エピソード全件の meta.json を
+    // 読み込むことになり、エピソード数が増えるにつれて Worker のリソース制限
+    // (Error 1102) に達する。1102 は実行そのものが打ち切られるため catch できず、
+    // VTT の保存前に処理が消えて「文字起こしは成功しているのに failed」という
+    // 状態を生んでいた。フラグだけ立てて Cron に任せる。
     if (meta.publishStatus === "published") {
-      await regenerateFeed(c.env);
-      await triggerWebRebuild(c.env);
+      await markFeedDirty(c.env);
     }
 
     return c.json({

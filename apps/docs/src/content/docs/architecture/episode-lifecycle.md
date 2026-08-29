@@ -105,3 +105,17 @@ new → uploading → draft → scheduled → published
 外部サービスは `GET /api/transcription/queue` でキューを取得し、処理完了後に `POST /api/episodes/:id/transcription-complete` で通知します。
 
 詳細は [文字起こし](../../features/transcription/) を参照してください。
+
+### フィード再生成のタイミング
+
+`feed.xml` の再生成は published エピソード全件の `meta.json` を読み込むため CPU を大量に消費します。リクエスト処理の中で実行すると、エピソード数が増えるにつれて Worker のリソース制限（Cloudflare の Error 1102）に達し、**処理が途中で打ち切られます**。1102 は実行そのものが停止するため `try/catch` では捕捉できません。
+
+そのため文字起こし完了通知では、`index.json` の `feedDirty` フラグを立てるだけにして、実際の再生成は Cron（5分間隔）に委ねています。
+
+```
+完了通知 ─► meta.json 更新 ─► feedDirty: true を立てて即座に応答
+                                      │
+Cron (5分ごと) ─────────────────────► feed.xml 再生成 ─► feedDirty: false
+```
+
+`GET /api/transcription/queue` も同様に全エピソードを走査するため、ポーリング間隔を短くしすぎると 1102 を誘発します。外部サービス側の間隔は 300 秒程度を推奨します。
