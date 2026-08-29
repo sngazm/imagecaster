@@ -137,6 +137,7 @@ await jwtVerify(jwt, JWKS, { audience: ACCESS_AUD });
 | POST | /api/episodes/:id/tracks/upload-complete | 話者トラック完了通知 |
 | DELETE | /api/episodes/:id/tracks | 話者トラック削除 |
 | POST | /api/episodes/:id/transcript/reprocess | 後処理のやり直し |
+| POST | /api/episodes/:id/retranscribe | 音声から文字起こしをやり直す |
 
 ### Settings
 | Method | Path | 説明 |

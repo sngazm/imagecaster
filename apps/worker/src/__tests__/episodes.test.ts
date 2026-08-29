@@ -846,3 +846,91 @@ describe("Episodes API - Validation", () => {
     });
   });
 });
+
+describe("POST /api/episodes/:id/retranscribe", () => {
+  /** 音声をアップロード済みの状態にする */
+  async function setAudio(storageKey: string): Promise<void> {
+    const obj = await env.R2_BUCKET.get(`episodes/${storageKey}/meta.json`);
+    if (!obj) throw new Error("Episode not found");
+
+    const meta = JSON.parse(await obj.text());
+    meta.audioUrl = `https://example.com/episodes/${storageKey}/audio.mp3`;
+    await env.R2_BUCKET.put(
+      `episodes/${storageKey}/meta.json`,
+      JSON.stringify(meta),
+      { httpMetadata: { contentType: "application/json" } }
+    );
+  }
+
+  /** 音声あり・文字起こし済みの状態にする */
+  async function completeTranscription(id: string, storageKey: string): Promise<void> {
+    await setAudio(storageKey);
+    await uploadTranscriptJson(storageKey);
+    await SELF.fetch(`http://localhost/api/episodes/${id}/transcription-complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transcribeStatus: "completed" }),
+    });
+  }
+
+  it("完了済みのエピソードを待ち行列に戻す", async () => {
+    const { id, storageKey } = await createTestEpisode({ title: "Retranscribe" });
+    await completeTranscription(id, storageKey);
+
+    const response = await SELF.fetch(
+      `http://localhost/api/episodes/${id}/retranscribe`,
+      { method: "POST" }
+    );
+
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as { transcribeStatus: string };
+    expect(json.transcribeStatus).toBe("pending");
+  });
+
+  it("処理中のエピソードは横取りしない", async () => {
+    // 走っているワーカーの結果と競合するため
+    const { id, storageKey } = await createTestEpisode({ title: "Retranscribe Busy" });
+    await completeTranscription(id, storageKey);
+    await SELF.fetch(`http://localhost/api/episodes/${id}/retranscribe`, {
+      method: "POST",
+    });
+
+    const response = await SELF.fetch(
+      `http://localhost/api/episodes/${id}/retranscribe`,
+      { method: "POST" }
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it("音声が無ければ拒否する", async () => {
+    const { id } = await createTestEpisode({ title: "Retranscribe No Audio" });
+
+    const response = await SELF.fetch(
+      `http://localhost/api/episodes/${id}/retranscribe`,
+      { method: "POST" }
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it("スキップ設定を解除してから待ち行列に入れる", async () => {
+    // skipTranscription のままだとキューに載らない
+    const { id, storageKey } = await createTestEpisode({
+      title: "Retranscribe Skipped",
+      skipTranscription: true,
+    });
+    await completeTranscription(id, storageKey);
+
+    const response = await SELF.fetch(
+      `http://localhost/api/episodes/${id}/retranscribe`,
+      { method: "POST" }
+    );
+
+    expect(response.status).toBe(200);
+
+    const detail = await SELF.fetch(`http://localhost/api/episodes/${id}`);
+    const meta = (await detail.json()) as { skipTranscription: boolean };
+    expect(meta.skipTranscription).toBe(false);
+  });
+});

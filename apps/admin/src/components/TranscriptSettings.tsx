@@ -188,7 +188,7 @@ export function TranscriptSettings({ value, onSaved }: Props) {
             <span className="text-sm">
               冒頭で 2 人が声を揃える箇所がある
               <span className="block text-xs text-[var(--color-text-muted)] mt-1">
-                指定した範囲の中で声が重なっている区間を「あずま &amp; 鉄塔」のような
+                指定した範囲の中で声が重なっている区間を「あずま・鉄塔」のような
                 連名で表示します。本編の会話中は相槌のかぶりや同時に笑った箇所まで
                 拾ってしまうため、範囲の外では検出しません。
               </span>

@@ -11,6 +11,7 @@ import type {
   CorrectionRule,
   Env,
   EpisodeMeta,
+  HallucinationSettings,
   MergeSettings,
   SpeakerTrackAssignment,
   TranscriptData,
@@ -47,7 +48,30 @@ export interface CorrectionResult {
 export interface PostProcessOptions {
   merge?: Partial<MergeSettings>;
   corrections?: CorrectionRule[];
+  hallucination?: Partial<HallucinationSettings>;
 }
+
+/**
+ * ハルシネーション除去の既定値
+ *
+ * Whisper は無音や環境音に対して、学習データにあった定型句を出力することがある。
+ * 番組の実データ（公開済み26本・約60万字）を調べて確認できたものを既定に入れている。
+ */
+export const DEFAULT_HALLUCINATION_SETTINGS: HallucinationSettings = {
+  phrases: [
+    "ご視聴ありがとうございました",
+    "ご視聴ありがとうございます",
+    "最後までご視聴いただきありがとうございました",
+    "チャンネル登録お願いします",
+    "チャンネル登録よろしくお願いします",
+    "高評価とチャンネル登録をお願いします",
+  ],
+  // 相槌や擬音は正当に繰り返される。実データでは「ピピピピピピピン」の 7 回が最多で、
+  // 6 回以下は「うんうんうんうんうんうん」など全て正常だった。壊さないよう高めにする。
+  maxRepeat: 10,
+  // 同じ文が続くこと自体はある（「さよなら」を 2 人が言う等）。3 回までは許す。
+  maxConsecutive: 4,
+};
 
 /**
  * 2 つのセグメントのテキストを連結する
@@ -186,6 +210,145 @@ export function applyCorrections(
     }));
 
   return { segments: replaced, applied };
+}
+
+/**
+ * 文字列の末尾の句読点や記号を落として比較用に整える
+ */
+function normalizeForMatch(text: string): string {
+  return text.trim().replace(/[。、．，!！?？\s]+$/g, "");
+}
+
+/**
+ * ハルシネーションだけで構成されるセグメントを取り除く
+ *
+ * Whisper は無音区間に対して、学習データにあった定型句（動画の締め文句など）を
+ * 出力することがある。番組で実際に喋られる言葉と紛れないよう、セグメント全体が
+ * その語と一致する場合だけ落とす。文中に含まれるだけの場合は触らない。
+ */
+export function removeHallucinations(
+  segments: TranscriptSegment[],
+  phrases: string[]
+): { segments: TranscriptSegment[]; removed: string[] } {
+  const blocked = phrases.map(normalizeForMatch).filter((p) => p !== "");
+
+  if (blocked.length === 0) {
+    return { segments: segments.map((s) => ({ ...s })), removed: [] };
+  }
+
+  const removed: string[] = [];
+  const kept = segments.filter((segment) => {
+    const text = normalizeForMatch(segment.text);
+    if (blocked.includes(text)) {
+      removed.push(segment.text.trim());
+      return false;
+    }
+    return true;
+  });
+
+  return { segments: kept.map((s) => ({ ...s })), removed };
+}
+
+/**
+ * セグメント内で同じ単位が過剰に繰り返される箇所を畳む
+ *
+ * 「うんうんうんうん」のような相槌や「ガタガタガタ」のような擬音は正当な発話なので、
+ * 実データで確認できた範囲（最多 7 回）を超える回数だけを対象にする。
+ */
+function collapseInnerRepeats(text: string, maxRepeat: number): string {
+  // 1〜12文字の単位が maxRepeat 回以上続く箇所を、maxRepeat 回に切り詰める
+  const pattern = new RegExp(`(.{1,12}?)\\1{${maxRepeat - 1},}`, "g");
+
+  return text.replace(pattern, (match, unit: string) =>
+    unit.repeat(maxRepeat)
+  );
+}
+
+/**
+ * 繰り返しループを畳む
+ *
+ * Whisper が同じ言葉を延々と出力し続ける状態への対処。セグメント内の反復と、
+ * 同一テキストのセグメントが続く場合の両方を見る。
+ */
+export function collapseRepetitions(
+  segments: TranscriptSegment[],
+  options: { maxRepeat: number; maxConsecutive: number }
+): { segments: TranscriptSegment[]; collapsed: number } {
+  let collapsed = 0;
+
+  // セグメント内の反復
+  const inner = segments.map((segment) => {
+    const text = collapseInnerRepeats(segment.text, options.maxRepeat);
+    if (text !== segment.text) {
+      collapsed++;
+    }
+    return { ...segment, text };
+  });
+
+  // 同一テキストのセグメントが続く場合
+  const result: TranscriptSegment[] = [];
+  let runText: string | null = null;
+  let runCount = 0;
+
+  for (const segment of inner) {
+    const key = normalizeForMatch(segment.text);
+
+    if (key === runText) {
+      runCount++;
+      if (runCount > options.maxConsecutive) {
+        // 直前のセグメントの終端だけ伸ばして、重複分は捨てる
+        result[result.length - 1].end = segment.end;
+        collapsed++;
+        continue;
+      }
+    } else {
+      runText = key;
+      runCount = 1;
+    }
+
+    result.push(segment);
+  }
+
+  return { segments: result, collapsed };
+}
+
+/**
+ * ハルシネーションの候補を探す
+ *
+ * 「毎回同じ場所に同じ語が出る」「1 エピソードに異常な数だけ出る」ものを拾う。
+ * 自動では消さず、人が見て判断できるよう候補として返す。
+ */
+export function findHallucinationCandidates(
+  segments: TranscriptSegment[],
+  known: string[] = []
+): Array<{ text: string; count: number; reason: string }> {
+  const knownSet = new Set(known.map(normalizeForMatch));
+  const counts = new Map<string, number>();
+
+  for (const segment of segments) {
+    const text = normalizeForMatch(segment.text);
+    // 短い相槌は正当なので対象外。長すぎる文は偶然の一致がないので対象外。
+    if (text.length < 4 || text.length > 40) continue;
+    if (knownSet.has(text)) continue;
+
+    counts.set(text, (counts.get(text) ?? 0) + 1);
+  }
+
+  const total = segments.length;
+  const candidates: Array<{ text: string; count: number; reason: string }> = [];
+
+  for (const [text, count] of counts) {
+    // 1 エピソード内で同じ文が何十回も出るのは、喋っているのではなく機械が繰り返している
+    if (count >= 20) {
+      candidates.push({
+        text,
+        count,
+        reason: `1エピソード内に${count}回出現（全${total}セグメント中）`,
+      });
+    }
+  }
+
+  return candidates.sort((a, b) => b.count - a.count).slice(0, 20);
 }
 
 /**

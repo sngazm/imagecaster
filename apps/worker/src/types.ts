@@ -63,6 +63,21 @@ export interface CorrectionRule {
 }
 
 /**
+ * ハルシネーション除去の設定
+ *
+ * Whisper が無音や環境音に対して出力してしまう定型句と、同じ言葉を繰り返し続ける
+ * 状態への対処。
+ */
+export interface HallucinationSettings {
+  /** セグメント全体がこの語と一致したら削除する */
+  phrases: string[];
+  /** 同じ単位がこの回数を超えて繰り返されたら切り詰める */
+  maxRepeat: number;
+  /** 同じ文のセグメントがこの回数を超えて続いたら畳む */
+  maxConsecutive: number;
+}
+
+/**
  * 文字起こし後処理の設定
  *
  * 番組全体の既定値。エピソードごとの話者割り当ては EpisodeMeta.speakerTracks で上書きする。
@@ -79,6 +94,8 @@ export interface TranscriptPostProcessSettings {
    * 拾ってしまい、誤検出のほうが圧倒的に多くなる。
    */
   simultaneousUntilSec?: number | null;
+  /** ハルシネーション除去の設定 */
+  hallucination?: HallucinationSettings;
 }
 
 /**

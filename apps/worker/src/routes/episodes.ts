@@ -577,4 +577,52 @@ episodes.post("/:id/retry-transcription", async (c) => {
   }
 });
 
+/**
+ * POST /api/episodes/:id/retranscribe - 文字起こしをやり直す
+ *
+ * 完了済みのエピソードを pending に戻して再度キューに載せる。話者トラックを
+ * 後から用意した場合など、音声から取り直したいときに使う。
+ *
+ * リトライ（retry-transcription）は失敗からの復旧なので failed 限定だが、こちらは
+ * 成功しているものを意図的に捨ててやり直す操作なので別の入り口にしている。
+ */
+episodes.post("/:id/retranscribe", async (c) => {
+  const id = c.req.param("id");
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    // 処理中のものを横取りすると、走っているワーカーの結果と競合する
+    if (meta.transcribeStatus === "pending" || meta.transcribeStatus === "transcribing") {
+      return c.json(
+        { error: `Already queued: transcribeStatus is '${meta.transcribeStatus}'` },
+        400
+      );
+    }
+
+    if (!meta.audioUrl && !meta.sourceAudioUrl) {
+      return c.json({ error: "Cannot retranscribe: no audio file available" }, 400);
+    }
+
+    meta.transcribeStatus = "pending";
+    meta.transcriptionErrorMessage = null;
+    meta.transcriptionLockedAt = null;
+    // スキップ設定のままだとキューに載らないので解除する
+    meta.skipTranscription = false;
+
+    await saveEpisodeMeta(c.env, meta);
+
+    return c.json({
+      success: true,
+      transcribeStatus: meta.transcribeStatus,
+    });
+  } catch (err) {
+    console.error(`[retranscribe] Error for episode ${id}:`, err);
+    return c.json({ error: "Episode not found" }, 404);
+  }
+});
+
 export { episodes };

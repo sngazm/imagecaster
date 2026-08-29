@@ -430,6 +430,13 @@ export const api = {
       method: "DELETE",
     }),
 
+  // 音声から文字起こしをやり直す（話者トラックを後から用意した場合など）
+  retranscribe: (id: string) =>
+    request<{ success: boolean; transcribeStatus: TranscribeStatus }>(
+      `/api/episodes/${id}/retranscribe`,
+      { method: "POST" }
+    ),
+
   // 文字起こしの後処理
   reprocessTranscript: (id: string) =>
     request<{
@@ -675,6 +682,24 @@ export function localDateTimeToISOString(localDateTime: string): string {
 export interface TranscriptSegment {
   start: string;  // "00:00:05"
   text: string;
+  speaker?: string;  // 話者名（話者分離が有効な場合のみ）
+}
+
+/**
+ * VTTのvoiceタグ（<v 話者名>本文</v>）から話者名と本文を取り出す
+ *
+ * 終了タグは省略されることがあるため、あってもなくても扱えるようにする。
+ */
+function extractVoice(text: string): { speaker?: string; text: string } {
+  const match = text.match(/^<v\s+([^>]+)>([\s\S]*)$/);
+  if (!match) {
+    return { text };
+  }
+
+  const speaker = match[1].trim();
+  const body = match[2].replace(/<\/v>\s*$/, "");
+
+  return speaker ? { speaker, text: body } : { text: body };
 }
 
 export function parseVttToSegments(vtt: string): TranscriptSegment[] {
@@ -700,7 +725,7 @@ export function parseVttToSegments(vtt: string): TranscriptSegment[] {
       if (currentStart && currentTextLines.length > 0) {
         segments.push({
           start: currentStart,
-          text: currentTextLines.join(" "),
+          ...extractVoice(currentTextLines.join(" ")),
         });
         currentStart = "";
         currentTextLines = [];
@@ -714,7 +739,7 @@ export function parseVttToSegments(vtt: string): TranscriptSegment[] {
   if (currentStart && currentTextLines.length > 0) {
     segments.push({
       start: currentStart,
-      text: currentTextLines.join(" "),
+      ...extractVoice(currentTextLines.join(" ")),
     });
   }
 

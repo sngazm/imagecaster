@@ -171,20 +171,20 @@ describe("mergeSegments", () => {
     // 番組冒頭で 2 人が声を揃える区間は、直前の単独発話とは別のブロックにする
     const segments = [
       seg(0, 2, "特になし", "鉄塔"),
-      seg(2, 4, "Image Cast", "あずま & 鉄塔"),
+      seg(2, 4, "Image Cast", "あずま・鉄塔"),
       seg(4, 6, "おはようございます", "あずま"),
     ];
 
     const result = mergeSegments(segments);
 
     expect(result).toHaveLength(3);
-    expect(result[1].speaker).toBe("あずま & 鉄塔");
+    expect(result[1].speaker).toBe("あずま・鉄塔");
   });
 
   it("同時発話が続く場合は統合する", () => {
     const segments = [
-      seg(0, 2, "Image", "あずま & 鉄塔"),
-      seg(2, 4, "Cast", "あずま & 鉄塔"),
+      seg(0, 2, "Image", "あずま・鉄塔"),
+      seg(2, 4, "Cast", "あずま・鉄塔"),
     ];
 
     const result = mergeSegments(segments);
