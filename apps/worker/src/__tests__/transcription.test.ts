@@ -498,7 +498,7 @@ describe("Transcription Episode APIs", () => {
 
 describe("Transcription Complete with JSON", () => {
   describe("POST /api/episodes/:id/transcription-complete", () => {
-    it("requires transcript.json in R2 for completed status", async () => {
+    it("returns a retryable 503 when transcript.json is not visible yet", async () => {
       const { id, storageKey } = await createTestEpisode({
         title: "Transcription Complete Test",
         publishAt: new Date(Date.now() + 86400000).toISOString(),
@@ -517,10 +517,58 @@ describe("Transcription Complete with JSON", () => {
         }
       );
 
-      expect(response.status).toBe(400);
+      // Presigned URL での PUT 直後は R2 バインディングから見えないことがあるため、
+      // failed 扱いにせずリトライ可能な 503 を返す
+      expect(response.status).toBe(503);
 
       const json = (await response.json()) as { error: string };
-      expect(json.error).toContain("Transcript JSON not found");
+      expect(json.error).toContain("not visible in R2 yet");
+
+      // ステータスは transcribing のまま維持され、failed にはならない
+      const metaObj = await env.R2_BUCKET.get(`episodes/${storageKey}/meta.json`);
+      const meta = JSON.parse(await metaObj!.text());
+      expect(meta.transcribeStatus).toBe("transcribing");
+      expect(meta.transcriptionErrorMessage ?? null).toBeNull();
+    });
+
+    it("keeps the recorded error message when failed is reported without one", async () => {
+      const { id, storageKey } = await createTestEpisode({
+        title: "Error Message Preservation Test",
+        publishAt: new Date(Date.now() + 86400000).toISOString(),
+        skipTranscription: false,
+      });
+
+      await setEpisodeToTranscribing(storageKey, id);
+
+      // 1回目: エラー内容付きで failed を通知
+      await SELF.fetch(
+        `http://localhost/api/episodes/${id}/transcription-complete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            transcribeStatus: "failed",
+            errorMessage: "CUDA out of memory",
+          }),
+        }
+      );
+
+      // 2回目: errorMessage 無しで failed を再通知しても、記録済みの内容を消さない
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/transcription-complete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transcribeStatus: "failed" }),
+        }
+      );
+
+      expect(response.status).toBe(200);
+
+      const metaObj = await env.R2_BUCKET.get(`episodes/${storageKey}/meta.json`);
+      const meta = JSON.parse(await metaObj!.text());
+      expect(meta.transcribeStatus).toBe("failed");
+      expect(meta.transcriptionErrorMessage).toBe("CUDA out of memory");
     });
 
     it("converts JSON to VTT and saves both", async () => {

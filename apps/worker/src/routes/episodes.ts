@@ -405,13 +405,16 @@ episodes.post("/:id/transcription-complete", async (c) => {
       const jsonObj = await c.env.R2_BUCKET.get(jsonKey);
 
       if (!jsonObj) {
-        // Worker側エラー: transcript.json が見つからない → failed として記録
-        const errorMsg = "Transcript JSON not found in R2. Please upload first.";
-        meta.transcribeStatus = "failed";
-        meta.transcriptionErrorMessage = errorMsg;
-        meta.transcriptionLockedAt = null;
-        await saveEpisodeMeta(c.env, meta);
-        return c.json({ error: errorMsg }, 400);
+        // Presigned URL (S3 API) で PUT された直後は、Workers バインディング側から
+        // まだ見えないことがある。ここで failed 扱いにすると、実際には成功している
+        // 文字起こしが失われるため、リトライ可能な 503 を返して呼び出し側に委ねる。
+        // （transcriber は 5xx をバックオフ付きでリトライする）
+        // ステータスは transcribing のまま、ロックも保持したままにする。
+        const errorMsg = "Transcript JSON not visible in R2 yet. Retry later.";
+        console.warn(
+          `[transcription-complete] ${errorMsg} episode=${meta.id} key=${jsonKey}`
+        );
+        return c.json({ error: errorMsg }, 503);
       }
 
       const jsonText = await jsonObj.text();
@@ -486,7 +489,12 @@ episodes.post("/:id/transcription-complete", async (c) => {
       }
     } else {
       meta.transcribeStatus = "failed";
-      meta.transcriptionErrorMessage = body.errorMessage || null;
+      // 呼び出し側がエラー内容を送ってきた場合のみ更新する。
+      // 送ってこない場合に null で潰すと、Worker 側が先に記録した診断情報
+      // （不正なJSON等）が消えて原因追跡が不可能になるため、既存値を残す。
+      if (body.errorMessage) {
+        meta.transcriptionErrorMessage = body.errorMessage;
+      }
     }
 
     // ロック解除
@@ -506,8 +514,16 @@ episodes.post("/:id/transcription-complete", async (c) => {
       publishStatus: meta.publishStatus,
       transcribeStatus: meta.transcribeStatus,
     });
-  } catch {
-    return c.json({ error: "Episode not found" }, 404);
+  } catch (err) {
+    // ここに来るのは想定外の例外（R2障害・VTT変換失敗・フィード再生成失敗など）。
+    // "Episode not found" 404 に潰すと原因が完全に失われるため、内容を残して
+    // リトライ可能な 500 を返す。
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[transcription-complete] Unexpected error: episode=${id}`, err);
+    return c.json(
+      { error: "Transcription completion failed", message },
+      500
+    );
   }
 });
 

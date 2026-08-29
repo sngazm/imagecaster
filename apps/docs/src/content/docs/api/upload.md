@@ -184,9 +184,25 @@ interface TranscriptionCompleteRequest {
 }
 ```
 
-`completed` の場合、文字起こしサービスは事前に `transcript.vtt` を R2 にアップロードしておく必要があります。
+`completed` の場合、文字起こしサービスは事前に `transcript.json` を R2 にアップロードしておく必要があります。
 
-パス: `episodes/{storageKey}/transcript.vtt`
+パス: `episodes/{storageKey}/transcript.json`
+
+Worker 側で JSON を検証し、VTT に変換して `episodes/{storageKey}/transcript.vtt` として保存します。
+
+### レスポンス
+
+| ステータス | 意味 | 呼び出し側の対応 |
+|---------|------|---------------|
+| `200` | 完了 | — |
+| `400` | JSON が不正（パース失敗・構造不正） | 内容を直して再アップロード |
+| `404` | エピソードが存在しない | — |
+| `500` | 想定外のエラー | リトライする |
+| `503` | `transcript.json` がまだ R2 から見えない | バックオフしてリトライする |
+
+Presigned URL（S3 API）で PUT した直後は、Worker 側の R2 バインディングからそのオブジェクトがまだ見えないことがあります。その場合は `503` を返し、`transcribeStatus` は `transcribing` のまま、ロックも保持します。ここで `failed` にすると、成功済みの文字起こしが失われるためです。
+
+また `failed` を `errorMessage` 無しで通知した場合、既に記録されているエラーメッセージは上書きしません。Worker 側が記録した診断情報が消えるのを防ぐためです。
 
 ---
 

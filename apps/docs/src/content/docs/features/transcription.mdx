@@ -21,11 +21,13 @@ Worker                      外部文字起こしサービス
    │                                │
    ├─────────────────────────────► ─┤  音声ダウンロード
    │                                │  Whisper 等で処理
-   │                                ├─ transcript.vtt を R2 に PUT
+   │                                ├─ transcript.json を R2 に PUT
    │                                │
    │◄─ POST /api/episodes/:id/      │
    │       transcription-complete ──┤
    │                                │
+   ├─ JSON を検証して VTT に変換     │
+   ├─ transcript.vtt を R2 に保存    │
    ├─ transcribeStatus: "completed" │
    └─ transcriptUrl を更新          │
 ```
@@ -72,11 +74,31 @@ POST /api/episodes/:id/transcription-complete
 }
 ```
 
-完了通知前に、文字起こしサービスは `transcript.vtt` を R2 の以下のパスに PUT してください:
+完了通知前に、文字起こしサービスは `transcript.json` を R2 の以下のパスに PUT してください:
 
 ```
-episodes/{storageKey}/transcript.vtt
+episodes/{storageKey}/transcript.json
 ```
+
+VTT への変換は Worker 側が行い、`episodes/{storageKey}/transcript.vtt` として保存します。
+
+#### 完了通知のレスポンスと再送
+
+| ステータス | 意味 | 呼び出し側の対応 |
+|---------|------|---------------|
+| `200` | 完了 | — |
+| `400` | JSON が不正（パース失敗・構造不正） | 内容を直して再アップロード |
+| `404` | エピソードが存在しない | — |
+| `500` | 想定外のエラー | リトライする |
+| `503` | `transcript.json` がまだ R2 から見えない | バックオフしてリトライする |
+
+Presigned URL（S3 API）で PUT した直後は、Worker 側の R2 バインディングからそのオブジェクトがまだ見えないことがあります。その場合 `503` を返し、`transcribeStatus` は `transcribing` のまま維持します。
+
+:::caution
+完了通知が失敗しても、`transcript.json` のアップロードが済んでいるなら `failed` を送らないでください。サーバ側では処理が完了しているのに応答だけが失われた場合、`failed` を送ると成功済みの結果を上書きしてしまいます。ロックを解放して次のポーリングに任せてください。
+
+なお `failed` を `errorMessage` 無しで送っても、既に記録されているエラーメッセージは上書きされません。
+:::
 
 ### リトライ
 
