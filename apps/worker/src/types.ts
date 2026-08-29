@@ -24,6 +24,8 @@ export interface Env {
   // Spotify
   SPOTIFY_CLIENT_ID?: string;
   SPOTIFY_CLIENT_SECRET?: string;
+  // Anthropic API（文字起こしのLLM校正）
+  ANTHROPIC_API_KEY?: string;
   // ローカル開発用
   IS_DEV?: string;
 }
@@ -63,6 +65,20 @@ export interface CorrectionRule {
 }
 
 /**
+ * 相槌の整形設定
+ *
+ * 「うんうんうんうんうんうん」のような相槌は実際にそう喋っていても、文字で読むと
+ * くどい。読みやすさのために回数を抑える。
+ */
+export interface BackchannelSettings {
+  enabled: boolean;
+  /** 対象にする相槌の単位 */
+  units: string[];
+  /** 何回までに抑えるか */
+  maxRepeat: number;
+}
+
+/**
  * ハルシネーション除去の設定
  *
  * Whisper が無音や環境音に対して出力してしまう定型句と、同じ言葉を繰り返し続ける
@@ -96,6 +112,8 @@ export interface TranscriptPostProcessSettings {
   simultaneousUntilSec?: number | null;
   /** ハルシネーション除去の設定 */
   hallucination?: HallucinationSettings;
+  /** 相槌の整形設定 */
+  backchannel?: BackchannelSettings;
 }
 
 /**

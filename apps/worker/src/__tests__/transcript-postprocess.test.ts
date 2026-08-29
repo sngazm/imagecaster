@@ -24,8 +24,8 @@ function seg(
 describe("mergeSegments", () => {
   it("同一話者の連続セグメントを統合する", () => {
     const segments = [
-      seg(0, 2, "今日は", "あずま"),
-      seg(2, 4, "いい天気ですね", "あずま"),
+      seg(0, 2, "今日は、", "あずま"),
+      seg(2, 4, "いい天気ですね。", "あずま"),
     ];
 
     const result = mergeSegments(segments);
@@ -34,7 +34,7 @@ describe("mergeSegments", () => {
     expect(result[0]).toMatchObject({
       start: 0,
       end: 4,
-      text: "今日はいい天気ですね",
+      text: "今日は、いい天気ですね。",
       speaker: "あずま",
     });
   });
@@ -87,26 +87,26 @@ describe("mergeSegments", () => {
 
   it("3つ以上の連続セグメントをまとめて統合する", () => {
     const segments = [
-      seg(0, 2, "一つ目", "あずま"),
-      seg(2, 4, "二つ目", "あずま"),
-      seg(4, 6, "三つ目", "あずま"),
+      seg(0, 2, "一つ目。", "あずま"),
+      seg(2, 4, "二つ目。", "あずま"),
+      seg(4, 6, "三つ目。", "あずま"),
     ];
 
     const result = mergeSegments(segments);
 
     expect(result).toHaveLength(1);
-    expect(result[0].text).toBe("一つ目二つ目三つ目");
+    expect(result[0].text).toBe("一つ目。二つ目。三つ目。");
     expect(result[0].end).toBe(6);
   });
 
-  it("話者未判定のセグメント同士は統合する", () => {
-    const segments = [seg(0, 2, "前半"), seg(2, 4, "後半")];
+  it("話者が分からないセグメントは統合しない", () => {
+    // 誰が喋っているか分からないものをまとめると、別々の話者の発話が
+    // 1 つの塊になってしまう
+    const segments = [seg(0, 2, "前半。"), seg(2, 4, "後半。")];
 
     const result = mergeSegments(segments);
 
-    expect(result).toHaveLength(1);
-    expect(result[0].text).toBe("前半後半");
-    expect(result[0].speaker).toBeUndefined();
+    expect(result).toHaveLength(2);
   });
 
   it("片方だけ話者未判定なら統合しない", () => {
@@ -128,7 +128,20 @@ describe("mergeSegments", () => {
     expect(result[0].text).toBe("Claude Code の話");
   });
 
-  it("日本語同士は空白を入れずに繋ぐ", () => {
+  it("句読点で終わっていれば区切りを入れずに繋ぐ", () => {
+    const segments = [
+      seg(0, 2, "文字起こしの話です。", "あずま"),
+      seg(2, 4, "続きを話します。", "あずま"),
+    ];
+
+    const result = mergeSegments(segments);
+
+    expect(result[0].text).toBe("文字起こしの話です。続きを話します。");
+  });
+
+  it("句読点が無ければ空白で区切る", () => {
+    // 句読点を付けない設定で文字起こしされた場合、そのまま繋ぐと別々の発話が
+    // 一続きの文に見えてしまう
     const segments = [
       seg(0, 2, "文字起こしの", "あずま"),
       seg(2, 4, "話をします", "あずま"),
@@ -136,7 +149,7 @@ describe("mergeSegments", () => {
 
     const result = mergeSegments(segments);
 
-    expect(result[0].text).toBe("文字起こしの話をします");
+    expect(result[0].text).toBe("文字起こしの 話をします");
   });
 
   it("enabled: false なら何も統合しない", () => {
@@ -345,7 +358,7 @@ describe("postProcess with corrections", () => {
     };
 
     const result = postProcess(data, {
-      corrections: [{ from: "テット", to: "鉄塔", enabled: true }],
+      corrections: [{ from: "テッ ト", to: "鉄塔", enabled: true }],
     });
 
     expect(result.segments).toHaveLength(1);

@@ -8,6 +8,7 @@
  */
 
 import type {
+  BackchannelSettings,
   CorrectionRule,
   Env,
   EpisodeMeta,
@@ -49,7 +50,20 @@ export interface PostProcessOptions {
   merge?: Partial<MergeSettings>;
   corrections?: CorrectionRule[];
   hallucination?: Partial<HallucinationSettings>;
+  backchannel?: Partial<BackchannelSettings>;
 }
+
+/**
+ * 相槌の整形の既定値
+ *
+ * 実データでは 3 回の繰り返し（「はいはいはい」など）が最も多く、日本語として自然。
+ * 5 回以上は稀（最新10話で 6 件）で、文字で読むとくどいので 3 回で頭打ちにする。
+ */
+export const DEFAULT_BACKCHANNEL_SETTINGS: BackchannelSettings = {
+  enabled: true,
+  units: ["うん", "はい", "そう", "ええ", "へえ", "へー", "ああ", "あー", "なるほど"],
+  maxRepeat: 3,
+};
 
 /**
  * ハルシネーション除去の既定値
@@ -73,11 +87,15 @@ export const DEFAULT_HALLUCINATION_SETTINGS: HallucinationSettings = {
   maxConsecutive: 4,
 };
 
+/** 文の切れ目を示す文字。これで終わっていれば区切りを足さなくてよい */
+const SENTENCE_END = /[。．！？!?、，,…」』）)\]]$/;
+
 /**
  * 2 つのセグメントのテキストを連結する
  *
- * 日本語は区切り文字を挟まずに繋ぐ。英単語同士が隣接する場合だけ、
- * 単語がくっつかないよう空白を入れる。
+ * 句読点で終わっていれば、日本語は区切り文字を挟まずに繋ぐ。句読点が無い場合は
+ * 空白を入れる。文字起こしには句読点が付かない設定もあり、そのまま繋ぐと
+ * 別々の発話が一続きの文に見えてしまうため。
  */
 function joinText(left: string, right: string): string {
   const a = left.trimEnd();
@@ -86,18 +104,27 @@ function joinText(left: string, right: string): string {
   if (!a) return b;
   if (!b) return a;
 
-  const needsSpace = /[A-Za-z0-9]$/.test(a) && /^[A-Za-z0-9]/.test(b);
-  return needsSpace ? `${a} ${b}` : `${a}${b}`;
+  // 句読点で終わっているなら、そのまま繋いで文の切れ目が読み取れる
+  if (SENTENCE_END.test(a)) {
+    return `${a}${b}`;
+  }
+
+  return `${a} ${b}`;
 }
 
 /**
  * 2 つのセグメントが同じ話者のものか
  *
- * どちらも話者未判定（undefined）の場合は同一とみなす。話者情報が無い
- * エピソードでも統合が効くようにするため。片方だけ未判定なら統合しない。
+ * 話者が分かっていて一致する場合だけ true。統合は「同じ人の続きの発話をまとめる」
+ * 処理なので、誰が喋っているか分からないセグメントは対象にしない。
+ *
+ * 未判定同士を同一扱いにすると、話者分離をしていないエピソードで全セグメントが
+ * 繋がってしまう。実際、話者情報の無い回に適用したところ「ありがとうございます
+ * あずまです鉄塔です…」のように 2 人の発話が 1 つの塊になった。細切れのまま残る
+ * ほうが、誤って混ぜるより読み手を惑わせない。
  */
 function isSameSpeaker(a: TranscriptSegment, b: TranscriptSegment): boolean {
-  return (a.speaker ?? null) === (b.speaker ?? null);
+  return Boolean(a.speaker) && a.speaker === b.speaker;
 }
 
 /**
@@ -352,6 +379,39 @@ export function findHallucinationCandidates(
 }
 
 /**
+ * 相槌の繰り返し回数を抑える
+ *
+ * 実際にそう喋っていても、文字で読むとくどい。読みやすさのために回数を揃える。
+ * 対象は相槌として使われる語に限る。擬音（「ガタガタガタ」など）は意味が変わるので
+ * 触らない。
+ */
+export function normalizeBackchannels(
+  segments: TranscriptSegment[],
+  settings: BackchannelSettings
+): { segments: TranscriptSegment[]; normalized: number } {
+  if (!settings.enabled || settings.units.length === 0) {
+    return { segments: segments.map((s) => ({ ...s })), normalized: 0 };
+  }
+
+  // 長い単位から先に見ないと、「なるほど」が別の単位に割れてしまう
+  const units = [...settings.units].sort((a, b) => b.length - a.length);
+  const escaped = units.map((u) => u.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const pattern = new RegExp(`(${escaped.join("|")})\\1{${settings.maxRepeat},}`, "g");
+
+  let normalized = 0;
+
+  const result = segments.map((segment) => {
+    const text = segment.text.replace(pattern, (_match, unit: string) => {
+      normalized++;
+      return unit.repeat(settings.maxRepeat);
+    });
+    return { ...segment, text };
+  });
+
+  return { segments: result, normalized };
+}
+
+/**
  * 後処理パイプラインを適用する
  *
  * 統合してから置換する。セグメントをまたいで分断されていた誤字も、
@@ -361,7 +421,24 @@ export function postProcess(
   data: TranscriptData,
   options: PostProcessOptions = {}
 ): TranscriptData {
-  const merged = mergeSegments(data.segments, options.merge);
+  const hallucination = {
+    ...DEFAULT_HALLUCINATION_SETTINGS,
+    ...options.hallucination,
+  };
+
+  // ノイズを先に落とす。統合してからでは、まとまった文の一部になって取り除けない
+  const { segments: cleaned } = removeHallucinations(
+    data.segments,
+    hallucination.phrases
+  );
+  const { segments: collapsed } = collapseRepetitions(cleaned, hallucination);
+
+  const { segments: tidied } = normalizeBackchannels(collapsed, {
+    ...DEFAULT_BACKCHANNEL_SETTINGS,
+    ...options.backchannel,
+  });
+
+  const merged = mergeSegments(tidied, options.merge);
   const { segments } = applyCorrections(merged, options.corrections ?? []);
 
   return {
@@ -379,6 +456,8 @@ export const DEFAULT_POST_PROCESS_SETTINGS: TranscriptPostProcessSettings = {
   corrections: [],
   // 既定では同時発話を検出しない。会話中の相槌のかぶりまで拾うと誤検出が多すぎるため
   simultaneousUntilSec: null,
+  hallucination: DEFAULT_HALLUCINATION_SETTINGS,
+  backchannel: DEFAULT_BACKCHANNEL_SETTINGS,
 };
 
 function toFiniteNumber(value: unknown, fallback: number): number {
@@ -477,6 +556,55 @@ function sanitizeMerge(input: unknown): MergeSettings {
   };
 }
 
+function sanitizeHallucination(input: unknown): HallucinationSettings {
+  if (typeof input !== "object" || input === null) {
+    return { ...DEFAULT_HALLUCINATION_SETTINGS };
+  }
+
+  const entry = input as Record<string, unknown>;
+  const rawPhrases = entry.phrases;
+
+  return {
+    phrases: Array.isArray(rawPhrases)
+      ? rawPhrases
+          .filter((p): p is string => typeof p === "string" && p.trim() !== "")
+          .map((p) => p.trim())
+      : DEFAULT_HALLUCINATION_SETTINGS.phrases,
+    // 低すぎる値は正常な相槌や擬音を壊すので下限を設ける
+    maxRepeat: Math.max(
+      8,
+      toFiniteNumber(entry.maxRepeat, DEFAULT_HALLUCINATION_SETTINGS.maxRepeat)
+    ),
+    maxConsecutive: Math.max(
+      3,
+      toFiniteNumber(entry.maxConsecutive, DEFAULT_HALLUCINATION_SETTINGS.maxConsecutive)
+    ),
+  };
+}
+
+function sanitizeBackchannel(input: unknown): BackchannelSettings {
+  if (typeof input !== "object" || input === null) {
+    return { ...DEFAULT_BACKCHANNEL_SETTINGS };
+  }
+
+  const entry = input as Record<string, unknown>;
+  const rawUnits = entry.units;
+
+  return {
+    enabled: entry.enabled !== false,
+    units: Array.isArray(rawUnits)
+      ? rawUnits
+          .filter((u): u is string => typeof u === "string" && u.trim() !== "")
+          .map((u) => u.trim())
+      : DEFAULT_BACKCHANNEL_SETTINGS.units,
+    // 1 回に潰すと不自然なので下限を 2 にする
+    maxRepeat: Math.max(
+      2,
+      toFiniteNumber(entry.maxRepeat, DEFAULT_BACKCHANNEL_SETTINGS.maxRepeat)
+    ),
+  };
+}
+
 /**
  * 管理画面から届いた後処理設定を、保存できる形に正規化する
  */
@@ -500,6 +628,8 @@ export function sanitizePostProcessSettings(
       typeof rawUntil === "number" && Number.isFinite(rawUntil) && rawUntil > 0
         ? rawUntil
         : null,
+    hallucination: sanitizeHallucination(entry.hallucination),
+    backchannel: sanitizeBackchannel(entry.backchannel),
   };
 }
 

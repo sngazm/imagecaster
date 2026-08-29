@@ -6,6 +6,7 @@ import type {
   TranscriptionQueueResponse,
   TranscriptionQueueItem,
   UploadUrlResponse,
+  TranscriptData,
 } from "../types";
 import {
   listAllEpisodes,
@@ -21,6 +22,8 @@ import {
   transcriptKeys,
 } from "../services/transcript-postprocess";
 import { triggerWebRebuild } from "../services/deploy";
+import { reviewWithLlm } from "../services/transcript-llm";
+import { convertToVtt } from "../services/vtt";
 import { tracksKey } from "./upload";
 
 /**
@@ -366,6 +369,73 @@ transcriptionQueue.post("/reprocess-all", async (c) => {
   await saveIndex(c.env, index);
 
   return c.json({ success: true, queued: targets.length });
+});
+
+/**
+ * POST /api/episodes/:id/transcript/review - LLM に校正させる
+ *
+ * 辞書では拾えない、文脈を読まないと判断できない誤りを直す。提案の一覧を返すので、
+ * 何がどう変わったかを後から確認できる。
+ */
+transcriptionEpisodes.post("/:id/transcript/review", async (c) => {
+  const id = c.req.param("id");
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    if (!c.env.ANTHROPIC_API_KEY) {
+      return c.json({ error: "ANTHROPIC_API_KEY が設定されていません" }, 400);
+    }
+
+    const keys = transcriptKeys(meta.storageKey);
+    const obj = await c.env.R2_BUCKET.get(keys.json);
+    if (!obj) {
+      return c.json({ error: "No transcript available to review" }, 400);
+    }
+
+    const data = JSON.parse(await obj.text()) as TranscriptData;
+
+    // 番組で使う固有名詞を辞書から渡し、判断の助けにする
+    const index = await getIndex(c.env);
+    const settings = index.podcast.transcriptPostProcess;
+    const vocabulary = (settings?.corrections ?? [])
+      .filter((rule) => rule.enabled)
+      .map((rule) => `- ${rule.to}`)
+      .join("\n");
+
+    const result = await reviewWithLlm(c.env, data.segments, {
+      episodeTitle: meta.title,
+      vocabulary,
+    });
+
+    const reviewed: TranscriptData = { ...data, segments: result.segments };
+
+    await c.env.R2_BUCKET.put(keys.json, JSON.stringify(reviewed), {
+      httpMetadata: { contentType: "application/json" },
+    });
+    await c.env.R2_BUCKET.put(keys.vtt, convertToVtt(reviewed), {
+      httpMetadata: { contentType: "text/vtt" },
+    });
+
+    if (meta.publishStatus === "published") {
+      await triggerWebRebuild(c.env);
+    }
+
+    return c.json({
+      success: true,
+      corrections: result.corrections,
+      rejected: result.rejected,
+    });
+  } catch (err) {
+    console.error(`[transcript/review] Error for episode ${id}:`, err);
+    return c.json(
+      { error: err instanceof Error ? err.message : "Failed to review transcript" },
+      500
+    );
+  }
 });
 
 export { transcriptionQueue, transcriptionEpisodes };
