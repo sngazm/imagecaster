@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { AwsClient } from "aws4fetch";
 import type {
   Env,
+  EpisodeMeta,
   TranscriptionQueueResponse,
   TranscriptionQueueItem,
   UploadUrlResponse,
@@ -10,6 +11,8 @@ import {
   listAllEpisodes,
   findEpisodeBySlug,
   saveEpisodeMeta,
+  getIndex,
+  saveIndex,
 } from "../services/r2";
 
 /**
@@ -30,6 +33,42 @@ function isLockValid(lockedAt: string | null | undefined): boolean {
 }
 
 /**
+ * キュー候補のエピソードを取得する
+ *
+ * 全エピソードの meta.json を読むと Worker のリソース制限 (Error 1102) に達する
+ * ため、index.json の transcriptionQueueIds に載っているものだけを読む。
+ * インデックスが未構築の場合に限り全件走査し、その結果でインデックスを初期化する。
+ */
+async function getQueueCandidates(env: Env): Promise<EpisodeMeta[]> {
+  const index = await getIndex(env);
+
+  if (index.transcriptionQueueIds !== undefined) {
+    const found = await Promise.all(
+      index.transcriptionQueueIds.map((id) => findEpisodeBySlug(env, id))
+    );
+    return found.filter((meta): meta is EpisodeMeta => meta !== null);
+  }
+
+  // 未構築: 一度だけ全件走査してインデックスを作る
+  const allEpisodes = await listAllEpisodes(env);
+  const queued = allEpisodes.filter(
+    (meta) =>
+      meta.transcribeStatus === "pending" || meta.transcribeStatus === "transcribing"
+  );
+
+  const current = await getIndex(env);
+  current.transcriptionQueueIds = queued.map((meta) => meta.id);
+  await saveIndex(env, current);
+
+  console.log(
+    `[transcription-queue] Built transcriptionQueueIds from a full scan: ` +
+      `${queued.length} episode(s) waiting`
+  );
+
+  return queued;
+}
+
+/**
  * 文字起こしキュー用ルート（/api/transcription/* にマウント）
  */
 const transcriptionQueue = new Hono<{ Bindings: Env }>();
@@ -44,11 +83,10 @@ transcriptionQueue.get("/queue", async (c) => {
   const limitParam = c.req.query("limit");
   const limit = Math.min(Math.max(parseInt(limitParam || "1", 10) || 1, 1), 10);
 
-  // R2.list() で全エピソードを取得してフィルタリング
-  const allEpisodes = await listAllEpisodes(c.env);
+  const candidates = await getQueueCandidates(c.env);
   const queueItems: TranscriptionQueueItem[] = [];
 
-  for (const meta of allEpisodes) {
+  for (const meta of candidates) {
     if (queueItems.length >= limit) {
       break;
     }

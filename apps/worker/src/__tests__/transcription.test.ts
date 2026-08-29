@@ -256,6 +256,53 @@ describe("Transcription Queue API", () => {
       expect(episode!.audioUrl).toBe("");
       expect(episode!.sourceAudioUrl).toContain("external.example.com");
     });
+
+    it("builds transcriptionQueueIds on first access and keeps it in sync", async () => {
+      const { id, storageKey } = await createTestEpisode({
+        title: "Queue Index Test",
+        publishAt: new Date(Date.now() + 86400000).toISOString(),
+        skipTranscription: false,
+      });
+
+      await setEpisodeToTranscribing(storageKey, id);
+
+      // インデックス未構築の状態から、全件走査で初期化される
+      const first = await SELF.fetch("http://localhost/api/transcription/queue");
+      expect(first.status).toBe(200);
+
+      const indexObj = await env.R2_BUCKET.get("index.json");
+      const index = JSON.parse(await indexObj!.text());
+      expect(index.transcriptionQueueIds).toContain(id);
+
+      // transcript.json を置いて完了させる
+      const transcriptData: TranscriptData = {
+        segments: [{ start: 0, end: 1, text: "テスト" }],
+        language: "ja",
+      };
+      await env.R2_BUCKET.put(
+        `episodes/${storageKey}/transcript.json`,
+        JSON.stringify(transcriptData)
+      );
+
+      await SELF.fetch(
+        `http://localhost/api/episodes/${id}/transcription-complete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transcribeStatus: "completed" }),
+        }
+      );
+
+      // completed になったのでインデックスから外れる
+      const afterObj = await env.R2_BUCKET.get("index.json");
+      const after = JSON.parse(await afterObj!.text());
+      expect(after.transcriptionQueueIds).not.toContain(id);
+
+      // キューにも現れない
+      const second = await SELF.fetch("http://localhost/api/transcription/queue");
+      const json = (await second.json()) as { episodes: Array<{ id: string }> };
+      expect(json.episodes.find((ep) => ep.id === id)).toBeUndefined();
+    });
   });
 });
 

@@ -59,6 +59,9 @@ export interface PodcastIndex {
   }>;
   scheduledEpisodeIds?: string[]; // 予約投稿待ちエピソードのID一覧（Cron最適化用）
   feedDirty?: boolean; // feed.xml の再生成待ちフラグ（Cronが処理する）
+  // 文字起こし待ち/処理中エピソードのID一覧（キュー取得の全件走査を避けるため）
+  // undefined の場合は未構築を意味し、次回のキュー取得時に全件走査で初期化される
+  transcriptionQueueIds?: string[];
 }
 
 /**

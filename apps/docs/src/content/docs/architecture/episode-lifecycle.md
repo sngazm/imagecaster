@@ -118,4 +118,12 @@ new → uploading → draft → scheduled → published
 Cron (5分ごと) ─────────────────────► feed.xml 再生成 ─► feedDirty: false
 ```
 
-`GET /api/transcription/queue` も同様に全エピソードを走査するため、ポーリング間隔を短くしすぎると 1102 を誘発します。外部サービス側の間隔は 300 秒程度を推奨します。
+### 文字起こし待ちインデックス
+
+`GET /api/transcription/queue` も以前は全エピソードを走査しており、同じく 1102 の原因になっていました。現在は `index.json` の `transcriptionQueueIds` に文字起こし待ち（`pending` / `transcribing`）のエピソードIDを保持し、**そこに載っているものだけ**を読みます。
+
+インデックスの更新は `saveEpisodeMeta()` に組み込まれています。`transcribeStatus` が変わる経路はロック取得・完了通知・リトライ・アップロード完了など多岐にわたるため、取りこぼしを防ぐ目的でメタデータ保存の共通処理として実行します。エピソード削除時のみ `meta.json` が消えて追随できないため、削除処理側で明示的に除去します。
+
+`transcriptionQueueIds` が未定義（未構築）の場合は、次回のキュー取得時に一度だけ全件走査して初期化します。既存環境からの移行はこれで自動的に行われます。
+
+外部サービス側のポーリング間隔は 300 秒程度を推奨します。

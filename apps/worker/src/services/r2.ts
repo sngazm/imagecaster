@@ -208,6 +208,67 @@ export async function saveEpisodeMeta(
       },
     }
   );
+
+  await syncTranscriptionQueueIndex(env, meta);
+}
+
+/**
+ * 文字起こし待ちインデックスを meta の状態に合わせて更新する
+ *
+ * キュー取得のたびに全エピソードの meta.json を読むと Worker のリソース制限
+ * (Error 1102) に達するため、待ち行列を index.json 側に持たせる。
+ * transcribeStatus が変わる経路はロック取得・完了通知・リトライなど多岐にわたる
+ * ので、取りこぼしを防ぐために meta 保存の共通処理として実行する。
+ *
+ * インデックス未構築 (undefined) の場合は何もしない。全件走査による初期化は
+ * キュー取得側が担当する。
+ */
+async function syncTranscriptionQueueIndex(
+  env: Env,
+  meta: EpisodeMeta
+): Promise<void> {
+  const index = await getIndex(env);
+
+  if (index.transcriptionQueueIds === undefined) {
+    return;
+  }
+
+  const shouldBeQueued =
+    meta.transcribeStatus === "pending" || meta.transcribeStatus === "transcribing";
+  const isQueued = index.transcriptionQueueIds.includes(meta.id);
+
+  // 状態が変わっていなければ index.json を書き換えない
+  if (shouldBeQueued === isQueued) {
+    return;
+  }
+
+  index.transcriptionQueueIds = shouldBeQueued
+    ? [...index.transcriptionQueueIds, meta.id]
+    : index.transcriptionQueueIds.filter((id) => id !== meta.id);
+
+  await saveIndex(env, index);
+}
+
+/**
+ * 文字起こし待ちインデックスからエピソードIDを取り除く
+ *
+ * エピソード削除時に呼ぶ。meta.json が消えるため saveEpisodeMeta 経由では
+ * 追随できない。
+ */
+export async function removeFromTranscriptionQueueIndex(
+  env: Env,
+  episodeId: string
+): Promise<void> {
+  const index = await getIndex(env);
+
+  if (!index.transcriptionQueueIds?.includes(episodeId)) {
+    return;
+  }
+
+  index.transcriptionQueueIds = index.transcriptionQueueIds.filter(
+    (id) => id !== episodeId
+  );
+  await saveIndex(env, index);
 }
 
 /**

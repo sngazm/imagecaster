@@ -21,6 +21,7 @@ import {
   syncPublishedIndex,
   generateStorageKey,
   markFeedDirty,
+  removeFromTranscriptionQueueIndex,
 } from "../services/r2";
 import { regenerateFeed } from "../services/feed";
 import { postEpisodeToBluesky } from "../services/bluesky";
@@ -358,6 +359,9 @@ episodes.delete("/:id", async (c) => {
 
     // R2からファイルを削除
     await deleteEpisode(c.env, meta.storageKey);
+
+    // meta.json が消えるため saveEpisodeMeta 経由では追随できない
+    await removeFromTranscriptionQueueIndex(c.env, meta.id);
 
     // 公開済み or 予約済みだった場合は index.json から除去
     if (wasPublished || wasScheduled) {
