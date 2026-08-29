@@ -12,13 +12,14 @@ const PUBLISH_STATUS_CONFIG: Record<PublishStatus, { label: string; badgeClass: 
 };
 
 // TranscribeStatus badge configuration (shown as secondary badge)
-const TRANSCRIBE_STATUS_CONFIG: Record<TranscribeStatus, { label: string; badgeClass: string } | null> = {
-  none: null, // 表示しない
+// 詳細画面 (EpisodeDetail) と同じ表記を使う
+const TRANSCRIBE_STATUS_CONFIG: Record<TranscribeStatus, { label: string; badgeClass: string }> = {
+  none: { label: "文字起こし未", badgeClass: "badge badge-default" },
   pending: { label: "文字起こし待ち", badgeClass: "badge badge-default" },
   transcribing: { label: "文字起こし中", badgeClass: "badge badge-warning" },
-  completed: null, // 表示しない
+  completed: { label: "文字起こし完了", badgeClass: "badge badge-success" },
   failed: { label: "文字起こし失敗", badgeClass: "badge badge-error" },
-  skipped: null, // 表示しない
+  skipped: { label: "スキップ済み", badgeClass: "badge badge-default" },
 };
 
 function formatDate(dateString: string | null): string {
@@ -153,11 +154,9 @@ export default function EpisodeList() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  {transcribeStatus && (
-                    <span className={transcribeStatus.badgeClass}>
-                      {transcribeStatus.label}
-                    </span>
-                  )}
+                  <span className={transcribeStatus.badgeClass}>
+                    {transcribeStatus.label}
+                  </span>
                   <span className={publishStatus.badgeClass}>
                     {publishStatus.label}
                   </span>
