@@ -82,6 +82,7 @@ whisper:
   device: "cuda"              # cuda または cpu
   language: "ja"              # 言語コード
   compute_type: "float16"     # float16, int8 (faster-whisperの場合)
+  prompt_file: "prompt.txt"   # initial_prompt を読むファイル
 
 # 一時ファイル設定
 temp:
@@ -99,6 +100,27 @@ logging:
 retry:
   max_attempts: 3
   backoff_seconds: [2, 4, 8]  # 指数バックオフ
+
+# 完了通知（メール）
+notification:
+  enabled: false
+  smtp_host: "smtp.gmail.com"
+  smtp_port: 587
+  username: ""
+  password: ""              # Gmail はアプリパスワードが必要
+  to_address: ""
+  episode_url_template: "https://cast.image.club/episodes/{id}/"
+```
+
+### initial_prompt について
+
+`prompt_file` に番組名や出演者名を書いておくと、固有名詞の認識精度が上がる。
+Whisper はプロンプトの書き方を出力に引き継ぐため、**句読点付きの文を書いておくと
+出力にも句読点が付く**。逆にプロンプトが無いと句読点の付かない文字起こしになる。
+
+```
+この音声はポッドキャスト番組「Image Cast」です。話しているのは「あずま」と
+「鉄塔(てっとう)」です。技術、デザイン、表現などについての雑談です。
 ```
 
 ## ディレクトリ構成
