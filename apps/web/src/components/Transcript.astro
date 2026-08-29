@@ -1,0 +1,103 @@
+---
+import type { TranscriptSegment } from "../lib/types";
+
+interface Props {
+  segments: TranscriptSegment[];
+}
+
+const { segments } = Astro.props;
+
+/**
+ * 話者ごとの色。登場順に割り当てる。
+ * Tailwind がクラス名を静的に拾えるよう、文字列として並べておく。
+ */
+const SPEAKER_CLASSES = [
+  "text-speaker-1 dark:text-speaker-1-dark",
+  "text-speaker-2 dark:text-speaker-2-dark",
+  "text-speaker-3 dark:text-speaker-3-dark",
+  "text-speaker-4 dark:text-speaker-4-dark",
+];
+
+/** 複数人が同時に喋っている区間は "あずま & 鉄塔" のように連結されて届く */
+const SIMULTANEOUS_SEPARATOR = " & ";
+
+// 色は個々の話者に割り当てる。同時発話のラベルを 1 人分として数えないよう分解しておく
+const speakers = [
+  ...new Set(
+    segments.flatMap((s) =>
+      s.speaker ? s.speaker.split(SIMULTANEOUS_SEPARATOR) : []
+    )
+  ),
+];
+
+const hasSpeakers = speakers.length > 0;
+
+function speakerClass(speaker: string): string {
+  const index = speakers.indexOf(speaker);
+  return SPEAKER_CLASSES[index % SPEAKER_CLASSES.length];
+}
+---
+
+<details class="mt-4 border-t border-border pt-4 dark:border-border-dark group">
+  <summary
+    class="cursor-pointer list-none inline-flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent-hover select-none"
+  >
+    <svg
+      class="h-4 w-4 transition-transform group-open:rotate-90"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        d="M9 5l7 7-7 7"
+      />
+    </svg>
+    文字起こしを見る
+  </summary>
+
+  <div
+    id="transcript-container"
+    class="mt-3 max-h-96 overflow-y-auto overflow-x-hidden pr-2"
+  >
+    {
+      segments.map((segment, index) => {
+        // 話者が切り替わったときだけ名前を出す（同じ人が続く間は繰り返さない）
+        const isNewSpeaker =
+          Boolean(segment.speaker) &&
+          segment.speaker !== segments[index - 1]?.speaker;
+
+        return (
+          <button
+            type="button"
+            class:list={[
+              "transcript-segment group flex w-full gap-3 py-1 text-left rounded transition-colors hover:bg-accent/10 dark:hover:bg-accent/20 cursor-pointer",
+              isNewSpeaker && index > 0 && "mt-3",
+            ]}
+            data-time={segment.start}
+          >
+            {hasSpeakers && (
+              <span class="shrink-0 w-14 pt-0.5">
+                {isNewSpeaker &&
+                  segment.speaker
+                    ?.split(SIMULTANEOUS_SEPARATOR)
+                    .map((name) => (
+                      <span
+                        class={`block truncate text-[11px] font-medium leading-tight ${speakerClass(name)}`}
+                      >
+                        {name}
+                      </span>
+                    ))}
+              </span>
+            )}
+            <span class="text-sm leading-relaxed text-text-secondary dark:text-text-secondary-dark group-hover:text-text dark:group-hover:text-text-dark transition-colors">
+              {segment.text}
+            </span>
+          </button>
+        );
+      })
+    }
+  </div>
+</details>

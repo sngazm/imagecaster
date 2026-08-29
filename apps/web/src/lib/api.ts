@@ -1,6 +1,24 @@
 import type { Episode, PodcastIndex, TranscriptSegment } from "./types";
 
 /**
+ * VTTのvoiceタグ（<v 話者名>本文</v>）から話者名と本文を取り出す
+ *
+ * 終了タグは省略されることがあるため、あってもなくても扱えるようにする。
+ * タグが無い場合は話者未指定として本文をそのまま返す。
+ */
+function extractVoice(text: string): { speaker?: string; text: string } {
+  const match = text.match(/^<v\s+([^>]+)>([\s\S]*)$/);
+  if (!match) {
+    return { text };
+  }
+
+  const speaker = match[1].trim();
+  const body = match[2].replace(/<\/v>\s*$/, "");
+
+  return speaker ? { speaker, text: body } : { text: body };
+}
+
+/**
  * VTT形式の文字起こしをパースしてセグメント配列に変換
  */
 export function parseVttToSegments(vtt: string): TranscriptSegment[] {
@@ -29,7 +47,7 @@ export function parseVttToSegments(vtt: string): TranscriptSegment[] {
       if (currentStart && currentTextLines.length > 0) {
         segments.push({
           start: currentStart,
-          text: currentTextLines.join(" "),
+          ...extractVoice(currentTextLines.join(" ")),
         });
         currentStart = "";
         currentTextLines = [];
@@ -44,7 +62,7 @@ export function parseVttToSegments(vtt: string): TranscriptSegment[] {
   if (currentStart && currentTextLines.length > 0) {
     segments.push({
       start: currentStart,
-      text: currentTextLines.join(" "),
+      ...extractVoice(currentTextLines.join(" ")),
     });
   }
 

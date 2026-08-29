@@ -6,6 +6,7 @@ export interface ReferenceLink {
 export interface TranscriptSegment {
   start: string;  // "00:00:05"
   text: string;
+  speaker?: string;  // 話者名（音量ベースの話者分離が有効な場合のみ）
 }
 
 export type PublishStatus = "new" | "uploading" | "draft" | "scheduled" | "published";

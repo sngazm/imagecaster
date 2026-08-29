@@ -293,7 +293,7 @@ class Segment:
     start: float
     end: float
     text: str
-    speaker: str | None = None  # 将来の話者分離用
+    speaker: str | None = None  # 話者名（話者分離を使った場合）
 ```
 
 ### 出力JSON形式
@@ -527,20 +527,97 @@ uv run ruff check .
 uv run mypy src
 ```
 
+## 話者分離
+
+話者ごとにトラックが分かれた音声（DAW からのトラック別書き出し）があれば、区間ごとの
+音量を比較して話者を判定する。機械学習モデルによる diarization と違い、トラックが
+分かれている限り確実に判定できる。
+
+### SpeakerIdentifier クラス
+
+```python
+class SpeakerIdentifier:
+    def __init__(
+        self,
+        tracks: list[SpeakerTrack],
+        frame_sec: float = 0.2,
+        silence_threshold: float = 0.005,
+        normalize: bool = True,
+    ):
+        """話者トラックから判定器を初期化"""
+
+    def load_tracks(self) -> None:
+        """全トラックを読み込み、フレームごとの RMS を事前計算"""
+
+    def check_alignment(self, audio_duration: float) -> bool:
+        """本編とトラックの尺が揃っているか検証"""
+
+    def judge(self, start: float, end: float) -> SpeakerVerdict:
+        """区間の話者を判定する（同時発話も検出）"""
+
+    def identify_speakers(self, segments: list[Segment]) -> list[Segment]:
+        """セグメント単位で話者を割り当てる"""
+
+    def split_by_speaker(self, segments: list[Segment]) -> list[Segment]:
+        """単語単位の時刻を使い、話者が変わる位置で分割する"""
+```
+
+### セグメントの切り直し
+
+Whisper のセグメント境界は音響的な切れ目であって話者の切れ目ではない。そのため
+「A さんの発言 + B さんの相槌」が 1 セグメントに同居し、音量の多数決でどちらか
+一方に倒れてしまう。
+
+`WhisperTranscriber.transcribe(word_timestamps=True)` で単語ごとの時刻を取得しておくと、
+`split_by_speaker()` が単語単位で話者を判定し、切り替わった位置でセグメントを分け直す。
+単語 1 つ分の判定ぶれで刻まれないよう、0.6 秒未満のブロックは隣接ブロックに吸収する。
+
+### 同時発話
+
+2 人が同時に同じ言葉を言う区間（番組冒頭で声を揃えて番組名を言う、など）は
+`あずま & 鉄塔` のように連結した話者名になる。
+
+フレームごとに 2 番目に大きいトラックが最大トラックの 55% 以上であれば「同時に鳴っている
+フレーム」とし、区間の発話フレームの半分以上がそれに該当する場合を同時発話と判定する。
+相槌のかぶりは区間全体から見れば短いため、この条件で区別できる。
+
+### 判定方法
+
+1. 各トラックを 16kHz モノラルにデコードし、0.2 秒フレームごとの RMS を事前計算する
+2. マイクのゲイン差で判定が偏らないよう、トラックごとの音量を揃える（95 パーセンタイル基準）
+3. 判定したい区間のフレームごとに最大音量のトラックを求め、その多数決で話者を決める
+4. 無音しきい値を超えるフレームが 1 つも無ければ話者なし（`None`）とする
+
+セグメント全体の平均音量を比べる方式では、短い相槌や大きな笑い声に引きずられて
+セグメント全体が誤った話者に倒れる。フレーム単位の多数決はこれを避ける。
+
+音声のデコードには faster-whisper 同梱の PyAV デコーダを使うため、ffmpeg バイナリの
+インストールは不要。
+
+### トラックの割り当て
+
+zip 内のファイル名末尾の `Track N` からトラック番号を読み、割り当て表で話者名を引く。
+macOS が作る zip はファイル名が化けることがあるため、展開時に `track_N.拡張子` へ
+付け替えている。
+
+ラベルに `None` を割り当てたトラック（BGM・効果音など）は判定候補から除外する。
+除外しないと、全員が黙っている区間が BGM トラックに誤判定される。
+
+### タイムラインの前提
+
+本編音声とトラックのタイムラインが一致していることが前提。編集で頭出しやカットが入って
+ずれていると判定結果が丸ごと無意味になるため、`check_alignment()` で尺の乖離を警告する。
+
 ## 将来の拡張予定
 
-1. **話者分離（Diarization）**
-   - pyannote-audioとの連携
-   - speaker フィールドの自動付与
-
-2. **複数エピソード並列処理**
+1. **複数エピソード並列処理**
    - max_concurrent設定の有効化
    - GPUメモリ管理
 
-3. **Webhookモード**
+2. **Webhookモード**
    - ポーリングではなくWebhook受信
    - よりリアルタイムな処理
 
-4. **Dockerコンテナ化**
+3. **Dockerコンテナ化**
    - GPU対応Dockerイメージ
    - docker-compose設定

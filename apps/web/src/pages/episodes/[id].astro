@@ -2,6 +2,7 @@
 import Layout from "../../layouts/Layout.astro";
 import { getPublishedEpisodes, getEpisodeBySlug, formatDuration, formatDate, formatFileSize, processDescription, getPodcastIndex, getTranscriptSegments, segmentsToText } from "../../lib/api";
 import { getEpisodeOgImageUrl } from "../../lib/og";
+import Transcript from "../../components/Transcript.astro";
 import type { Episode, TranscriptSegment } from "../../lib/types";
 
 // 前後エピソードのナビゲーション用
@@ -214,32 +215,7 @@ const ogImageUrl = getEpisodeOgImageUrl(episode.artworkUrl, podcastArtworkUrl);
       </h2>
       <div class="prose prose-sm prose-zinc dark:prose-invert max-w-none text-text-secondary dark:text-text-secondary-dark" set:html={description} />
 
-      {transcriptSegments.length > 0 && (
-        <details class="mt-4 border-t border-border pt-4 dark:border-border-dark group">
-          <summary class="cursor-pointer list-none inline-flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent-hover select-none">
-            <svg class="h-4 w-4 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-            </svg>
-            文字起こしを見る
-          </summary>
-          <div id="transcript-container" class="mt-3 max-h-96 overflow-y-auto overflow-x-hidden divide-y divide-border/50 dark:divide-border-dark/50 pr-2">
-            {transcriptSegments.map((segment) => (
-              <button
-                type="button"
-                class="transcript-segment group flex w-full gap-3 py-2 first:pt-0 last:pb-0 text-left rounded transition-colors hover:bg-accent/10 dark:hover:bg-accent/20 cursor-pointer"
-                data-time={segment.start}
-              >
-                <span class="shrink-0 pt-0.5 text-[10px] font-mono text-accent/70 dark:text-accent/80 tabular-nums group-hover:text-accent transition-colors">
-                  {segment.start}
-                </span>
-                <span class="text-sm leading-normal text-text-secondary dark:text-text-secondary-dark group-hover:text-text dark:group-hover:text-text-dark transition-colors">
-                  {segment.text}
-                </span>
-              </button>
-            ))}
-          </div>
-        </details>
-      )}
+      {transcriptSegments.length > 0 && <Transcript segments={transcriptSegments} />}
     </div>
 
     <!-- シェア・外部リンク -->
