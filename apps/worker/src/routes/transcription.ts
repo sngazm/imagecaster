@@ -15,6 +15,7 @@ import {
   getIndex,
   saveIndex,
   createPresignedUrl,
+  syncPublishedIndex,
 } from "../services/r2";
 import {
   applyPostProcessAndSave,
@@ -23,6 +24,7 @@ import {
 } from "../services/transcript-postprocess";
 import { triggerWebRebuild } from "../services/deploy";
 import { reviewWithLlm } from "../services/transcript-llm";
+import { generateImpression } from "../services/episode-impression";
 import { convertToVtt } from "../services/vtt";
 import { tracksKey } from "./upload";
 
@@ -435,6 +437,77 @@ transcriptionEpisodes.post("/:id/transcript/review", async (c) => {
       { error: err instanceof Error ? err.message : "Failed to review transcript" },
       500
     );
+  }
+});
+
+/**
+ * POST /api/episodes/:id/impression - Claude の感想を生成する
+ */
+transcriptionEpisodes.post("/:id/impression", async (c) => {
+  const id = c.req.param("id");
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    if (!c.env.ANTHROPIC_API_KEY) {
+      return c.json({ error: "ANTHROPIC_API_KEY が設定されていません" }, 400);
+    }
+
+    const obj = await c.env.R2_BUCKET.get(transcriptKeys(meta.storageKey).json);
+    if (!obj) {
+      return c.json({ error: "文字起こしがありません" }, 400);
+    }
+
+    const transcript = JSON.parse(await obj.text()) as TranscriptData;
+    const impression = await generateImpression(c.env, transcript, meta.title);
+
+    meta.claudeImpression = impression;
+    meta.claudeImpressionAt = new Date().toISOString();
+    await saveEpisodeMeta(c.env, meta);
+
+    if (meta.publishStatus === "published") {
+      await syncPublishedIndex(c.env, meta);
+      await triggerWebRebuild(c.env);
+    }
+
+    return c.json({ success: true, impression });
+  } catch (err) {
+    console.error(`[impression] Error for episode ${id}:`, err);
+    return c.json(
+      { error: err instanceof Error ? err.message : "感想の生成に失敗しました" },
+      500
+    );
+  }
+});
+
+/**
+ * DELETE /api/episodes/:id/impression - 感想を消す
+ */
+transcriptionEpisodes.delete("/:id/impression", async (c) => {
+  const id = c.req.param("id");
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    meta.claudeImpression = null;
+    meta.claudeImpressionAt = null;
+    await saveEpisodeMeta(c.env, meta);
+
+    if (meta.publishStatus === "published") {
+      await syncPublishedIndex(c.env, meta);
+      await triggerWebRebuild(c.env);
+    }
+
+    return c.json({ success: true });
+  } catch (err) {
+    console.error(`[impression] Delete error for episode ${id}:`, err);
+    return c.json({ error: "削除に失敗しました" }, 500);
   }
 });
 

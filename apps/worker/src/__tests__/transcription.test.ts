@@ -959,3 +959,71 @@ describe("話者トラックと後処理", () => {
     });
   });
 });
+
+describe("Claude の感想", () => {
+  describe("POST /api/episodes/:id/impression", () => {
+    it("APIキーが無ければ 400 を返す", async () => {
+      // テスト環境では ANTHROPIC_API_KEY を設定していない
+      const { id } = await createTestEpisode({ title: "Impression No Key" });
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/impression`,
+        { method: "POST" }
+      );
+
+      expect(response.status).toBe(400);
+      const json = (await response.json()) as { error: string };
+      expect(json.error).toContain("ANTHROPIC_API_KEY");
+    });
+
+    it("存在しないエピソードは 404", async () => {
+      const response = await SELF.fetch(
+        "http://localhost/api/episodes/__missing__/impression",
+        { method: "POST" }
+      );
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("DELETE /api/episodes/:id/impression", () => {
+    it("感想を消せる", async () => {
+      const { id, storageKey } = await createTestEpisode({ title: "Impression Delete" });
+
+      // 感想がある状態を作る
+      const obj = await env.R2_BUCKET.get(`episodes/${storageKey}/meta.json`);
+      const meta = JSON.parse((await obj!.text()) as string);
+      meta.claudeImpression = "人間はいつもこうだ。";
+      meta.claudeImpressionAt = new Date().toISOString();
+      await env.R2_BUCKET.put(
+        `episodes/${storageKey}/meta.json`,
+        JSON.stringify(meta),
+        { httpMetadata: { contentType: "application/json" } }
+      );
+
+      const response = await SELF.fetch(
+        `http://localhost/api/episodes/${id}/impression`,
+        { method: "DELETE" }
+      );
+
+      expect(response.status).toBe(200);
+
+      const detail = await SELF.fetch(`http://localhost/api/episodes/${id}`);
+      const after = (await detail.json()) as { claudeImpression: string | null };
+      expect(after.claudeImpression).toBeNull();
+    });
+  });
+});
+
+describe("POST /api/episodes/:id/transcript/review", () => {
+  it("APIキーが無ければ 400 を返す", async () => {
+    const { id } = await createTestEpisode({ title: "Review No Key" });
+
+    const response = await SELF.fetch(
+      `http://localhost/api/episodes/${id}/transcript/review`,
+      { method: "POST" }
+    );
+
+    expect(response.status).toBe(400);
+  });
+});

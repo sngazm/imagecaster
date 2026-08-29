@@ -3,6 +3,7 @@ import { Link, useParams, useNavigate } from "react-router-dom";
 import { api, EpisodeDetail as EpisodeDetailType, formatDuration, formatFileSize, uploadToR2, getAudioDuration, utcToLocalDateTimeString, localDateTimeToISOString, fetchTranscriptSegments } from "../lib/api";
 import { SpeakerTracksPanel } from "../components/SpeakerTracksPanel";
 import { TranscriptViewer } from "../components/TranscriptViewer";
+import { ClaudeImpressionPanel } from "../components/ClaudeImpressionPanel";
 import type { DescriptionTemplate, ReferenceLink, TranscriptSegment, PublishStatus, TranscribeStatus, UploadProgress, SpeakerTrackAssignment } from "../lib/api";
 import { UploadProgressBar } from "../components/UploadProgressBar";
 import { HtmlEditor, type PreviewContext } from "../components/HtmlEditor";
@@ -998,6 +999,17 @@ export default function EpisodeDetail() {
                     />
                   </div>
                 )}
+
+                {/* Claude の感想（公開サイトに載る） */}
+                <div className="border-t border-[var(--color-border)] pt-4">
+                  <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-3">
+                    Claude の感想
+                  </h3>
+                  <ClaudeImpressionPanel
+                    episode={episode}
+                    onUpdated={reloadEpisode}
+                  />
+                </div>
               </div>
             ) : (
               <>

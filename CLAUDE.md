@@ -138,6 +138,9 @@ await jwtVerify(jwt, JWKS, { audience: ACCESS_AUD });
 | DELETE | /api/episodes/:id/tracks | 話者トラック削除 |
 | POST | /api/episodes/:id/transcript/reprocess | 後処理のやり直し |
 | POST | /api/episodes/:id/retranscribe | 音声から文字起こしをやり直す |
+| POST | /api/episodes/:id/transcript/review | LLMによる校正 |
+| POST | /api/episodes/:id/impression | Claudeの感想を生成 |
+| DELETE | /api/episodes/:id/impression | Claudeの感想を削除 |
 
 ### Settings
 | Method | Path | 説明 |
@@ -224,6 +227,7 @@ podcast-bucket/
 - `CF_ACCESS_AUD` - Access アプリケーションの AUD
 
 ### Worker (secrets)
+- `ANTHROPIC_API_KEY` - Anthropic APIキー（LLM校正・感想生成）
 - `R2_ACCESS_KEY_ID` - R2 APIキーID
 - `R2_SECRET_ACCESS_KEY` - R2 APIシークレット
 - `BLUESKY_IDENTIFIER` - Blueskyアカウント

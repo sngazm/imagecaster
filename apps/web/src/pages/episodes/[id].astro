@@ -3,6 +3,7 @@ import Layout from "../../layouts/Layout.astro";
 import { getPublishedEpisodes, getEpisodeBySlug, formatDuration, formatDate, formatFileSize, processDescription, getPodcastIndex, getTranscriptSegments, segmentsToText } from "../../lib/api";
 import { getEpisodeOgImageUrl } from "../../lib/og";
 import Transcript from "../../components/Transcript.astro";
+import ClaudeImpression from "../../components/ClaudeImpression.astro";
 import type { Episode, TranscriptSegment } from "../../lib/types";
 
 // 前後エピソードのナビゲーション用
@@ -214,6 +215,10 @@ const ogImageUrl = getEpisodeOgImageUrl(episode.artworkUrl, podcastArtworkUrl);
         エピソード概要
       </h2>
       <div class="prose prose-sm prose-zinc dark:prose-invert max-w-none text-text-secondary dark:text-text-secondary-dark" set:html={description} />
+
+      {episode.claudeImpression && (
+        <ClaudeImpression impression={episode.claudeImpression} />
+      )}
 
       {transcriptSegments.length > 0 && <Transcript segments={transcriptSegments} />}
     </div>

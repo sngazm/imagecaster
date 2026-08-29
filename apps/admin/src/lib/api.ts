@@ -76,6 +76,9 @@ export interface EpisodeDetail {
   spotifyUrl: string | null;
   // 文字起こしエラー
   transcriptionErrorMessage?: string | null;
+  // Claude の感想
+  claudeImpression?: string | null;
+  claudeImpressionAt?: string | null;
   // 話者トラック（zip）
   tracksUploadedAt?: string | null;
   speakerTracks?: SpeakerTrackAssignment[] | null;
@@ -427,6 +430,26 @@ export const api = {
 
   deleteTracks: (id: string) =>
     request<{ success: boolean }>(`/api/episodes/${id}/tracks`, {
+      method: "DELETE",
+    }),
+
+  // LLM による校正
+  reviewTranscript: (id: string) =>
+    request<{
+      success: boolean;
+      corrections: Array<{ index: number; before: string; after: string; reason: string }>;
+      rejected: Array<{ correction: { before: string; after: string }; reason: string }>;
+    }>(`/api/episodes/${id}/transcript/review`, { method: "POST" }),
+
+  // Claude の感想
+  generateImpression: (id: string) =>
+    request<{ success: boolean; impression: string }>(
+      `/api/episodes/${id}/impression`,
+      { method: "POST" }
+    ),
+
+  deleteImpression: (id: string) =>
+    request<{ success: boolean }>(`/api/episodes/${id}/impression`, {
       method: "DELETE",
     }),
 

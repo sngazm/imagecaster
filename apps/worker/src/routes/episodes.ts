@@ -7,6 +7,7 @@ import type {
   EpisodesListResponse,
   CreateEpisodeResponse,
   EpisodeMeta,
+  TranscriptData,
 } from "../types";
 import {
   getIndex,
@@ -31,6 +32,7 @@ import {
   savePostProcessed,
   transcriptKeys,
 } from "../services/transcript-postprocess";
+import { generateImpression } from "../services/episode-impression";
 
 const episodes = new Hono<{ Bindings: Env }>();
 
@@ -463,6 +465,26 @@ episodes.post("/:id/transcription-complete", async (c) => {
 
       meta.transcribeStatus = "completed";
       meta.transcriptionErrorMessage = null;
+
+      // Claude の感想を作る。文字起こしそのものは既に保存できているので、
+      // ここで失敗しても完了は取り消さない（感想は後から作り直せる）。
+      if (c.env.ANTHROPIC_API_KEY) {
+        try {
+          const transcriptObj = await c.env.R2_BUCKET.get(
+            transcriptKeys(meta.storageKey).json
+          );
+          if (transcriptObj) {
+            meta.claudeImpression = await generateImpression(
+              c.env,
+              JSON.parse(await transcriptObj.text()) as TranscriptData,
+              meta.title
+            );
+            meta.claudeImpressionAt = new Date().toISOString();
+          }
+        } catch (err) {
+          console.error(`[transcription-complete] 感想の生成に失敗: ${meta.id}`, err);
+        }
+      }
 
       // duration が提供されていれば更新
       if (body.duration !== undefined) {

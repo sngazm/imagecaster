@@ -30,6 +30,9 @@ export interface Episode {
   publishedAt: string | null;
   referenceLinks?: ReferenceLink[];
   applePodcastsUrl?: string | null;
+  /** Claude が書いたエピソードの感想 */
+  claudeImpression?: string | null;
+  claudeImpressionAt?: string | null;
 }
 
 export interface PodcastInfo {

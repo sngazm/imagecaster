@@ -236,6 +236,9 @@ export interface EpisodeMeta {
   transcriptionLockedAt?: string | null;
   // 文字起こし失敗時のエラーメッセージ
   transcriptionErrorMessage?: string | null;
+  // Claude が書いたエピソードの感想（公開サイトに掲載する）
+  claudeImpression?: string | null;
+  claudeImpressionAt?: string | null;
   // 話者トラック（zip）をアップロード済みの場合の日時
   tracksUploadedAt?: string | null;
   // エピソード固有の話者割り当て。null / undefined なら番組の既定値を使う
