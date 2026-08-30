@@ -68,6 +68,17 @@ function speakerClass(speaker: string): string {
     文字起こし
   </summary>
 
+  <button
+    id="stop-button"
+    type="button"
+    class="mt-2 hidden items-center gap-1.5 rounded-full border border-border bg-bg-elevated px-3 py-1 text-xs text-text-secondary transition-colors hover:border-accent hover:text-accent dark:border-border-dark dark:bg-bg-elevated-dark dark:text-text-secondary-dark"
+  >
+    <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="7" y="7" width="10" height="10" rx="1.5" />
+    </svg>
+    再生を止める
+  </button>
+
   <div
     id="transcript-container"
     class="mt-3 max-h-96 overflow-y-auto overflow-x-hidden pr-2"
@@ -82,7 +93,7 @@ function speakerClass(speaker: string): string {
         return (
           <div
             class:list={[
-              "transcript-segment group flex w-full gap-3 py-1 text-left rounded transition-colors hover:bg-accent/10 dark:hover:bg-accent/20 cursor-pointer",
+              "transcript-segment group flex w-full gap-3 px-2 py-1 text-left rounded transition-colors hover:bg-accent/10 dark:hover:bg-accent/20 cursor-pointer",
               isNewSpeaker && index > 0 && "mt-3",
             ]}
             data-time={segment.start}
@@ -122,3 +133,16 @@ function speakerClass(speaker: string): string {
     }
   </div>
 </details>
+
+<style>
+  /* 再生中の行。読んでいる邪魔にならない濃さにする */
+  .transcript-segment.is-playing {
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .transcript-segment {
+      transition: background-color 0.25s ease;
+    }
+  }
+</style>

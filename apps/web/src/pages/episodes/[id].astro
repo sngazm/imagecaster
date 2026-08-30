@@ -139,23 +139,10 @@ const ogImageUrl = getEpisodeOgImageUrl(episode.artworkUrl, podcastArtworkUrl);
     <!-- オーディオプレイヤー -->
     {/* audioUrlがあればそれを使い、なければsourceAudioUrl（RSSインポート時の外部URL）を使用 */}
     <div class="mb-6 rounded-lg border border-border bg-bg-elevated p-4 dark:border-border-dark dark:bg-bg-elevated-dark">
-      <div class="relative">
-        <audio id="audio-player" controls class="mb-3 w-full" preload="metadata">
-          <source src={episode.audioUrl || episode.sourceAudioUrl || ""} type="audio/mpeg" />
-          お使いのブラウザはオーディオ再生に対応していません。
-        </audio>
-        <button
-          id="stop-button"
-          type="button"
-          class="absolute -top-1 -right-1 hidden rounded-full bg-red-500 p-1.5 text-white shadow-md transition-all hover:bg-red-600 hover:scale-110"
-          aria-label="停止"
-          title="停止"
-        >
-          <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
-            <rect x="6" y="6" width="12" height="12" rx="1" />
-          </svg>
-        </button>
-      </div>
+      <audio id="audio-player" controls class="mb-3 w-full" preload="metadata">
+        <source src={episode.audioUrl || episode.sourceAudioUrl || ""} type="audio/mpeg" />
+        お使いのブラウザはオーディオ再生に対応していません。
+      </audio>
 
       <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-text-muted dark:text-text-muted-dark">
         <span class="flex items-center gap-1">
@@ -320,15 +307,18 @@ const ogImageUrl = getEpisodeOgImageUrl(episode.artworkUrl, podcastArtworkUrl);
     // 再生中は停止ボタンを表示
     audio.addEventListener('play', () => {
       stopButton.classList.remove('hidden');
+      stopButton.classList.add('inline-flex');
     });
 
     // 停止・一時停止で非表示
     audio.addEventListener('pause', () => {
       stopButton.classList.add('hidden');
+      stopButton.classList.remove('inline-flex');
     });
 
     audio.addEventListener('ended', () => {
       stopButton.classList.add('hidden');
+      stopButton.classList.remove('inline-flex');
     });
 
     // 停止ボタンのクリックで再生停止＆先頭に戻す
@@ -336,6 +326,51 @@ const ogImageUrl = getEpisodeOgImageUrl(episode.artworkUrl, podcastArtworkUrl);
       audio.pause();
       audio.currentTime = 0;
     });
+  }
+
+  // 再生中の行に背景を出す
+  //
+  // どこを喋っているかが目で追える。行の開始時刻しか持っていないので、
+  // 「開始時刻が現在より前で、いちばん後ろの行」を今の行とみなす。
+  if (audio && transcriptSegments.length > 0) {
+    const starts = [...transcriptSegments].map((segment) =>
+      timeToSeconds(segment.getAttribute('data-time') ?? '0')
+    );
+
+    let current = -1;
+
+    function highlight(index: number): void {
+      if (index === current) return;
+
+      transcriptSegments[current]?.classList.remove('is-playing');
+      transcriptSegments[index]?.classList.add('is-playing');
+      current = index;
+    }
+
+    audio.addEventListener('timeupdate', () => {
+      const now = audio.currentTime;
+
+      // 二分探索。行数が数千になるので毎秒なめると重い
+      let low = 0;
+      let high = starts.length - 1;
+      let found = -1;
+
+      while (low <= high) {
+        const mid = (low + high) >> 1;
+        if (starts[mid] <= now) {
+          found = mid;
+          low = mid + 1;
+        } else {
+          high = mid - 1;
+        }
+      }
+
+      highlight(found);
+    });
+
+    const clearHighlight = () => highlight(-1);
+    audio.addEventListener('pause', clearHighlight);
+    audio.addEventListener('ended', clearHighlight);
   }
 
   // トランスクリプトセグメントのクリックで再生位置を変更
