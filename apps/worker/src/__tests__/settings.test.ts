@@ -521,3 +521,50 @@ describe("設定を往復させても既定値が焼き付かないこと", () =
     expect(read.transcriptPostProcess.backchannel.units).toEqual(["ふむ"]);
   });
 });
+
+describe("設定の保存で提案が消えないこと", () => {
+  it("取得してそのまま送り返しても提案が残る", async () => {
+    // 管理画面は設定を取得してそのまま送り返す。落とすと、承認の画面を
+    // 開いただけで一覧が空になる
+    await SELF.fetch("http://local.test/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        transcriptPostProcess: {
+          speakerDefaults: [],
+          merge: { enabled: true, maxGapSec: null, maxDurationSec: 10, maxChars: 200 },
+          corrections: [],
+          proposals: [
+            {
+              from: "アサナ",
+              to: "Asana",
+              note: "ツール名",
+              episodeId: "285",
+              occurrences: 3,
+              proposedAt: "2026-08-30T00:00:00.000Z",
+            },
+          ],
+        },
+      }),
+    });
+
+    const current = (await (
+      await SELF.fetch("http://local.test/api/settings")
+    ).json()) as any;
+
+    expect(current.transcriptPostProcess.proposals).toHaveLength(1);
+
+    await SELF.fetch("http://local.test/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transcriptPostProcess: current.transcriptPostProcess }),
+    });
+
+    const after = (await (
+      await SELF.fetch("http://local.test/api/settings")
+    ).json()) as any;
+
+    expect(after.transcriptPostProcess.proposals).toHaveLength(1);
+    expect(after.transcriptPostProcess.proposals[0].from).toBe("アサナ");
+  });
+});

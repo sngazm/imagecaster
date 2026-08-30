@@ -9,6 +9,7 @@
 
 import type {
   BackchannelSettings,
+  CorrectionProposal,
   FillerSettings,
   CorrectionRule,
   Env,
@@ -1160,7 +1161,46 @@ export function sanitizePostProcessSettings(
         : null,
     hallucination: sanitizeHallucination(entry.hallucination),
     backchannel: sanitizeBackchannel(entry.backchannel),
+    proposals: sanitizeProposals(entry.proposals),
   };
+}
+
+/**
+ * 校正からの提案を正規化する
+ *
+ * 落とすと、設定を保存するたびに提案が消える。管理画面は設定を取得して
+ * そのまま送り返すので、承認の画面を開いただけで一覧が空になってしまう。
+ */
+function sanitizeProposals(input: unknown): CorrectionProposal[] {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  return input
+    .filter((entry): entry is Record<string, unknown> =>
+      typeof entry === "object" && entry !== null
+    )
+    .filter(
+      (entry) =>
+        typeof entry.from === "string" &&
+        typeof entry.to === "string" &&
+        entry.from.trim() !== "" &&
+        entry.to.trim() !== ""
+    )
+    .map((entry) => ({
+      from: String(entry.from).trim(),
+      to: String(entry.to).trim(),
+      note: typeof entry.note === "string" ? entry.note : undefined,
+      episodeId: typeof entry.episodeId === "string" ? entry.episodeId : "",
+      occurrences:
+        typeof entry.occurrences === "number" && Number.isFinite(entry.occurrences)
+          ? entry.occurrences
+          : 0,
+      proposedAt:
+        typeof entry.proposedAt === "string"
+          ? entry.proposedAt
+          : new Date().toISOString(),
+    }));
 }
 
 /**
