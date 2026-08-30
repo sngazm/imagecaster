@@ -101,13 +101,22 @@ node /tmp/passage.mjs 285 40 20   # ep, 開始行, 行数
 `scripts/run-worker.sh` に git pull は入っていない。手で pull して再起動する。
 
 ```bash
-ssh wsl
-cd ~/dev/imagecaster-transcriber
-git pull --ff-only
-pkill -f "imagecaster-transcriber worker"
-rm -f .worker.lock
-setsid nohup ./scripts/run-worker.sh > /tmp/worker.log 2>&1 < /dev/null &
+ssh wsl 'cd ~/dev/imagecaster-transcriber && git pull --ff-only'
+ssh wsl '~/dev/imagecaster-transcriber/scripts/restart-worker.sh'
 ```
+
+`restart-worker.sh` が全部やる。止まらなければ KILL し、孤児のロックを外し、
+起動を確かめて**動いているコミット**を表示する。
+
+```
+動いているワーカーを止めます...
+起動します（ログ: /tmp/imagecaster-worker.log）
+起動しました（e353dad）
+```
+
+**手で pkill して起動し直すのはやめること。** 何度も同じところで詰まった。
+pkill が効かず古いプロセスが残ると、flock に弾かれて新しいほうが黙って終了し、
+**古いコードのまま動き続ける**。実際にこれで、直したはずのバグが本番で再発した。
 
 ## 仕組みの説明
 
