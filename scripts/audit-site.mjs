@@ -35,6 +35,13 @@ const BAD_WORDS = [
   "イメージキャスト",
 ];
 
+/** それ自体がキャメルケースの製品名。空白が落ちているわけではない */
+const CAMEL_CASE_NAMES = [
+  "YouTube", "GitHub", "JavaScript", "TypeScript", "PostgreSQL", "iPhone",
+  "iPad", "macOS", "iOS", "OpenAI", "DaVinci", "InDesign", "SoundCloud",
+  "iTerm", "iCloud", "eBay", "PayPal", "LinkedIn", "WordPress",
+];
+
 /**
  * 置換が行き過ぎた形跡
  *
@@ -49,6 +56,16 @@ const OVER_REPLACED = [
   // 「Claude Code」のような正しい用例は除く。単独の Code が助詞に付くのが兆候
   { pattern: /(?<!Claude |VS ?)Code[をがはにでとも]/, kind: "「コード」が置換されている" },
   { pattern: /番頭[ーウ]/, kind: "「バントー」の置換が壊れている" },
+  // 英単語同士が空白なしで繋がっている（「GoogleWorkspace」）。
+  // 辞書の規則が語の一部だけを対象にしていると起きる。
+  // YouTube のように、それ自体がキャメルケースの製品名は除く
+  {
+    pattern: /[a-z][A-Z][a-z]/,
+    kind: "英単語の空白が落ちている",
+    except: CAMEL_CASE_NAMES,
+  },
+  // 「えー、で、」が「え?で、」になる疑問符の誤付与
+  { pattern: /[ぁ-ん][?？]\s*で[、。]/, kind: "疑問符が誤って付いている" },
 ];
 
 /**
@@ -98,8 +115,10 @@ async function auditEpisode(id) {
     }
 
     // 辞書の規則が行き過ぎていないか
-    for (const { pattern, kind } of OVER_REPLACED) {
-      if (pattern.test(text)) {
+    for (const { pattern, kind, except } of OVER_REPLACED) {
+      // 正当な綴りを取り除いてから当てる
+      const target = (except ?? []).reduce((t, w) => t.split(w).join(""), text);
+      if (pattern.test(target)) {
         findings.push({ kind, speakers, text });
       }
     }
