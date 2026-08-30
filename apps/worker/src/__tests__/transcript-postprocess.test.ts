@@ -744,3 +744,23 @@ describe("笑い声を落とす", () => {
     expect(result.segments).toHaveLength(2);
   });
 });
+
+describe("否定の相槌も落とす", () => {
+  it("「いやいやいやいや。」を落とす", () => {
+    const result = dropStandaloneBackchannels(
+      [seg(0, 2, "いやいやいやいや。", "あずま")],
+      DEFAULT_BACKCHANNEL_SETTINGS
+    );
+
+    expect(result.segments).toHaveLength(0);
+  });
+
+  it("「いや、」で始まる文は残す", () => {
+    const result = dropStandaloneBackchannels(
+      [seg(0, 3, "いや、それは違うと思います。", "鉄塔")],
+      DEFAULT_BACKCHANNEL_SETTINGS
+    );
+
+    expect(result.segments).toHaveLength(1);
+  });
+});

@@ -51,18 +51,6 @@ const OVER_REPLACED = [
   { pattern: /番頭[ーウ]/, kind: "「バントー」の置換が壊れている" },
 ];
 
-/**
- * 同じ短文がこの回数以上、離れた場所に出たら指摘する
- *
- * 拾い直しがハルシネーションを作ると「話しています。」のような無害な短文が
- * 散らばる。連続していないので、繰り返しを畳む処理では拾えない。
- *
- * 読点で終わるものは数えない。「みたいな感じで、」「例えば、」のような
- * 言いさしは、自然な話し言葉として普通に繰り返される。
- */
-const SCATTERED_REPEAT_LIMIT = 6;
-const SCATTERED_MAX_CHARS = 10;
-
 function unescapeHtml(s) {
   return s
     .replace(/&lt;/g, "<")
@@ -128,22 +116,6 @@ async function auditEpisode(id) {
     const repeat = text.match(/(うん|はい|そう|ええ|へえ)\1{3,}/);
     if (repeat) {
       findings.push({ kind: `相槌4回以上（${repeat[0]}）`, speakers, text });
-    }
-  }
-
-  // 同じ短文が離れた場所に何度も出るのは、拾い直しがハルシネーションを
-  // 作った印。連続していないので、繰り返しを畳む処理では拾えない。
-  const counts = new Map();
-  for (const { text } of segments) {
-    const t = text.trim();
-    if (!/[。．！？!?]$/.test(t)) continue;
-    if (t.length >= 4 && t.length <= SCATTERED_MAX_CHARS) {
-      counts.set(t, (counts.get(t) ?? 0) + 1);
-    }
-  }
-  for (const [text, n] of counts) {
-    if (n >= SCATTERED_REPEAT_LIMIT) {
-      findings.push({ kind: `同じ短文が${n}回（散在）`, speakers: [], text });
     }
   }
 
