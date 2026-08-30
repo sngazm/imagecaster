@@ -51,6 +51,8 @@ export interface PostProcessOptions {
   corrections?: CorrectionRule[];
   hallucination?: Partial<HallucinationSettings>;
   backchannel?: Partial<BackchannelSettings>;
+  /** この回かぎりの修正。番組全体の辞書のあとに当てる */
+  episodeCorrections?: CorrectionRule[];
 }
 
 /**
@@ -618,7 +620,10 @@ export function postProcess(
   const { segments: repaired } = repairSpeakerBoundaries(withoutFillers);
 
   const merged = mergeSegments(repaired, options.merge);
-  const { segments } = applyCorrections(merged, options.corrections ?? []);
+  // 番組全体の辞書を当ててから、この回かぎりの修正を当てる。
+  // 全体の辞書に入れると誤爆するものを、ここで拾う
+  const { segments: corrected } = applyCorrections(merged, options.corrections ?? []);
+  const { segments } = applyCorrections(corrected, options.episodeCorrections ?? []);
 
   return {
     ...data,
@@ -800,13 +805,15 @@ function sanitizeBackchannel(input: unknown): BackchannelSettings {
  * 既定値で動く。実際に backchannel を足したときこれが起きたので関数にまとめた。
  */
 export function toPostProcessOptions(
-  settings: TranscriptPostProcessSettings | undefined | null
+  settings: TranscriptPostProcessSettings | undefined | null,
+  meta?: EpisodeMeta | null
 ): PostProcessOptions {
   return {
     merge: settings?.merge,
     corrections: settings?.corrections,
     hallucination: settings?.hallucination,
     backchannel: settings?.backchannel,
+    episodeCorrections: meta?.transcriptCorrections ?? undefined,
   };
 }
 
@@ -912,7 +919,7 @@ export async function savePostProcessed(
 
   // パイプライン全体を通す。ここで mergeSegments と applyCorrections だけを
   // 直接呼んでいたため、ハルシネーション除去と相槌の整形が効いていなかった。
-  const processed = postProcess(raw, toPostProcessOptions(settings));
+  const processed = postProcess(raw, toPostProcessOptions(settings, meta));
 
   // どの置換が何回効いたかは呼び出し側に返す（統合後のテキストに対して数える）
   const merged = mergeSegments(raw.segments, settings?.merge);

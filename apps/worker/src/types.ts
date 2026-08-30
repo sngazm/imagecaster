@@ -254,6 +254,13 @@ export interface EpisodeMeta {
   speakerTracks?: SpeakerTrackAssignment[] | null;
   // Whisper の生出力（話者判定済み・後処理前）の URL
   transcriptRawUrl?: string | null;
+  /**
+   * この回かぎりの誤字修正
+   *
+   * 番組全体の辞書に入れると誤爆するもの（「ソロスを」→「そろそろ」など）を、
+   * このエピソードだけに当てる。番組全体の辞書のあとに適用する。
+   */
+  transcriptCorrections?: CorrectionRule[] | null;
 }
 
 /**

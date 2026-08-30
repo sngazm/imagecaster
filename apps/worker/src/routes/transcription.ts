@@ -24,6 +24,7 @@ import {
 } from "../services/transcript-postprocess";
 import { triggerWebRebuild } from "../services/deploy";
 import { reviewWithLlm } from "../services/transcript-llm";
+import { DEFAULT_POST_PROCESS_SETTINGS } from "../services/transcript-postprocess";
 import { generateImpression } from "../services/episode-impression";
 import { convertToVtt } from "../services/vtt";
 import { tracksKey } from "./upload";
@@ -378,6 +379,116 @@ transcriptionEpisodes.post("/:id/transcript/reprocess", async (c) => {
   } catch (err) {
     console.error(`[transcript/reprocess] Error for episode ${id}:`, err);
     return c.json({ error: "Failed to reprocess transcript" }, 500);
+  }
+});
+
+/**
+ * POST /api/episodes/:id/transcript/corrections - 校正で見つかった修正を登録する
+ *
+ * 文字起こしを回すマシンが、ローカルの claude に校正させた結果を送ってくる。
+ * 本文をそのまま書き換えるのではなく**置換規則**として受け取り、番組全体に効くもの
+ * （`general`）は辞書へ、この回かぎりのものはエピソードに保存する。
+ *
+ * こうしておくと、後処理をやり直しても修正が残る。辞書は次回以降の文字起こしにも
+ * 自動で効くので、同じ誤りを毎回直さずに済む。
+ */
+transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
+  const id = c.req.param("id");
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    const body = await c.req.json<{
+      corrections?: Array<{
+        from?: unknown;
+        to?: unknown;
+        note?: unknown;
+        general?: unknown;
+      }>;
+    }>();
+
+    const incoming = Array.isArray(body.corrections) ? body.corrections : [];
+
+    const rules = incoming
+      .filter(
+        (r): r is { from: string; to: string; note?: string; general?: boolean } =>
+          typeof r.from === "string" &&
+          typeof r.to === "string" &&
+          r.from.trim() !== "" &&
+          r.to.trim() !== "" &&
+          r.from !== r.to
+      )
+      .map((r) => ({
+        from: r.from.trim(),
+        to: r.to.trim(),
+        note: typeof r.note === "string" ? r.note : undefined,
+        general: r.general === true,
+      }));
+
+    const index = await getIndex(c.env);
+    const settings =
+      index.podcast.transcriptPostProcess ?? DEFAULT_POST_PROCESS_SETTINGS;
+
+    // 番組全体の辞書。既にある規則は足さない
+    const dictionary = [...settings.corrections];
+    const known = new Set(dictionary.map((r) => `${r.from}\u0000${r.to}`));
+    let added = 0;
+
+    for (const rule of rules.filter((r) => r.general)) {
+      const key = `${rule.from}\u0000${rule.to}`;
+      if (known.has(key)) continue;
+
+      known.add(key);
+      dictionary.push({
+        from: rule.from,
+        to: rule.to,
+        enabled: true,
+        note: rule.note ? `校正で追加: ${rule.note}` : "校正で追加",
+      });
+      added += 1;
+    }
+
+    if (added > 0) {
+      index.podcast.transcriptPostProcess = { ...settings, corrections: dictionary };
+      await saveIndex(c.env, index);
+    }
+
+    // この回かぎりの修正
+    const episodeRules = rules
+      .filter((r) => !r.general)
+      .map((r) => ({
+        from: r.from,
+        to: r.to,
+        enabled: true,
+        note: r.note,
+      }));
+
+    meta.transcriptCorrections = episodeRules.length > 0 ? episodeRules : null;
+
+    const result = await applyPostProcessAndSave(
+      c.env,
+      meta,
+      index.podcast.transcriptPostProcess
+    );
+
+    await saveEpisodeMeta(c.env, meta);
+
+    if (meta.publishStatus === "published") {
+      await triggerWebRebuild(c.env);
+    }
+
+    return c.json({
+      success: true,
+      dictionaryAdded: added,
+      episodeRules: episodeRules.length,
+      segments: result?.segments ?? 0,
+    });
+  } catch (err) {
+    console.error(`[transcript/corrections] Error for episode ${id}:`, err);
+    return c.json({ error: "Failed to register corrections" }, 500);
   }
 });
 

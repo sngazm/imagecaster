@@ -1080,3 +1080,114 @@ describe("後処理が保存経路でも全段通ること", () => {
     expect(text).not.toContain("はい。");
   });
 });
+
+describe("校正で見つかった修正を登録する", () => {
+  async function episodeWithTranscript(): Promise<string> {
+    const { id, storageKey } = await createTestEpisode({ title: "校正" });
+    await setEpisodeToTranscribing(storageKey, id);
+    await env.R2_BUCKET.put(
+      `episodes/${storageKey}/transcript.raw.json`,
+      JSON.stringify({
+        language: "ja",
+        segments: [
+          { start: 0, end: 3, text: "アサナで管理してます。", speaker: "あずま" },
+          { start: 4, end: 7, text: "ソロスを変えたい。", speaker: "鉄塔" },
+        ],
+      })
+    );
+    await SELF.fetch(`http://localhost/api/episodes/${id}/transcription-complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transcribeStatus: "completed" }),
+    });
+    return id;
+  }
+
+  function send(id: string, corrections: unknown[]) {
+    return SELF.fetch(
+      `http://localhost/api/episodes/${id}/transcript/corrections`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ corrections }),
+      }
+    );
+  }
+
+  it("番組全体のものは辞書に入り、この回かぎりのものは入らない", async () => {
+    const id = await episodeWithTranscript();
+
+    const response = await send(id, [
+      { from: "アサナ", to: "Asana", note: "ツール名", general: true },
+      { from: "ソロスを", to: "そろそろ", note: "誤認識", general: false },
+    ]);
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      dictionaryAdded: number;
+      episodeRules: number;
+    };
+    expect(body.dictionaryAdded).toBe(1);
+    expect(body.episodeRules).toBe(1);
+
+    const saved = (await (
+      await SELF.fetch("http://localhost/api/settings")
+    ).json()) as { transcriptPostProcess: { corrections: Array<{ from: string }> } };
+    const rules = saved.transcriptPostProcess.corrections;
+
+    expect(rules.some((r) => r.from === "アサナ")).toBe(true);
+    // この回かぎりのものを辞書に入れると、他の回で誤爆する
+    expect(rules.some((r) => r.from === "ソロスを")).toBe(false);
+  });
+
+  it("どちらの修正も文字起こしに反映される", async () => {
+    const id = await episodeWithTranscript();
+    await send(id, [
+      { from: "アサナ", to: "Asana", general: true },
+      { from: "ソロスを", to: "そろそろ", general: false },
+    ]);
+
+    const meta = (await (
+      await SELF.fetch(`http://localhost/api/episodes/${id}`)
+    ).json()) as { storageKey: string };
+    const vtt = await (
+      await env.R2_BUCKET.get(`episodes/${meta.storageKey}/transcript.vtt`)
+    )!.text();
+
+    expect(vtt).toContain("Asana");
+    expect(vtt).toContain("そろそろ");
+    expect(vtt).not.toContain("アサナ");
+  });
+
+  it("同じ規則を二度足さない", async () => {
+    const id = await episodeWithTranscript();
+    const rule = [{ from: "クロードコード", to: "Claude Code", general: true }];
+
+    const first = (await (await send(id, rule)).json()) as { dictionaryAdded: number };
+    const second = (await (await send(id, rule)).json()) as { dictionaryAdded: number };
+
+    expect(first.dictionaryAdded).toBe(1);
+    expect(second.dictionaryAdded).toBe(0);
+  });
+
+  it("空や変化のない規則は捨てる", async () => {
+    const id = await episodeWithTranscript();
+
+    const body = (await (
+      await send(id, [
+        { from: "", to: "何か", general: true },
+        { from: "同じ", to: "同じ", general: true },
+        { from: "あり", to: "", general: true },
+      ])
+    ).json()) as { dictionaryAdded: number; episodeRules: number };
+
+    expect(body.dictionaryAdded).toBe(0);
+    expect(body.episodeRules).toBe(0);
+  });
+
+  it("知らないエピソードなら404", async () => {
+    const response = await send("nope", []);
+
+    expect(response.status).toBe(404);
+  });
+});
