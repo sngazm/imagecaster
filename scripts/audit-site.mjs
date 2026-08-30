@@ -183,7 +183,8 @@ for (const r of results) {
 
 console.log(`\n合計 ${total} 件の指摘`);
 if (total === 0) {
-  console.log("問題は見つかりませんでした。");
+  console.log("既知の形の問題はありません。");
+  console.log("読んで分かる誤りは node scripts/read-back.mjs で探せます。");
 } else {
   for (const [kind, list] of [...byKind].sort((a, b) => b[1].length - a[1].length)) {
     console.log(`\n  ${list.length} 件  ${kind}`);
