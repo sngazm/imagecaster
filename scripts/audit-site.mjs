@@ -44,7 +44,7 @@ const BAD_WORDS = [
 const OVER_REPLACED = [
   { pattern: /[ぁ-んァ-ヴ一-龥]mail/, kind: "「メール」が置換されている" },
   // 「Claude Code」のような正しい用例は除く。単独の Code が助詞に付くのが兆候
-  { pattern: /(?<!Claude |VS )Code[をがはにでとも]/, kind: "「コード」が置換されている" },
+  { pattern: /(?<!Claude |VS ?)Code[をがはにでとも]/, kind: "「コード」が置換されている" },
   { pattern: /番頭[ーウ]/, kind: "「バントー」の置換が壊れている" },
 ];
 
