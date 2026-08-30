@@ -652,9 +652,13 @@ export function postProcess(
   const { segments: repaired } = repairSpeakerBoundaries(withoutFillers);
 
   const merged = mergeSegments(repaired, options.merge);
+
+  // 統合してからもう一度落とす。「そう」と「そうそう」が繋がって
+  // 「そうそうそう」が生まれることがある。判定は読者が見る最終形に対して行う。
+  const { segments: tidy } = dropStandaloneBackchannels(merged, backchannel);
   // 番組全体の辞書を当ててから、この回かぎりの修正を当てる。
   // 全体の辞書に入れると誤爆するものを、ここで拾う
-  const { segments: corrected } = applyCorrections(merged, options.corrections ?? []);
+  const { segments: corrected } = applyCorrections(tidy, options.corrections ?? []);
   const { segments } = applyCorrections(corrected, options.episodeCorrections ?? []);
 
   return {

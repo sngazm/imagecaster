@@ -807,3 +807,32 @@ describe("区切りを挟んだ相槌も落とす", () => {
     expect(result.segments).toHaveLength(1);
   });
 });
+
+describe("統合で生まれた相槌も落とす", () => {
+  it("「そう」と「そうそう」が繋がったものを落とす", () => {
+    // 統合の前だけで判定すると、繋がって生まれたものが残る
+    const result = postProcess({
+      language: "ja",
+      segments: [
+        seg(0, 1, "そう", "あずま"),
+        seg(1, 2, "そうそう", "あずま"),
+        seg(3, 6, "それで本編です。", "鉄塔"),
+      ],
+    });
+
+    expect(result.segments.map((s) => s.text)).toEqual(["それで本編です。"]);
+  });
+
+  it("統合で本文になったものは残す", () => {
+    const result = postProcess({
+      language: "ja",
+      segments: [
+        seg(0, 1, "そう", "あずま"),
+        seg(1, 3, "それは面白いですね。", "あずま"),
+      ],
+    });
+
+    expect(result.segments).toHaveLength(1);
+    expect(result.segments[0].text).toContain("面白い");
+  });
+});

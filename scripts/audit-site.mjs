@@ -51,6 +51,13 @@ const OVER_REPLACED = [
   { pattern: /番頭[ーウ]/, kind: "「バントー」の置換が壊れている" },
 ];
 
+/**
+ * 繰り返しに意味がある語
+ *
+ * 擬音や副詞は、同じ字が並んでいても相槌ではない。消してはいけない。
+ */
+const MEANINGFUL_REPEATS = ["どんどん", "バチバチ", "だんだん", "そろそろ", "いろいろ"];
+
 function unescapeHtml(s) {
   return s
     .replace(/&lt;/g, "<")
@@ -108,7 +115,11 @@ async function auditEpisode(id) {
     // 1種類なら3文字以上、2種類なら6文字以上を条件にする。
     const core = text.replace(/[\s。．、，,！？!?]/g, "");
     const kinds = new Set(core).size;
-    if ((kinds <= 1 && core.length >= 3) || (kinds === 2 && core.length >= 6)) {
+    const meaningful = MEANINGFUL_REPEATS.some((w) => core.startsWith(w));
+    if (
+      !meaningful &&
+      ((kinds <= 1 && core.length >= 3) || (kinds === 2 && core.length >= 6))
+    ) {
       findings.push({ kind: "同じ字が並ぶだけの行", speakers, text });
     }
 
