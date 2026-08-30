@@ -73,7 +73,10 @@ const ANY_PUNCTUATION_END = /[。．、，,！？!?」』）)\]…]\s*$/;
 
 export const DEFAULT_BACKCHANNEL_SETTINGS: BackchannelSettings = {
   enabled: true,
-  units: ["うん", "はい", "そう", "ええ", "へえ", "へー", "ああ", "あー", "なるほど"],
+  units: [
+    "うん", "はい", "そう", "ええ", "へえ", "へー", "ああ", "あー", "なるほど",
+    "ふん", "ふーん", "はぁ", "はあ", "ほう", "ほー", "うーん",
+  ],
   maxRepeat: 3,
   dropStandalone: true,
   // 実データ（公開済み6本・8291セグメント）を分類して選んだ。
@@ -525,6 +528,17 @@ export function dropStandaloneBackchannels(
   const phrases = new Set(settings.standalonePhrases.map((p) => p.trim()));
   const dropped: string[] = [];
 
+  // 相槌の語の繰り返しだけで出来た行も落とす。
+  //
+  // 「ふんふんふん。」を消すのに、語形を1つずつ登録していくときりがない。
+  // 対象の語の並びだけで出来ているかを見れば、繰り返しの回数によらず拾える。
+  const units = settings.units
+    .map((u) => u.trim())
+    .filter((u) => u !== "")
+    .map((u) => u.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .sort((a, b) => b.length - a.length);
+  const repeated = units.length > 0 ? new RegExp(`^(?:${units.join("|")})+$`) : null;
+
   const kept: TranscriptSegment[] = [];
 
   for (const segment of segments) {
@@ -538,7 +552,10 @@ export function dropStandaloneBackchannels(
 
     // 句点・感嘆符などを外した中身が相槌そのものか
     const core = text.replace(/[。．！？!?\s]+$/g, "");
-    if (core === "" || !phrases.has(core)) {
+    const isBackchannel =
+      core !== "" && (phrases.has(core) || (repeated?.test(core) ?? false));
+
+    if (!isBackchannel) {
       kept.push(segment);
       continue;
     }

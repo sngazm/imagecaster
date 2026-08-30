@@ -18,6 +18,9 @@ const BAD_WORDS = [
   "ご視聴ありがとう",
   "チャンネル登録",
   "高評価とチャンネル",
+  // 空白を認識し直したときに出る定型句。拾い直しが作った可能性がある
+  "最後までご覧",
+  "字幕視聴者",
   // 出演者名の誤認識
   "テッドです",
   "テトです",
@@ -97,6 +100,12 @@ async function auditEpisode(id) {
     // VTT のタグがそのまま出ていないか
     if (text.includes("<v ") || text.includes("</v>")) {
       findings.push({ kind: "VTTタグの露出", speakers, text });
+    }
+
+    // 同じ字が並ぶだけの行（「笑 笑 笑 笑」）
+    const core = text.replace(/[\s。．、，,！？!?]/g, "");
+    if (core.length >= 4 && new Set(core).size <= 2) {
+      findings.push({ kind: "同じ字が並ぶだけの行", speakers, text });
     }
 
     // 相槌が読みづらいほど繰り返されていないか

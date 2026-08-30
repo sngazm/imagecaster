@@ -689,3 +689,37 @@ describe("applyCorrections の適用順", () => {
     expect(backward.segments[0].text).toBe(forward.segments[0].text);
   });
 });
+
+describe("繰り返しの相槌を落とす", () => {
+  it("対象の語の並びだけで出来た行を落とす", () => {
+    // 語形を1つずつ登録していくときりがない
+    const result = dropStandaloneBackchannels(
+      [
+        seg(0, 2, "ふんふんふん。", "鉄塔"),
+        seg(2, 4, "うんうんうんうん。", "鉄塔"),
+        seg(4, 6, "そうそうそうそうそう。", "あずま"),
+      ],
+      DEFAULT_BACKCHANNEL_SETTINGS
+    );
+
+    expect(result.segments).toHaveLength(0);
+  });
+
+  it("相槌の語を含むだけの文は残す", () => {
+    const result = dropStandaloneBackchannels(
+      [seg(0, 3, "うんうん、それはそうですね。", "鉄塔")],
+      DEFAULT_BACKCHANNEL_SETTINGS
+    );
+
+    expect(result.segments).toHaveLength(1);
+  });
+
+  it("読点で終わる繰り返しは残す", () => {
+    const result = dropStandaloneBackchannels(
+      [seg(0, 2, "そうそう、", "鉄塔")],
+      DEFAULT_BACKCHANNEL_SETTINGS
+    );
+
+    expect(result.segments).toHaveLength(1);
+  });
+});
