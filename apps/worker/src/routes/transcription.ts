@@ -203,6 +203,35 @@ transcriptionEpisodes.get("/:id/audio-url", async (c) => {
 });
 
 /**
+ * GET /api/episodes/:id/tracks-url - 話者トラック zip のダウンロード URL 発行
+ *
+ * 文字起こしワーカーがキュー経由以外で取りに来る場合（欠落箇所の調査など）に使う。
+ */
+transcriptionEpisodes.get("/:id/tracks-url", async (c) => {
+  const id = c.req.param("id");
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    if (!meta.tracksUploadedAt) {
+      return c.json({ error: "話者トラックがアップロードされていません" }, 400);
+    }
+
+    const signed = await createPresignedUrl(c.env, tracksKey(meta.storageKey), {
+      method: "GET",
+    });
+
+    return c.json({ downloadUrl: signed.url, expiresIn: signed.expiresIn });
+  } catch (err) {
+    console.error(`[tracks-url] Error for episode ${id}:`, err);
+    return c.json({ error: "Episode not found" }, 404);
+  }
+});
+
+/**
  * POST /api/episodes/:id/transcript/upload-url - 文字起こし生データのアップロード用Presigned URL発行
  */
 transcriptionEpisodes.post("/:id/transcript/upload-url", async (c) => {

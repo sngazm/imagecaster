@@ -1027,3 +1027,52 @@ describe("POST /api/episodes/:id/transcript/review", () => {
     expect(response.status).toBe(400);
   });
 });
+
+describe("後処理が保存経路でも全段通ること", () => {
+  it("reprocess でハルシネーションが取り除かれる", async () => {
+    // savePostProcessed が mergeSegments と applyCorrections だけを直接呼んでいて、
+    // ハルシネーション除去と相槌の整形が効いていなかったことがある
+    const { id, storageKey } = await createTestEpisode({ title: "Pipeline Coverage" });
+
+    await env.R2_BUCKET.put(
+      `episodes/${storageKey}/transcript.raw.json`,
+      JSON.stringify({
+        language: "ja",
+        segments: [
+          { start: 0, end: 5, text: "ヤンヤン この仕事体験、なんか全然良くない。", speaker: "あずま" },
+          { start: 5, end: 8, text: "うんうんうんうんうんうん", speaker: "鉄塔" },
+        ],
+      })
+    );
+
+    await SELF.fetch("http://localhost/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        transcriptPostProcess: {
+          speakerDefaults: [],
+          merge: { enabled: false, maxGapSec: null, maxDurationSec: 10, maxChars: 200 },
+          corrections: [],
+          hallucination: { phrases: ["ヤンヤン"], maxRepeat: 10, maxConsecutive: 4 },
+          backchannel: { enabled: true, units: ["うん"], maxRepeat: 3 },
+        },
+      }),
+    });
+
+    const response = await SELF.fetch(
+      `http://localhost/api/episodes/${id}/transcript/reprocess`,
+      { method: "POST" }
+    );
+    expect(response.status).toBe(200);
+
+    const vtt = await env.R2_BUCKET.get(`episodes/${storageKey}/transcript.vtt`);
+    const text = (await vtt?.text()) ?? "";
+
+    // 文頭のハルシネーションが剥がれている
+    expect(text).not.toContain("ヤンヤン");
+    expect(text).toContain("この仕事体験");
+    // 相槌が3回に抑えられている
+    expect(text).toContain("うんうんうん");
+    expect(text).not.toContain("うんうんうんうん");
+  });
+});

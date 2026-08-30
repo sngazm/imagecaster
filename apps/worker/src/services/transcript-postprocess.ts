@@ -73,6 +73,8 @@ export const DEFAULT_BACKCHANNEL_SETTINGS: BackchannelSettings = {
  */
 export const DEFAULT_HALLUCINATION_SETTINGS: HallucinationSettings = {
   phrases: [
+    // 番組の実データで確認したもの
+    "ヤンヤン",
     "ご視聴ありがとうございました",
     "ご視聴ありがとうございます",
     "最後までご視聴いただきありがとうございました",
@@ -247,33 +249,67 @@ function normalizeForMatch(text: string): string {
 }
 
 /**
- * ハルシネーションだけで構成されるセグメントを取り除く
+ * ハルシネーションを取り除く
  *
- * Whisper は無音区間に対して、学習データにあった定型句（動画の締め文句など）を
- * 出力することがある。番組で実際に喋られる言葉と紛れないよう、セグメント全体が
- * その語と一致する場合だけ落とす。文中に含まれるだけの場合は触らない。
+ * Whisper は無音区間や環境音に対して、学習データにあった語を出力することがある。
+ *
+ * 当初はセグメント全体が一致する場合だけ落としていたが、それでは足りなかった。
+ * 実データでは 883 件のうち 831 件が「ヤンヤン この仕事体験、…」のように
+ * **文頭に貼り付いて** おり、全体一致では 1 件も取れていなかった。
+ *
+ * そこで文頭・文末・単独のいずれでも落とす。ただし文中に埋もれているものは
+ * 触らない。本当にその言葉を喋った可能性があり、前後の文を壊す危険があるため。
  */
 export function removeHallucinations(
   segments: TranscriptSegment[],
   phrases: string[]
 ): { segments: TranscriptSegment[]; removed: string[] } {
-  const blocked = phrases.map(normalizeForMatch).filter((p) => p !== "");
+  const blocked = phrases.map((p) => p.trim()).filter((p) => p !== "");
 
   if (blocked.length === 0) {
     return { segments: segments.map((s) => ({ ...s })), removed: [] };
   }
 
   const removed: string[] = [];
-  const kept = segments.filter((segment) => {
-    const text = normalizeForMatch(segment.text);
-    if (blocked.includes(text)) {
-      removed.push(segment.text.trim());
-      return false;
-    }
-    return true;
-  });
+  const result: TranscriptSegment[] = [];
 
-  return { segments: kept.map((s) => ({ ...s })), removed };
+  for (const segment of segments) {
+    let text = segment.text.trim();
+    let hit = false;
+
+    // 文頭・文末から繰り返し剥がす（「ヤンヤン ヤンヤン そうですね」に備える）
+    for (let pass = 0; pass < 5; pass++) {
+      const before = text;
+
+      for (const phrase of blocked) {
+        // 文頭（後続の空白・句読点も一緒に落とす）
+        if (text.startsWith(phrase)) {
+          text = text.slice(phrase.length).replace(/^[\s、。,.]+/, "");
+          hit = true;
+        }
+        // 文末。残った文の句読点は消さない（「そうですね。」を保つ）
+        if (text.endsWith(phrase)) {
+          text = text.slice(0, -phrase.length).replace(/[\s]+$/, "");
+          hit = true;
+        }
+      }
+
+      if (text === before) break;
+    }
+
+    if (hit) {
+      removed.push(segment.text.trim());
+    }
+
+    // 剥がした結果が空になったらセグメントごと落とす
+    if (text === "") {
+      continue;
+    }
+
+    result.push({ ...segment, text });
+  }
+
+  return { segments: result, removed };
 }
 
 /**
@@ -708,9 +744,19 @@ export async function savePostProcessed(
 ): Promise<{ segments: number; applied: AppliedCorrection[] }> {
   const keys = transcriptKeys(meta.storageKey);
 
+  // パイプライン全体を通す。ここで mergeSegments と applyCorrections だけを
+  // 直接呼んでいたため、ハルシネーション除去と相槌の整形が効いていなかった。
+  const processed = postProcess(raw, {
+    merge: settings?.merge,
+    corrections: settings?.corrections,
+    hallucination: settings?.hallucination,
+    backchannel: settings?.backchannel,
+  });
+
+  // どの置換が何回効いたかは呼び出し側に返す（統合後のテキストに対して数える）
   const merged = mergeSegments(raw.segments, settings?.merge);
-  const { segments, applied } = applyCorrections(merged, settings?.corrections ?? []);
-  const processed: TranscriptData = { ...raw, segments };
+  const { applied } = applyCorrections(merged, settings?.corrections ?? []);
+  const segments = processed.segments;
 
   await env.R2_BUCKET.put(keys.json, JSON.stringify(processed), {
     httpMetadata: { contentType: "application/json" },

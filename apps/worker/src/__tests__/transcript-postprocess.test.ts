@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   mergeSegments,
   applyCorrections,
+  removeHallucinations,
   postProcess,
   DEFAULT_MERGE_OPTIONS,
 } from "../services/transcript-postprocess";
@@ -363,5 +364,87 @@ describe("postProcess with corrections", () => {
 
     expect(result.segments).toHaveLength(1);
     expect(result.segments[0].text).toBe("鉄塔です");
+  });
+});
+
+describe("removeHallucinations", () => {
+  const PHRASES = ["ヤンヤン", "ご視聴ありがとうございました"];
+
+  it("セグメント全体が一致すれば落とす", () => {
+    const result = removeHallucinations(
+      [seg(0, 2, "ヤンヤン"), seg(2, 4, "本編です")],
+      PHRASES
+    );
+
+    expect(result.segments).toHaveLength(1);
+    expect(result.segments[0].text).toBe("本編です");
+  });
+
+  it("文頭に貼り付いたものを剥がす", () => {
+    // 実データではこれが大半だった（883件中831件）
+    const result = removeHallucinations(
+      [seg(0, 5, "ヤンヤン この仕事体験、なんか全然良くない。")],
+      PHRASES
+    );
+
+    expect(result.segments[0].text).toBe("この仕事体験、なんか全然良くない。");
+  });
+
+  it("文末に付いたものを剥がす", () => {
+    const result = removeHallucinations(
+      [seg(0, 5, "そうですね。ご視聴ありがとうございました")],
+      PHRASES
+    );
+
+    expect(result.segments[0].text).toBe("そうですね。");
+  });
+
+  it("繰り返し貼り付いていても剥がす", () => {
+    const result = removeHallucinations(
+      [seg(0, 5, "ヤンヤン ヤンヤン なるほど。")],
+      PHRASES
+    );
+
+    expect(result.segments[0].text).toBe("なるほど。");
+  });
+
+  it("文中に埋もれているものは触らない", () => {
+    // 本当にその言葉を喋った可能性があり、前後の文を壊す
+    const text = "さっきヤンヤンって言いましたよね。";
+    const result = removeHallucinations([seg(0, 5, text)], PHRASES);
+
+    expect(result.segments[0].text).toBe(text);
+  });
+
+  it("剥がして空になればセグメントごと落とす", () => {
+    const result = removeHallucinations(
+      [seg(0, 2, "ヤンヤン。"), seg(2, 4, "本編")],
+      PHRASES
+    );
+
+    expect(result.segments).toHaveLength(1);
+  });
+
+  it("何を落としたか返す", () => {
+    const result = removeHallucinations(
+      [seg(0, 5, "ヤンヤン なるほど。"), seg(5, 8, "普通の発言")],
+      PHRASES
+    );
+
+    expect(result.removed).toEqual(["ヤンヤン なるほど。"]);
+  });
+
+  it("時刻と話者は保つ", () => {
+    const result = removeHallucinations(
+      [seg(1.5, 3.5, "ヤンヤン そうですね。", "鉄塔")],
+      PHRASES
+    );
+
+    expect(result.segments[0]).toMatchObject({
+      start: 1.5,
+      end: 3.5,
+      speaker: "鉄塔",
+      text: "そうですね。",
+    });
   });
 });
