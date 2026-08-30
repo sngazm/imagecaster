@@ -1221,3 +1221,33 @@ describe("うなりも相槌として落とす", () => {
     expect(result.segments).toHaveLength(1);
   });
 });
+
+describe("相槌が連なった行", () => {
+  it("文中の相槌を落として全部が相槌になったら、行ごと落とす", () => {
+    // 「はい、はい、はい、はい。なるほど。」から「なるほど。」が消えると、
+    // 残るのは相槌だけになる
+    const result = postProcess({
+      language: "ja",
+      segments: [
+        seg(0, 3, "本編の話です。", "あずま"),
+        seg(4, 6, "はい、はい、はい、はい。なるほど。", "鉄塔"),
+        seg(7, 10, "続きの話です。", "あずま"),
+      ],
+    });
+
+    expect(result.segments.map((s) => s.text)).toEqual([
+      "本編の話です。",
+      "続きの話です。",
+    ]);
+  });
+
+  it("本文が残るなら行は残す", () => {
+    const result = postProcess({
+      language: "ja",
+      segments: [seg(0, 5, "はい。それは面白いですね。", "鉄塔")],
+    });
+
+    expect(result.segments).toHaveLength(1);
+    expect(result.segments[0].text).toContain("面白い");
+  });
+});

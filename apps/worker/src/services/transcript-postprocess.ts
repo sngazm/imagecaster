@@ -987,9 +987,14 @@ export function postProcess(
   // 統合してから、文の途中に埋まった相槌を落とす。話者判定が揺れると
   // 相手の相槌が長い発話の中に取り込まれ、行全体としては相槌でなくなる
   const { segments: cleared } = removeEmbeddedBackchannels(tidy, backchannel);
+
+  // 文中の相槌を落とした結果、行全体が相槌になることがある。
+  // 「はい、はい、はい、はい。なるほど。」から「なるほど。」が消えると、
+  // 残るのは相槌だけになる
+  const { segments: settled } = dropStandaloneBackchannels(cleared, backchannel);
   // 番組全体の辞書を当ててから、この回かぎりの修正を当てる。
   // 全体の辞書に入れると誤爆するものを、ここで拾う
-  const { segments: corrected } = applyCorrections(cleared, options.corrections ?? []);
+  const { segments: corrected } = applyCorrections(settled, options.corrections ?? []);
   const { segments } = applyCorrections(corrected, options.episodeCorrections ?? []);
 
   return {
