@@ -65,8 +65,10 @@ const OVER_REPLACED = [
     kind: "英単語の空白が落ちている",
     except: CAMEL_CASE_NAMES,
   },
-  // 「えー、で、」が「え?で、」になる疑問符の誤付与
-  { pattern: /[ぁ-ん][?？]\s*で[、。]/, kind: "疑問符が誤って付いている" },
+  // 「えー、で、」が「え?で、」になる疑問符の誤付与。
+  // 「いくら使えました?で、」のような本物の問いかけと分けるため、
+  // 疑問符の手前が1文字の言いよどみのときだけ見る
+  { pattern: /(?:^|[、。\s])[えあま][ーぁ-ん]?[?？]\s*で[、。]/, kind: "疑問符が誤って付いている" },
 ];
 
 /**
@@ -92,7 +94,11 @@ function parseSegments(html) {
 
   return blocks.map((block) => {
     const speakers = [
-      ...[...block.matchAll(/<img[^>]*alt="([^"]*)"/g)].map((m) => m[1].trim()),
+      // 話者アイコンだけを拾う。アートワークの alt を話者名と取り違えないよう、
+      // /speakers/ の画像に限る
+      ...[...block.matchAll(/<img[^>]*src="\/speakers\/[^"]*"[^>]*alt="([^"]*)"/g)].map(
+        (m) => m[1].trim()
+      ),
       ...[...block.matchAll(/text-speaker-\d[^"]*"[^>]*>([^<]+)<\/span>/g)].map((m) =>
         m[1].trim()
       ),

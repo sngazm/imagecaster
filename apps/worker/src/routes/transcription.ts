@@ -120,14 +120,20 @@ transcriptionQueue.get("/queue", async (c) => {
         lockedAt: meta.transcriptionLockedAt || "",
       };
 
-      // 話者トラックがあれば、ダウンロード URL と話者の割り当てを渡す
+      // 話者の割り当ては常に渡す。
+      //
+      // トラックの zip は管理画面から上げるほかに、文字起こし側が Nextcloud から
+      // 探してくる経路もある。tracksUploadedAt があるときだけ渡していたため、
+      // 自動で見つけた回の話者が「Track 1」のまま公開されていた。
+      item.speakerTracks = resolveSpeakerTracks(meta.speakerTracks, settings);
+      item.simultaneousUntilSec = settings?.simultaneousUntilSec ?? null;
+
+      // 管理画面から上げた zip があれば、その URL も渡す
       if (meta.tracksUploadedAt) {
         const signed = await createPresignedUrl(c.env, tracksKey(meta.storageKey), {
           method: "GET",
         });
         item.tracksZipUrl = signed.url;
-        item.speakerTracks = resolveSpeakerTracks(meta.speakerTracks, settings);
-        item.simultaneousUntilSec = settings?.simultaneousUntilSec ?? null;
       }
 
       queueItems.push(item);

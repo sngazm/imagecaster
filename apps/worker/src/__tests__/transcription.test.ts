@@ -1281,3 +1281,23 @@ describe("校正の提案は人が承認するまで効かない", () => {
     expect(post.proposals ?? []).toHaveLength(0);
   });
 });
+
+describe("キューが話者の割り当てを渡すこと", () => {
+  it("zip を上げていなくても割り当てを渡す", async () => {
+    // トラックは文字起こし側が Nextcloud から探してくることもある。
+    // 渡さないと話者が「Track 1」のまま公開される
+    const { id, storageKey } = await createTestEpisode({
+      title: "キュー",
+      skipTranscription: false,
+    });
+    await setEpisodeToTranscribing(storageKey, id);
+
+    const response = await SELF.fetch("http://localhost/api/transcription/queue");
+    const body = (await response.json()) as {
+      episodes: Array<{ id: string; speakerTracks?: Array<{ track: number }> }>;
+    };
+    const item = body.episodes.find((e) => e.id === id);
+
+    expect(item?.speakerTracks).toBeDefined();
+  });
+});
