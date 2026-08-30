@@ -229,6 +229,23 @@ export function SpeakerTracksPanel({ episode, defaults, onUpdated }: Props) {
     setError(null);
     setMessage(null);
 
+    // 割り当てを先に保存する。
+    //
+    // 画面で変えただけで「保存」を押さずにやり直すと、古い割り当てのまま
+    // 文字起こしが走る。ゲスト回でトラック3に名前を入れてやり直したのに
+    // 話者が付かない、ということが実際に起きた。
+    try {
+      await api.saveSpeakerTracks(episode.id, tracks.length > 0 ? tracks : null);
+    } catch (err) {
+      setRetranscribing(false);
+      setError(
+        err instanceof Error
+          ? `割り当ての保存に失敗しました: ${err.message}`
+          : "割り当ての保存に失敗しました"
+      );
+      return;
+    }
+
     try {
       await api.retranscribe(episode.id);
       setMessage(
@@ -462,7 +479,7 @@ export function SpeakerTracksPanel({ episode, defaults, onUpdated }: Props) {
             <p className="text-xs text-[var(--color-text-muted)] mt-2">
               {isQueued
                 ? "すでに待ち行列に入っています。"
-                : "話者トラックを後から用意した場合はこちら。話者を付けるには音声から取り直す必要があります。"}
+                : "話者トラックを後から用意した場合はこちら。話者を付けるには音声から取り直す必要があります。上の割り当ては自動で保存されます。"}
             </p>
           </div>
         </div>
