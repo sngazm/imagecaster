@@ -483,9 +483,12 @@ transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
       await saveIndex(c.env, index);
     }
 
-    // この回かぎりの修正
+    // その回の修正。
+    //
+    // `general` が立っていても、その回では効かせる。番組全体に効かせてよいかは
+    // 別の判断で、承認を待つのは辞書に入れるかどうかだけ。校正は「この回では
+    // そう直すのが適切」と判定して挙げてきているので、待たせる理由がない。
     const episodeRules = rules
-      .filter((r) => !r.general)
       .map((r) => ({
         from: r.from,
         to: r.to,

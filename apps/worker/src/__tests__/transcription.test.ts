@@ -1128,7 +1128,8 @@ describe("校正で見つかった修正を登録する", () => {
       episodeRules: number;
     };
     expect(body.proposed).toBe(1);
-    expect(body.episodeRules).toBe(1);
+    // 番組全体に挙げたものも、その回では効かせる
+    expect(body.episodeRules).toBe(2);
 
     const saved = (await (
       await SELF.fetch("http://localhost/api/settings")
@@ -1340,5 +1341,55 @@ describe("キューが取り直しかどうかを伝えること", () => {
     ).json()) as { episodes: Array<{ id: string; isRetranscribe?: boolean }> };
 
     expect(body.episodes.find((e) => e.id === id)?.isRetranscribe).toBe(true);
+  });
+});
+
+describe("提案でもその回には効くこと", () => {
+  it("番組全体に挙げた規則も、その回では適用される", async () => {
+    // 承認を待つのは辞書に入れるかどうかだけ。校正は「この回ではそう直すのが
+    // 適切」と判定して挙げてきているので、待たせる理由がない
+    const { id, storageKey } = await createTestEpisode({ title: "提案の適用" });
+    await setEpisodeToTranscribing(storageKey, id);
+    await env.R2_BUCKET.put(
+      `episodes/${storageKey}/transcript.raw.json`,
+      JSON.stringify({
+        language: "ja",
+        segments: [{ start: 0, end: 3, text: "どんぶり感情に近い感じですね。" }],
+      })
+    );
+    await SELF.fetch(`http://localhost/api/episodes/${id}/transcription-complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transcribeStatus: "completed" }),
+    });
+
+    await SELF.fetch(`http://localhost/api/episodes/${id}/transcript/corrections`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        corrections: [
+          { from: "どんぶり感情", to: "どんぶり勘定", general: true },
+        ],
+      }),
+    });
+
+    const meta = (await (
+      await SELF.fetch(`http://localhost/api/episodes/${id}`)
+    ).json()) as { storageKey: string };
+    const vtt = await (
+      await env.R2_BUCKET.get(`episodes/${meta.storageKey}/transcript.vtt`)
+    )!.text();
+
+    expect(vtt).toContain("どんぶり勘定");
+    expect(vtt).not.toContain("どんぶり感情");
+
+    // 辞書にはまだ入らない
+    const settings = (await (
+      await SELF.fetch("http://localhost/api/settings")
+    ).json()) as { transcriptPostProcess: { corrections: Array<{ from: string }> } };
+
+    expect(
+      settings.transcriptPostProcess.corrections.some((r) => r.from === "どんぶり感情")
+    ).toBe(false);
   });
 });
