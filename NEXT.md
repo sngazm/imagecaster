@@ -64,6 +64,47 @@ Cloudflare Email Sending を有効にすると MX を書き換えることにな
 
 番組全体の既定は 設定 → 文字起こし で設定済み（track1=あずま / track2=鉄塔 / track3=BGM）。
 
+**#285 は適用済み**。全647セグメントに話者が付き、冒頭の「交互に喋って最後に声を揃える」
+形式も再現できている。
+
+### zip は軽くしてから上げるとよい
+
+判定に使うのは音量だけなので、16kHz モノラルの flac に落として構わない。
+0285 は 363MB → 67MB になった。
+
+```bash
+for i in 1 2 3; do
+  ffmpeg -i "cast_0285 — Track $i.wav" -ar 16000 -ac 1 -c:a flac "Track $i.flac"
+done
+zip -j tracks.zip *.flac
+```
+
+### 他の回のトラック
+
+Nextcloud を見た範囲では、全編のトラックが揃っているのは 0285 だけだった。
+
+- `2026-01-07/cast_0257 — Tracks` … フォルダが空
+- `2026-01-13/0258_after — Tracks` … 後半のみ（`_after`）
+
+## WSL のコードを更新したら
+
+`scripts/run-worker.sh` に git pull は入っていない（勝手に入れると意図しない
+タイミングでコードが変わるため、そのままにしてある）。コードを更新したら
+手で pull してワーカーを再起動する。
+
+```bash
+ssh wsl
+cd ~/dev/imagecaster-transcriber
+git stash push -- README.md .gitignore   # 自動起動の説明が未コミットで残っているため
+git pull --ff-only
+git stash pop
+pkill -f "imagecaster-transcriber worker"
+setsid nohup ./scripts/run-worker.sh > /tmp/worker.log 2>&1 < /dev/null &
+```
+
+一度これを忘れて、同時発話の区切り文字が古いまま（「あずま & 鉄塔」）の
+文字起こしを作ってしまった。
+
 ## 夜のうちにやったこと
 
 ### 取り直した6本（完了）
