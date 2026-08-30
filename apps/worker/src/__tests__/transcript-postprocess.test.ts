@@ -1201,3 +1201,23 @@ describe("removeEmbeddedBackchannels", () => {
     expect(result.segments[0].text).toBe("本編です。うん。続きです。");
   });
 });
+
+describe("うなりも相槌として落とす", () => {
+  it("「うむむむむ。」を落とす", () => {
+    const result = dropStandaloneBackchannels(
+      [seg(0, 2, "うむむむむむむ。", "鉄塔"), seg(2, 4, "はい、はい、はい、はい。", "鉄塔")],
+      DEFAULT_BACKCHANNEL_SETTINGS
+    );
+
+    expect(result.segments).toHaveLength(0);
+  });
+
+  it("「うむ」で始まる文は残す", () => {
+    const result = dropStandaloneBackchannels(
+      [seg(0, 3, "うむ、それは違うと思う。", "あずま")],
+      DEFAULT_BACKCHANNEL_SETTINGS
+    );
+
+    expect(result.segments).toHaveLength(1);
+  });
+});
