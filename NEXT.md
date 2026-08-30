@@ -111,7 +111,8 @@ setsid nohup ./scripts/run-worker.sh > /tmp/worker.log 2>&1 < /dev/null &
 
 ## 仕組みの説明
 
-https://claude.ai/code/artifact/8c98074c-9cf3-43cb-a8dd-2d4f9659cc98
+- **仕様と課題**（引き継ぎ用）: https://claude.ai/code/artifact/0591e044-1f23-4fb7-a337-573b0989e982
+- 経緯の記録: https://claude.ai/code/artifact/8c98074c-9cf3-43cb-a8dd-2d4f9659cc98
 
 ## 手を付けていないこと
 
