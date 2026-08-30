@@ -388,6 +388,9 @@ export interface TranscriptionQueueItem {
   simultaneousUntilSec?: number | null;
   // エピソードの概要。冒頭の要約を initial_prompt に足すのに使う
   description?: string;
+  // すでに文字起こしがあるか。取り直しかどうかの判断に使う
+  // （取り直しの通知を関係者全員に送ると迷惑なので、宛先を絞る）
+  isRetranscribe?: boolean;
 }
 
 /**

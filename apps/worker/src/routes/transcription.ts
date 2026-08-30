@@ -121,6 +121,8 @@ transcriptionQueue.get("/queue", async (c) => {
         // 冒頭の要約を initial_prompt に足すのに使う。その回で出てくる語を
         // 渡しておくと固有名詞の精度が上がる
         description: meta.description || "",
+        // すでに文字起こしがあるなら取り直し。通知の宛先を絞るのに使う
+        isRetranscribe: Boolean(meta.transcriptUrl),
       };
 
       // 話者の割り当ては常に渡す。

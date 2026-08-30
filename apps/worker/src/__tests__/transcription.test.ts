@@ -1301,3 +1301,44 @@ describe("キューが話者の割り当てを渡すこと", () => {
     expect(item?.speakerTracks).toBeDefined();
   });
 });
+
+describe("キューが取り直しかどうかを伝えること", () => {
+  it("文字起こしが無ければ新規", async () => {
+    const { id, storageKey } = await createTestEpisode({
+      title: "新規",
+      skipTranscription: false,
+    });
+    await setEpisodeToTranscribing(storageKey, id);
+
+    const body = (await (
+      await SELF.fetch("http://localhost/api/transcription/queue")
+    ).json()) as { episodes: Array<{ id: string; isRetranscribe?: boolean }> };
+
+    expect(body.episodes.find((e) => e.id === id)?.isRetranscribe).toBe(false);
+  });
+
+  it("文字起こしがあれば取り直し", async () => {
+    // 取り直しは開発中に何度も走るので、通知の宛先を絞るのに使う
+    const { id, storageKey } = await createTestEpisode({
+      title: "取り直し",
+      skipTranscription: false,
+    });
+    await setEpisodeToTranscribing(storageKey, id);
+    await env.R2_BUCKET.put(
+      `episodes/${storageKey}/transcript.raw.json`,
+      JSON.stringify({ language: "ja", segments: [{ start: 0, end: 2, text: "本編。" }] })
+    );
+    await SELF.fetch(`http://localhost/api/episodes/${id}/transcription-complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transcribeStatus: "completed" }),
+    });
+    await setEpisodeToTranscribing(storageKey, id);
+
+    const body = (await (
+      await SELF.fetch("http://localhost/api/transcription/queue")
+    ).json()) as { episodes: Array<{ id: string; isRetranscribe?: boolean }> };
+
+    expect(body.episodes.find((e) => e.id === id)?.isRetranscribe).toBe(true);
+  });
+});
