@@ -983,6 +983,7 @@ export default function EpisodeDetail() {
                   <TranscriptViewer
                     segments={transcriptSegments}
                     sourceUrl={episode.transcriptUrl}
+                    rawUrl={episode.transcriptRawUrl}
                   />
                 )}
 
@@ -1037,6 +1038,7 @@ export default function EpisodeDetail() {
                   <TranscriptViewer
                     segments={transcriptSegments}
                     sourceUrl={episode.transcriptUrl}
+                    rawUrl={episode.transcriptRawUrl}
                   />
                 ) : episode.transcriptUrl ? (
                   <p className="text-[var(--color-text-muted)] text-sm">文字起こしを読み込み中...</p>

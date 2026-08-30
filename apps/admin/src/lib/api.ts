@@ -764,6 +764,26 @@ export interface TranscriptSegment {
 }
 
 /**
+ * Whisper の生出力のセグメント
+ *
+ * 公開用の VTT と違い、時刻は秒。後処理で何が変わったかを見るのに使う。
+ */
+export interface RawSegment {
+  start: number;
+  end: number;
+  text: string;
+  speaker?: string | null;
+}
+
+/** "00:01:23" を秒に直す */
+export function timeToSeconds(time: string): number {
+  const parts = time.split(":").map(Number);
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  return Number(time) || 0;
+}
+
+/**
  * VTTのvoiceタグ（<v 話者名>本文</v>）から話者名と本文を取り出す
  *
  * 終了タグは省略されることがあるため、あってもなくても扱えるようにする。
