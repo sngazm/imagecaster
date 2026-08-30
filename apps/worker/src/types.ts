@@ -76,6 +76,15 @@ export interface BackchannelSettings {
   units: string[];
   /** 何回までに抑えるか */
   maxRepeat: number;
+  /**
+   * 相槌だけのセグメントを丸ごと落とすか
+   *
+   * 「はい。」「なるほど。」のように、それだけで1つのセグメントになっている
+   * ものを消す。実際に発話されていても、文字で読むと相槌が並ぶだけになるため。
+   */
+  dropStandalone: boolean;
+  /** 丸ごと落とす対象の語。ここに完全一致するものだけを消す */
+  standalonePhrases: string[];
 }
 
 /**

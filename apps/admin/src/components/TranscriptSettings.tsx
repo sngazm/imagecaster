@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../lib/api";
 import type {
+  BackchannelSettings,
   CorrectionRule,
   SpeakerTrackAssignment,
   TranscriptPostProcessSettings,
@@ -18,17 +19,33 @@ const DEFAULT_MERGE = {
   maxChars: 200,
 };
 
+const DEFAULT_BACKCHANNEL: BackchannelSettings = {
+  enabled: true,
+  units: ["うん", "はい", "そう", "ええ", "へえ", "へー", "ああ", "あー", "なるほど"],
+  maxRepeat: 3,
+  dropStandalone: true,
+  standalonePhrases: [
+    "はい", "うん", "ええ", "ああ", "あー", "うーん", "ふーん", "へー", "へえ",
+    "なるほど", "そう", "そうそう", "そうですね", "そうですか", "そうなんですね",
+    "確かに", "確かにね", "はいはい", "うんうん", "そうそうそう",
+    "はいはいはい", "うんうんうん", "なるほどね", "そうなんだ",
+  ],
+};
+
 export function TranscriptSettings({ value, onSaved }: Props) {
   const [draft, setDraft] = useState<TranscriptPostProcessSettings>({
     speakerDefaults: value.speakerDefaults ?? [],
     merge: { ...DEFAULT_MERGE, ...value.merge },
     corrections: value.corrections ?? [],
+    backchannel: { ...DEFAULT_BACKCHANNEL, ...value.backchannel },
     simultaneousUntilSec: value.simultaneousUntilSec ?? null,
   });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reprocessing, setReprocessing] = useState(false);
+
+  const backchannel = draft.backchannel ?? DEFAULT_BACKCHANNEL;
 
   function update(patch: Partial<TranscriptPostProcessSettings>) {
     setDraft((current) => ({ ...current, ...patch }));
@@ -214,6 +231,83 @@ export function TranscriptSettings({ value, onSaved }: Props) {
               <span className="text-sm text-[var(--color-text-secondary)]">秒まで</span>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* 相槌 */}
+      <div className="card">
+        <h2 className="text-base font-semibold text-[var(--color-text-primary)] mb-1">
+          相槌
+        </h2>
+        <p className="text-xs text-[var(--color-text-muted)] mb-4">
+          実際に言っていても、文字で読むと相槌が並ぶだけになる箇所を整理します。
+        </p>
+
+        <div className="space-y-3">
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={backchannel.dropStandalone}
+              onChange={(e) =>
+                update({
+                  backchannel: { ...backchannel, dropStandalone: e.target.checked },
+                })
+              }
+            />
+            <span className="text-sm">
+              相槌だけの行を消す
+              <span className="block text-xs text-[var(--color-text-muted)] mt-0.5">
+                「はい。」「なるほど。」のようにそれだけで 1 行になっているものが対象です。
+                「なんか、」のように読点で終わるもの（次の発話の一部）と、
+                問いかけの直後にあるもの（返事）は残します。
+              </span>
+            </span>
+          </label>
+
+          <div>
+            <label className="label">繰り返しを抑える回数</label>
+            <input
+              type="number"
+              min={2}
+              className="input w-32"
+              value={backchannel.maxRepeat}
+              onChange={(e) =>
+                update({
+                  backchannel: {
+                    ...backchannel,
+                    maxRepeat: Math.max(2, parseInt(e.target.value, 10) || 2),
+                  },
+                })
+              }
+            />
+            <p className="text-xs text-[var(--color-text-muted)] mt-1">
+              「うんうんうんうんうん」を、この回数で止めます。
+            </p>
+          </div>
+
+          <div>
+            <label className="label">消す対象の語</label>
+            <textarea
+              className="input font-mono text-xs"
+              rows={4}
+              value={backchannel.standalonePhrases.join("、")}
+              onChange={(e) =>
+                update({
+                  backchannel: {
+                    ...backchannel,
+                    standalonePhrases: e.target.value
+                      .split(/[、,\n]/)
+                      .map((p) => p.trim())
+                      .filter((p) => p !== ""),
+                  },
+                })
+              }
+            />
+            <p className="text-xs text-[var(--color-text-muted)] mt-1">
+              読点区切り。ここに完全一致する行だけを消します。
+            </p>
+          </div>
         </div>
       </div>
 

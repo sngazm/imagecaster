@@ -116,10 +116,26 @@ export interface CorrectionRule {
   note?: string;
 }
 
+/**
+ * 相槌の扱い
+ */
+export interface BackchannelSettings {
+  enabled: boolean;
+  /** 繰り返しを抑える対象の語 */
+  units: string[];
+  /** 何回までに抑えるか */
+  maxRepeat: number;
+  /** 相槌だけのセグメントを丸ごと落とすか */
+  dropStandalone: boolean;
+  /** 丸ごと落とす対象の語 */
+  standalonePhrases: string[];
+}
+
 export interface TranscriptPostProcessSettings {
   speakerDefaults: SpeakerTrackAssignment[];
   merge: MergeSettings;
   corrections: CorrectionRule[];
+  backchannel?: BackchannelSettings;
   /** 同時発話を検出する範囲（冒頭からの秒数）。null なら検出しない */
   simultaneousUntilSec?: number | null;
 }

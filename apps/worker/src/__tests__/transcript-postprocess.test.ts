@@ -3,8 +3,10 @@ import {
   mergeSegments,
   applyCorrections,
   removeHallucinations,
+  dropStandaloneBackchannels,
   postProcess,
   DEFAULT_MERGE_OPTIONS,
+  DEFAULT_BACKCHANNEL_SETTINGS,
 } from "../services/transcript-postprocess";
 import type { TranscriptSegment } from "../types";
 
@@ -446,5 +448,120 @@ describe("removeHallucinations", () => {
       speaker: "鉄塔",
       text: "そうですね。",
     });
+  });
+});
+
+describe("dropStandaloneBackchannels", () => {
+  const settings = DEFAULT_BACKCHANNEL_SETTINGS;
+
+  it("相槌だけのセグメントを落とす", () => {
+    const result = dropStandaloneBackchannels(
+      [
+        seg(0, 1, "はい。"),
+        seg(1, 3, "それで思ったんですけど。"),
+        seg(3, 4, "なるほど。"),
+      ],
+      settings
+    );
+
+    expect(result.segments).toHaveLength(1);
+    expect(result.segments[0].text).toBe("それで思ったんですけど。");
+    expect(result.dropped).toEqual(["はい。", "なるほど。"]);
+  });
+
+  it("句点が無くても落とす", () => {
+    const result = dropStandaloneBackchannels([seg(0, 1, "うん")], settings);
+
+    expect(result.segments).toHaveLength(0);
+  });
+
+  it("読点で終わるものは残す", () => {
+    // 「なんか、」は相槌ではなく次の発話の一部。消すと文が壊れる
+    const result = dropStandaloneBackchannels(
+      [seg(0, 1, "なんか、"), seg(1, 3, "そう、"), seg(3, 5, "でも、")],
+      settings
+    );
+
+    expect(result.segments).toHaveLength(3);
+  });
+
+  it("相槌を含むだけの文は残す", () => {
+    const result = dropStandaloneBackchannels(
+      [seg(0, 3, "はい、それでいいと思います。")],
+      settings
+    );
+
+    expect(result.segments).toHaveLength(1);
+  });
+
+  it("dropStandalone が false なら何もしない", () => {
+    const result = dropStandaloneBackchannels(
+      [seg(0, 1, "はい。")],
+      { ...settings, dropStandalone: false }
+    );
+
+    expect(result.segments).toHaveLength(1);
+  });
+
+  it("時刻と話者は保つ", () => {
+    const result = dropStandaloneBackchannels(
+      [seg(0, 1, "はい。"), seg(1.5, 3.5, "本編です。", "あずま")],
+      settings
+    );
+
+    expect(result.segments[0]).toMatchObject({
+      start: 1.5,
+      end: 3.5,
+      speaker: "あずま",
+    });
+  });
+});
+
+describe("postProcess で相槌が整理されること", () => {
+  it("繰り返しを抑えてから相槌だけの行を落とす", () => {
+    // 順序が逆だと「うんうんうんうんうん」が対象語に一致せず残る
+    const data = {
+      language: "ja",
+      segments: [
+        seg(0, 2, "うんうんうんうんうん。", "鉄塔"),
+        seg(2, 5, "それでですね。", "あずま"),
+      ],
+    };
+
+    const result = postProcess(data, { merge: { enabled: false } });
+
+    expect(result.segments).toHaveLength(1);
+    expect(result.segments[0].text).toBe("それでですね。");
+  });
+});
+
+describe("dropStandaloneBackchannels の返事の扱い", () => {
+  it("直前が疑問文なら消さない", () => {
+    // 相槌ではなく返事。消すと問いが宙に浮く
+    const result = dropStandaloneBackchannels(
+      [seg(0, 2, "汚い手?", "あずま"), seg(2, 3, "はい。", "鉄塔")],
+      DEFAULT_BACKCHANNEL_SETTINGS
+    );
+
+    expect(result.segments).toHaveLength(2);
+  });
+
+  it("疑問文の直後でなければ消す", () => {
+    const result = dropStandaloneBackchannels(
+      [seg(0, 2, "汚い手だった。", "あずま"), seg(2, 3, "はい。", "鉄塔")],
+      DEFAULT_BACKCHANNEL_SETTINGS
+    );
+
+    expect(result.segments).toHaveLength(1);
+  });
+
+  it("疑問文の次が相槌でも、そのまた次の相槌は消す", () => {
+    // 残した返事を基準に判定するので、連鎖して残り続けない
+    const result = dropStandaloneBackchannels(
+      [seg(0, 2, "行った?", "あずま"), seg(2, 3, "はい。", "鉄塔"), seg(3, 4, "うん。", "あずま")],
+      DEFAULT_BACKCHANNEL_SETTINGS
+    );
+
+    expect(result.segments.map((s) => s.text)).toEqual(["行った?", "はい。"]);
   });
 });

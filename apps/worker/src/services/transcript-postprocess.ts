@@ -63,6 +63,15 @@ export const DEFAULT_BACKCHANNEL_SETTINGS: BackchannelSettings = {
   enabled: true,
   units: ["うん", "はい", "そう", "ええ", "へえ", "へー", "ああ", "あー", "なるほど"],
   maxRepeat: 3,
+  dropStandalone: true,
+  // 実データ（公開済み6本・8291セグメント）を分類して選んだ。
+  // 相槌だけで1セグメントを占めており、消しても前後の文意が変わらないもの。
+  standalonePhrases: [
+    "はい", "うん", "ええ", "ああ", "あー", "うーん", "ふーん", "へー", "へえ",
+    "なるほど", "そう", "そうそう", "そうですね", "そうですか", "そうなんですね",
+    "確かに", "確かにね", "はいはい", "うんうん", "そうそうそう",
+    "はいはいはい", "うんうんうん", "なるほどね", "そうなんだ",
+  ],
 };
 
 /**
@@ -415,6 +424,62 @@ export function findHallucinationCandidates(
 }
 
 /**
+ * 相槌だけで構成されるセグメントを落とす
+ *
+ * 「はい。」「なるほど。」のように、それだけで1つのセグメントになっているものを消す。
+ * 実際に発話されていても、文字で読むと相槌が並ぶだけで読みにくい。
+ *
+ * 消さないものが2つある。
+ *
+ * - 読点で終わるもの（「なんか、」「でも、」）。相槌ではなく**次の発話の一部**が
+ *   切れているだけで、消すと文が壊れる。実データでは 14 文字以下のセグメント
+ *   5312 件のうち 2252 件が読点終わりだった
+ * - 直前が疑問文のもの。「汚い手?」→「はい。」の「はい」は相槌ではなく**返事**で、
+ *   消すと問いが宙に浮く
+ */
+export function dropStandaloneBackchannels(
+  segments: TranscriptSegment[],
+  settings: BackchannelSettings
+): { segments: TranscriptSegment[]; dropped: string[] } {
+  if (!settings.dropStandalone || settings.standalonePhrases.length === 0) {
+    return { segments: segments.map((s) => ({ ...s })), dropped: [] };
+  }
+
+  const phrases = new Set(settings.standalonePhrases.map((p) => p.trim()));
+  const dropped: string[] = [];
+
+  const kept: TranscriptSegment[] = [];
+
+  for (const segment of segments) {
+    const text = segment.text.trim();
+
+    // 読点で終わるものは次に続く断片なので触らない
+    if (/[、，,]$/.test(text)) {
+      kept.push(segment);
+      continue;
+    }
+
+    // 句点・感嘆符などを外した中身が相槌そのものか
+    const core = text.replace(/[。．！？!?\s]+$/g, "");
+    if (core === "" || !phrases.has(core)) {
+      kept.push(segment);
+      continue;
+    }
+
+    // 直前が疑問文なら、これは相槌ではなく**返事**。消すと問いが宙に浮く
+    const prev = kept[kept.length - 1];
+    if (prev && /[？?]\s*$/.test(prev.text.trim())) {
+      kept.push(segment);
+      continue;
+    }
+
+    dropped.push(text);
+  }
+
+  return { segments: kept.map((s) => ({ ...s })), dropped };
+}
+
+/**
  * 相槌の繰り返し回数を抑える
  *
  * 実際にそう喋っていても、文字で読むとくどい。読みやすさのために回数を揃える。
@@ -469,12 +534,17 @@ export function postProcess(
   );
   const { segments: collapsed } = collapseRepetitions(cleaned, hallucination);
 
-  const { segments: tidied } = normalizeBackchannels(collapsed, {
+  const backchannel = {
     ...DEFAULT_BACKCHANNEL_SETTINGS,
     ...options.backchannel,
-  });
+  };
 
-  const merged = mergeSegments(tidied, options.merge);
+  // 回数を抑えてから、相槌だけのセグメントを落とす。順序が逆だと
+  // 「うんうんうんうんうん」が対象語に一致せず残ってしまう
+  const { segments: tidied } = normalizeBackchannels(collapsed, backchannel);
+  const { segments: withoutFillers } = dropStandaloneBackchannels(tidied, backchannel);
+
+  const merged = mergeSegments(withoutFillers, options.merge);
   const { segments } = applyCorrections(merged, options.corrections ?? []);
 
   return {
@@ -638,12 +708,35 @@ function sanitizeBackchannel(input: unknown): BackchannelSettings {
       2,
       toFiniteNumber(entry.maxRepeat, DEFAULT_BACKCHANNEL_SETTINGS.maxRepeat)
     ),
+    dropStandalone: entry.dropStandalone !== false,
+    standalonePhrases: Array.isArray(entry.standalonePhrases)
+      ? entry.standalonePhrases
+          .filter((p): p is string => typeof p === "string" && p.trim() !== "")
+          .map((p) => p.trim())
+      : DEFAULT_BACKCHANNEL_SETTINGS.standalonePhrases,
   };
 }
 
 /**
  * 管理画面から届いた後処理設定を、保存できる形に正規化する
  */
+/**
+ * 保存されている設定を後処理のオプションに変換する
+ *
+ * 呼び出し側で項目を書き写していると、設定を足したときに写し忘れた経路だけ
+ * 既定値で動く。実際に backchannel を足したときこれが起きたので関数にまとめた。
+ */
+export function toPostProcessOptions(
+  settings: TranscriptPostProcessSettings | undefined | null
+): PostProcessOptions {
+  return {
+    merge: settings?.merge,
+    corrections: settings?.corrections,
+    hallucination: settings?.hallucination,
+    backchannel: settings?.backchannel,
+  };
+}
+
 export function sanitizePostProcessSettings(
   input: unknown
 ): TranscriptPostProcessSettings {
@@ -746,12 +839,7 @@ export async function savePostProcessed(
 
   // パイプライン全体を通す。ここで mergeSegments と applyCorrections だけを
   // 直接呼んでいたため、ハルシネーション除去と相槌の整形が効いていなかった。
-  const processed = postProcess(raw, {
-    merge: settings?.merge,
-    corrections: settings?.corrections,
-    hallucination: settings?.hallucination,
-    backchannel: settings?.backchannel,
-  });
+  const processed = postProcess(raw, toPostProcessOptions(settings));
 
   // どの置換が何回効いたかは呼び出し側に返す（統合後のテキストに対して数える）
   const merged = mergeSegments(raw.segments, settings?.merge);

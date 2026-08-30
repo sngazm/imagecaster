@@ -1040,7 +1040,8 @@ describe("後処理が保存経路でも全段通ること", () => {
         language: "ja",
         segments: [
           { start: 0, end: 5, text: "ヤンヤン この仕事体験、なんか全然良くない。", speaker: "あずま" },
-          { start: 5, end: 8, text: "うんうんうんうんうんうん", speaker: "鉄塔" },
+          { start: 5, end: 8, text: "うんうんうんうんうんうん、それは分かる。", speaker: "鉄塔" },
+          { start: 8, end: 9, text: "はい。", speaker: "あずま" },
         ],
       })
     );
@@ -1072,7 +1073,10 @@ describe("後処理が保存経路でも全段通ること", () => {
     expect(text).not.toContain("ヤンヤン");
     expect(text).toContain("この仕事体験");
     // 相槌が3回に抑えられている
-    expect(text).toContain("うんうんうん");
+    expect(text).toContain("うんうんうん、それは分かる。");
     expect(text).not.toContain("うんうんうんうん");
+
+    // 相槌だけのセグメントは丸ごと落ちる
+    expect(text).not.toContain("はい。");
   });
 });

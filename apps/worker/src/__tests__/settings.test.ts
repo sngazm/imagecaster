@@ -1,3 +1,4 @@
+import { postProcess, toPostProcessOptions } from "../services/transcript-postprocess";
 import { describe, it, expect } from "vitest";
 import { SELF, env } from "cloudflare:test";
 
@@ -421,5 +422,51 @@ describe("文字起こしの後処理設定", () => {
     expect(json.transcriptPostProcess.corrections).toEqual([
       { from: "有効", to: "置換先", enabled: true },
     ]);
+  });
+});
+
+describe("相槌の設定が保存経路を往復すること", () => {
+  it("PUT した相槌設定が GET で戻り、後処理にも効く", async () => {
+    const saved = await SELF.fetch("http://local.test/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        transcriptPostProcess: {
+          speakerDefaults: [],
+          merge: { enabled: false, maxGapSec: null, maxDurationSec: 10, maxChars: 200 },
+          corrections: [],
+          backchannel: {
+            enabled: true,
+            units: ["うん"],
+            maxRepeat: 3,
+            dropStandalone: true,
+            standalonePhrases: ["ふむ"],
+          },
+        },
+      }),
+    });
+    expect(saved.status).toBe(200);
+
+    const read = await SELF.fetch("http://local.test/api/settings");
+    const body = (await read.json()) as any;
+    const backchannel = body.transcriptPostProcess.backchannel;
+
+    expect(backchannel.dropStandalone).toBe(true);
+    expect(backchannel.standalonePhrases).toEqual(["ふむ"]);
+
+    // 既定の「はい」ではなく、保存した「ふむ」だけが落ちる
+    const result = postProcess(
+      {
+        language: "ja",
+        segments: [
+          { start: 0, end: 1, text: "ふむ。" },
+          { start: 1, end: 2, text: "はい。" },
+          { start: 2, end: 4, text: "本編です。" },
+        ],
+      },
+      toPostProcessOptions(body.transcriptPostProcess)
+    );
+
+    expect(result.segments.map((s) => s.text)).toEqual(["はい。", "本編です。"]);
   });
 });
