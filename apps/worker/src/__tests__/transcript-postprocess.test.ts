@@ -990,3 +990,21 @@ describe("言いよどみを落としたあとの読点", () => {
     );
   });
 });
+
+describe("行頭の疑問符の誤付与", () => {
+  function clean(text: string): string {
+    return removeFillers([seg(0, 3, text)], DEFAULT_FILLER_SETTINGS).segments[0].text;
+  }
+
+  it("「え?で、」を落とす", () => {
+    // 「えー、で、」と言っているものが「え?で、」になる
+    expect(clean("え?で、あと打ち合わせをしたときに。")).toBe(
+      "で、あと打ち合わせをしたときに。"
+    );
+  });
+
+  it("本物の問いかけは残す", () => {
+    expect(clean("え?本当にそうなんですか?")).toBe("え?本当にそうなんですか?");
+    expect(clean("え?それは知らなかった。")).toBe("え?それは知らなかった。");
+  });
+});

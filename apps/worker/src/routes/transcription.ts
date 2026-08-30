@@ -466,7 +466,20 @@ transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
         note: r.note,
       }));
 
-    meta.transcriptCorrections = episodeRules.length > 0 ? episodeRules : null;
+    // 既にある規則は残す。校正を回すたびに入れ替わると、手で足したものや
+    // 前回の校正が見つけたものが消える
+    const existing = meta.transcriptCorrections ?? [];
+    const seen = new Set(existing.map((r) => `${r.from}\u0000${r.to}`));
+    const merged = [...existing];
+
+    for (const rule of episodeRules) {
+      const key = `${rule.from}\u0000${rule.to}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(rule);
+    }
+
+    meta.transcriptCorrections = merged.length > 0 ? merged : null;
 
     const result = await applyPostProcessAndSave(
       c.env,
@@ -483,7 +496,7 @@ transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
     return c.json({
       success: true,
       dictionaryAdded: added,
-      episodeRules: episodeRules.length,
+      episodeRules: merged.length,
       segments: result?.segments ?? 0,
     });
   } catch (err) {

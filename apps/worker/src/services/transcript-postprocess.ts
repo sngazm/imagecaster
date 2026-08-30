@@ -96,6 +96,9 @@ export const DEFAULT_FILLER_SETTINGS: FillerSettings = {
   ],
 };
 
+/** 疑問符が誤って付く言いよどみ。「えー、で、」が「え?で、」になる */
+const MISHEARD_FILLERS = ["え", "えー", "あ", "あー", "ま", "まあ"];
+
 export const DEFAULT_BACKCHANNEL_SETTINGS: BackchannelSettings = {
   enabled: true,
   units: [
@@ -640,6 +643,14 @@ export function removeFillers(
   // 行頭にあるもの。ここは読点ごと落とす
   const leading = new RegExp(`^(?:(?:${words})、)+`, "");
 
+  // 行頭の言いよどみに疑問符が誤って付いたもの。
+  // 「えー、で、」が「え?で、」になる。直後が接続詞のときだけ落とす。
+  // 「え?本当に?」のような、本物の問いかけを消さないため。
+  const misheard = new RegExp(
+    `^(?:${MISHEARD_FILLERS.map(escapeRegExp).join("|")})[?？](?=(?:で|そう|だから|でも|それで)、)`,
+    ""
+  );
+
   // 行末にあるもの。手前の読点ごと落として、読点は 1 つだけ残す。
   // 読点は次の行に続く印なので消さない
   const trailing = new RegExp(`(?:、|^)(?:(?:${words})、)+$`, "");
@@ -658,6 +669,7 @@ export function removeFillers(
       // 行頭と行末を先に片付ける。文中の処理を先にすると、行頭の
       // 言いよどみに付いた読点まで巻き込んでしまう
       const next = text
+        .replace(misheard, "")
         .replace(leading, "")
         .replace(trailing, "、")
         // offset は置換中の文字列を基準にするので、text ではなく whole を見る

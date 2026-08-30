@@ -87,12 +87,17 @@ function unescapeHtml(s) {
 
 /** 公開ページから文字起こしのセグメントを取り出す */
 function parseSegments(html) {
-  const blocks = html.match(/<button[^>]*transcript-segment[\s\S]*?<\/button>/g) ?? [];
+  // 話者はアイコンで出すので、名前は img の alt に入っている
+  const blocks = html.split("transcript-segment").slice(1);
 
   return blocks.map((block) => {
-    const speakers = [...block.matchAll(/text-speaker-\d[^"]*"[^>]*>([^<]+)<\/span>/g)]
-      .map((m) => m[1].trim());
-    const body = block.match(/leading-relaxed[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/span>/);
+    const speakers = [
+      ...[...block.matchAll(/<img[^>]*alt="([^"]*)"/g)].map((m) => m[1].trim()),
+      ...[...block.matchAll(/text-speaker-\d[^"]*"[^>]*>([^<]+)<\/span>/g)].map((m) =>
+        m[1].trim()
+      ),
+    ];
+    const body = block.match(/transcript-text[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/span>/);
     const text = body ? unescapeHtml(body[1].replace(/<[^>]+>/g, "")).trim() : "";
 
     return { speakers, text: text.replace(/\s+/g, " ") };
