@@ -470,7 +470,47 @@ transcriptionEpisodes.post("/:id/transcript/review", async (c) => {
 });
 
 /**
+ * PUT /api/episodes/:id/impression - 生成済みの感想を受け取る
+ *
+ * 感想の生成は文字起こしを回すマシンで行う。そちらには Claude Code が入っていて
+ * 認証も済んでいるので、Worker 側に API キーを置かなくて済む。
+ */
+transcriptionEpisodes.put("/:id/impression", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json<{ impression?: string }>();
+
+  const impression = (body.impression ?? "").trim();
+  if (impression === "") {
+    return c.json({ error: "impression が空です" }, 400);
+  }
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    meta.claudeImpression = impression;
+    meta.claudeImpressionAt = new Date().toISOString();
+    await saveEpisodeMeta(c.env, meta);
+
+    if (meta.publishStatus === "published") {
+      await syncPublishedIndex(c.env, meta);
+      await triggerWebRebuild(c.env);
+    }
+
+    return c.json({ success: true, length: impression.length });
+  } catch (err) {
+    console.error(`[impression] Save error for episode ${id}:`, err);
+    return c.json({ error: "感想の保存に失敗しました" }, 500);
+  }
+});
+
+/**
  * POST /api/episodes/:id/impression - Claude の感想を生成する
+ *
+ * Worker 側で生成する経路。ANTHROPIC_API_KEY が要る。文字起こしマシンから
+ * PUT で送る経路（上）があれば、こちらは使わなくてよい。
  */
 transcriptionEpisodes.post("/:id/impression", async (c) => {
   const id = c.req.param("id");
