@@ -60,7 +60,8 @@ const OVER_REPLACED = [
   // 辞書の規則が語の一部だけを対象にしていると起きる。
   // YouTube のように、それ自体がキャメルケースの製品名は除く
   {
-    pattern: /[a-z][A-Z][a-z]/,
+    // 単位（kHz, mAh）は数字が前に付くので、直前が数字でないものだけを見る
+    pattern: /(?<![0-9])[a-z][A-Z][a-z]/,
     kind: "英単語の空白が落ちている",
     except: CAMEL_CASE_NAMES,
   },
