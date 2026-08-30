@@ -4,6 +4,7 @@ import {
   applyCorrections,
   removeHallucinations,
   dropStandaloneBackchannels,
+  repairSpeakerBoundaries,
   postProcess,
   DEFAULT_MERGE_OPTIONS,
   DEFAULT_BACKCHANNEL_SETTINGS,
@@ -142,12 +143,12 @@ describe("mergeSegments", () => {
     expect(result[0].text).toBe("文字起こしの話です。続きを話します。");
   });
 
-  it("句読点が無ければ空白で区切る", () => {
+  it("句読点が無く間が空いていれば空白で区切る", () => {
     // 句読点を付けない設定で文字起こしされた場合、そのまま繋ぐと別々の発話が
     // 一続きの文に見えてしまう
     const segments = [
       seg(0, 2, "文字起こしの", "あずま"),
-      seg(2, 4, "話をします", "あずま"),
+      seg(2.5, 4, "話をします", "あずま"),
     ];
 
     const result = mergeSegments(segments);
@@ -361,7 +362,7 @@ describe("postProcess with corrections", () => {
     };
 
     const result = postProcess(data, {
-      corrections: [{ from: "テッ ト", to: "鉄塔", enabled: true }],
+      corrections: [{ from: "テット", to: "鉄塔", enabled: true }],
     });
 
     expect(result.segments).toHaveLength(1);
@@ -563,5 +564,96 @@ describe("dropStandaloneBackchannels の返事の扱い", () => {
     );
 
     expect(result.segments.map((s) => s.text)).toEqual(["行った?", "はい。"]);
+  });
+});
+
+
+describe("repairSpeakerBoundaries", () => {
+  it("文の途中で間も無く話者が変わったら、直前の話者に寄せる", () => {
+    // 音量判定のぶれで「多いかもし」「れないけど」が別々の人に割り振られていた
+    const result = repairSpeakerBoundaries([
+      seg(0, 3, "チームだったら多いかもし", "鉄塔"),
+      seg(3, 5, "れないけど、そ", "あずま"),
+      seg(5, 8, "こが結構自分で回している。", "鉄塔"),
+    ]);
+
+    expect(result.segments.map((s) => s.speaker)).toEqual(["鉄塔", "鉄塔", "鉄塔"]);
+    // 2 件目を寄せた時点で 3 件目は同じ話者になるので、数えるのは 1 回
+    expect(result.repaired).toBe(1);
+  });
+
+  it("句点で終わっていれば本物の交代として残す", () => {
+    const result = repairSpeakerBoundaries([
+      seg(0, 3, "どう思います。", "あずま"),
+      seg(3, 5, "いいと思いますよ。", "鉄塔"),
+    ]);
+
+    expect(result.segments.map((s) => s.speaker)).toEqual(["あずま", "鉄塔"]);
+    expect(result.repaired).toBe(0);
+  });
+
+  it("読点で終わっていても本物の交代として残す", () => {
+    // 読点は文の切れ目。ここでの交代は割り込みでありうる
+    const result = repairSpeakerBoundaries([
+      seg(0, 3, "それでですね、", "あずま"),
+      seg(3, 5, "ちょっといいですか。", "鉄塔"),
+    ]);
+
+    expect(result.repaired).toBe(0);
+  });
+
+  it("間が空いていれば本物の交代として残す", () => {
+    // 人が交代するには間が空く。文の途中でも、間があるなら割り込み
+    const result = repairSpeakerBoundaries([
+      seg(0, 3, "それでこう思ってて", "あずま"),
+      seg(4, 6, "分かります。", "鉄塔"),
+    ]);
+
+    expect(result.repaired).toBe(0);
+  });
+
+  it("話者が分かっていないものには触らない", () => {
+    const result = repairSpeakerBoundaries([
+      seg(0, 3, "話者なし"),
+      seg(3, 5, "これも話者なし"),
+    ]);
+
+    expect(result.repaired).toBe(0);
+  });
+
+  it("寄せた話者を基準に、続きも同じ話者へ寄せる", () => {
+    const result = repairSpeakerBoundaries([
+      seg(0, 2, "あの", "あずま"),
+      seg(2, 4, "とき", "鉄塔"),
+      seg(4, 6, "の話です。", "あずま"),
+    ]);
+
+    expect(result.segments.map((s) => s.speaker)).toEqual(["あずま", "あずま", "あずま"]);
+  });
+
+  it("テキストと時刻はそのまま", () => {
+    const result = repairSpeakerBoundaries([
+      seg(0, 3, "続く", "あずま"),
+      seg(3, 5, "文です。", "鉄塔"),
+    ]);
+
+    expect(result.segments[1]).toMatchObject({ start: 3, end: 5, text: "文です。" });
+  });
+});
+
+describe("postProcess で話者境界が直ってから統合されること", () => {
+  it("単語の途中で切れた断片が1つにまとまる", () => {
+    // 直す前に統合すると、話者が違うので別々のまま残ってしまう
+    const result = postProcess({
+      language: "ja",
+      segments: [
+        seg(0, 3, "今のところそういう感じのスクリーン", "あずま"),
+        seg(3, 6, "になっています。", "鉄塔"),
+      ],
+    });
+
+    expect(result.segments).toHaveLength(1);
+    expect(result.segments[0].text).toBe("今のところそういう感じのスクリーンになっています。");
+    expect(result.segments[0].speaker).toBe("あずま");
   });
 });

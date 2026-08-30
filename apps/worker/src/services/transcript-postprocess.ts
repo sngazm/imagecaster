@@ -59,6 +59,16 @@ export interface PostProcessOptions {
  * 実データでは 3 回の繰り返し（「はいはいはい」など）が最も多く、日本語として自然。
  * 5 回以上は稀（最新10話で 6 件）で、文字で読むとくどいので 3 回で頭打ちにする。
  */
+/**
+ * 話者交代を疑わしいと見なす間の上限（秒）
+ *
+ * 実データではこの種の交代は 62 件すべてが 0.00 秒だった。少し余裕を持たせている。
+ */
+export const SPURIOUS_SWITCH_MAX_GAP_SEC = 0.05;
+
+/** 句読点で終わっているか。読点も文の切れ目として数える */
+const ANY_PUNCTUATION_END = /[。．、，,！？!?」』）)\]…]\s*$/;
+
 export const DEFAULT_BACKCHANNEL_SETTINGS: BackchannelSettings = {
   enabled: true,
   units: ["うん", "はい", "そう", "ええ", "へえ", "へー", "ああ", "あー", "なるほど"],
@@ -107,8 +117,12 @@ const SENTENCE_END = /[。．！？!?、，,…」』）)\]]$/;
  * 句読点で終わっていれば、日本語は区切り文字を挟まずに繋ぐ。句読点が無い場合は
  * 空白を入れる。文字起こしには句読点が付かない設定もあり、そのまま繋ぐと
  * 別々の発話が一続きの文に見えてしまうため。
+ *
+ * ただし間が空いていない場合は空白を入れない。Whisper の単語境界は語の途中に
+ * 落ちることがあり（「多いかもし」「れないけど」）、そこに空白を入れると語が割れる。
+ * 英数字同士だけは例外で、繋ぐと 1 語になってしまうため必ず空白を入れる。
  */
-function joinText(left: string, right: string): string {
+function joinText(left: string, right: string, gapSec: number = Infinity): string {
   const a = left.trimEnd();
   const b = right.trimStart();
 
@@ -117,6 +131,14 @@ function joinText(left: string, right: string): string {
 
   // 句読点で終わっているなら、そのまま繋いで文の切れ目が読み取れる
   if (SENTENCE_END.test(a)) {
+    return `${a}${b}`;
+  }
+
+  // 英数字同士は繋ぐと 1 語になってしまうので、必ず空白で分ける
+  const latinBoundary = /[A-Za-z0-9]$/.test(a) && /^[A-Za-z0-9]/.test(b);
+
+  // 間が無いなら 1 つの語が割れているだけなので、そのまま繋ぐ
+  if (!latinBoundary && gapSec <= SPURIOUS_SWITCH_MAX_GAP_SEC) {
     return `${a}${b}`;
   }
 
@@ -158,7 +180,7 @@ export function mergeSegments(
     const previous = merged[merged.length - 1];
 
     const gap = current.start - previous.end;
-    const mergedText = joinText(previous.text, current.text);
+    const mergedText = joinText(previous.text, current.text, gap);
     const mergedDuration = current.end - previous.start;
 
     const withinGap = opts.maxGapSec === null || gap <= opts.maxGapSec;
@@ -424,6 +446,54 @@ export function findHallucinationCandidates(
 }
 
 /**
+ * 音量判定のぶれで文の途中に落ちた話者の境界を直す
+ *
+ * 話者は各トラックの音量で決めるため、1 語だけ相手のトラックが勝つと、そこで
+ * 話者が入れ替わったことになる。すると「多いかもし」「れないけど、そ」「こが〜」の
+ * ように、1 つの発話が単語の途中で切られて別々の人に割り振られる。
+ *
+ * 本物の交代と見分ける手がかりは**間**だった。#285 の生データで話者交代 624 件を
+ * 調べたところ、はっきり分かれた。
+ *
+ * | 直前の終わり方 | 件数 | 間の中央値 |
+ * |---|---|---|
+ * | 句読点で終わる | 562 | 0.40 秒 |
+ * | 文の途中 | 62 | **0.00 秒（62件すべて）** |
+ *
+ * 人が交代するには必ず間が空く。文の途中で、しかも間も無く入れ替わるのは、
+ * 同じ人が喋り続けているのを切ってしまった場合しかない。
+ */
+export function repairSpeakerBoundaries(
+  segments: TranscriptSegment[],
+  maxGapSec: number = SPURIOUS_SWITCH_MAX_GAP_SEC
+): { segments: TranscriptSegment[]; repaired: number } {
+  const result: TranscriptSegment[] = [];
+  let repaired = 0;
+
+  for (const segment of segments) {
+    const previous = result[result.length - 1];
+
+    const isSpurious =
+      previous !== undefined &&
+      Boolean(previous.speaker) &&
+      Boolean(segment.speaker) &&
+      previous.speaker !== segment.speaker &&
+      !ANY_PUNCTUATION_END.test(previous.text) &&
+      segment.start - previous.end <= maxGapSec;
+
+    if (isSpurious) {
+      result.push({ ...segment, speaker: previous.speaker });
+      repaired += 1;
+      continue;
+    }
+
+    result.push({ ...segment });
+  }
+
+  return { segments: result, repaired };
+}
+
+/**
  * 相槌だけで構成されるセグメントを落とす
  *
  * 「はい。」「なるほど。」のように、それだけで1つのセグメントになっているものを消す。
@@ -544,7 +614,10 @@ export function postProcess(
   const { segments: tidied } = normalizeBackchannels(collapsed, backchannel);
   const { segments: withoutFillers } = dropStandaloneBackchannels(tidied, backchannel);
 
-  const merged = mergeSegments(withoutFillers, options.merge);
+  // 統合の前に直す。話者が違うままだと統合されず、単語の途中で切れた断片が残る
+  const { segments: repaired } = repairSpeakerBoundaries(withoutFillers);
+
+  const merged = mergeSegments(repaired, options.merge);
   const { segments } = applyCorrections(merged, options.corrections ?? []);
 
   return {
