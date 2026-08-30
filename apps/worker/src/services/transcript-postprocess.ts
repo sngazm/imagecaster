@@ -859,6 +859,23 @@ function sanitizeBackchannel(input: unknown): Partial<BackchannelSettings> {
  * 呼び出し側で項目を書き写していると、設定を足したときに写し忘れた経路だけ
  * 既定値で動く。実際に backchannel を足したときこれが起きたので関数にまとめた。
  */
+/**
+ * 保存された設定を、管理画面に見せる形にする
+ *
+ * 保存には既定と違う項目しか入っていない。画面で編集できるよう、既定を補って返す。
+ */
+export function withDefaults(
+  settings: TranscriptPostProcessSettings | undefined | null
+): TranscriptPostProcessSettings {
+  const base = settings ?? DEFAULT_POST_PROCESS_SETTINGS;
+
+  return {
+    ...base,
+    backchannel: { ...DEFAULT_BACKCHANNEL_SETTINGS, ...base.backchannel },
+    hallucination: { ...DEFAULT_HALLUCINATION_SETTINGS, ...base.hallucination },
+  };
+}
+
 export function toPostProcessOptions(
   settings: TranscriptPostProcessSettings | undefined | null,
   meta?: EpisodeMeta | null

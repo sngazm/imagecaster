@@ -5,6 +5,7 @@ import { getIndex, saveIndex, saveArtwork } from "../services/r2";
 import {
   DEFAULT_POST_PROCESS_SETTINGS,
   sanitizePostProcessSettings,
+  withDefaults,
 } from "../services/transcript-postprocess";
 import { regenerateFeed } from "../services/feed";
 import { triggerWebRebuild } from "../services/deploy";
@@ -23,8 +24,8 @@ settings.get("/", async (c) => {
   return c.json({
     ...index.podcast,
     // 未設定でも管理画面が扱えるよう、既定値で埋めて返す
-    transcriptPostProcess:
-      index.podcast.transcriptPostProcess ?? DEFAULT_POST_PROCESS_SETTINGS,
+    // 保存には既定と違う項目しか入っていないので、既定を補って返す
+    transcriptPostProcess: withDefaults(index.podcast.transcriptPostProcess),
     spotifyConfigured,
   });
 });
