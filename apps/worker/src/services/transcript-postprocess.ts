@@ -70,6 +70,16 @@ export interface PostProcessOptions {
  */
 export const SPURIOUS_SWITCH_MAX_GAP_SEC = 0.05;
 
+/**
+ * 判定のぶれとみなす断片の長さと間
+ *
+ * 句読点で終わらない短い断片は、前後が同じ話者なら判定のぶれ。実データでは
+ * 4 文字以下の島 107 件のうち、本物の相槌（「はい。」「うん。」）はすべて
+ * 句点で終わっていて、誤判定（「だ」「いわ」「感じで」）は終わっていなかった。
+ */
+const STRAY_FRAGMENT_MAX_CHARS = 4;
+const STRAY_FRAGMENT_MAX_GAP_SEC = 0.3;
+
 /** 句読点で終わっているか。読点も文の切れ目として数える */
 const ANY_PUNCTUATION_END = /[。．、，,！？!?」』）)\]…]\s*$/;
 
@@ -527,7 +537,16 @@ export function repairSpeakerBoundaries(
         !ANY_PUNCTUATION_END.test(previous.text) &&
         next.start - previous.end <= maxGapSec;
 
-      if (!continues) break;
+      // 句読点で終わらない短い断片は、前後が同じ話者なら判定のぶれ。
+      // 「文句言い続けて、」「だ」「いぶ周りに…」の「だ」がこれで、
+      // 前後 0.1 秒の間があるだけで塊が切れ、語が割れていた。
+      // 本物の相槌は「はい。」「うん。」のように句点で終わる
+      const isStrayFragment =
+        !ANY_PUNCTUATION_END.test(next.text) &&
+        next.text.trim().length <= STRAY_FRAGMENT_MAX_CHARS &&
+        next.start - previous.end <= STRAY_FRAGMENT_MAX_GAP_SEC;
+
+      if (!continues && !isStrayFragment) break;
       end += 1;
     }
 
