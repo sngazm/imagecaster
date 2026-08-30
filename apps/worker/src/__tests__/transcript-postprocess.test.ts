@@ -836,3 +836,33 @@ describe("統合で生まれた相槌も落とす", () => {
     expect(result.segments[0].text).toContain("面白い");
   });
 });
+
+describe("問いかけの直後の扱い", () => {
+  it("一言の返事は残す", () => {
+    const result = dropStandaloneBackchannels(
+      [seg(0, 2, "行ったことある?", "あずま"), seg(2, 3, "はい。", "鉄塔")],
+      DEFAULT_BACKCHANNEL_SETTINGS
+    );
+
+    expect(result.segments).toHaveLength(2);
+  });
+
+  it("繰り返しは返事ではなく相槌として落とす", () => {
+    // 返事としては1回で足りる。繰り返しは勢いでしかない
+    const result = dropStandaloneBackchannels(
+      [seg(0, 2, "逆に?", "鉄塔"), seg(2, 3, "そうそうそう", "あずま")],
+      DEFAULT_BACKCHANNEL_SETTINGS
+    );
+
+    expect(result.segments.map((s) => s.text)).toEqual(["逆に?"]);
+  });
+
+  it("区切りを挟んだ繰り返しも落とす", () => {
+    const result = dropStandaloneBackchannels(
+      [seg(0, 2, "そうなの?", "鉄塔"), seg(2, 3, "はい、はい、はい。", "あずま")],
+      DEFAULT_BACKCHANNEL_SETTINGS
+    );
+
+    expect(result.segments).toHaveLength(1);
+  });
+});

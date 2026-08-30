@@ -539,7 +539,14 @@ export function dropStandaloneBackchannels(
     .filter((u) => u !== "")
     .map((u) => u.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
     .sort((a, b) => b.length - a.length);
-  const repeated = units.length > 0 ? new RegExp(`^(?:${units.join("|")})+$`) : null;
+  const alternation = units.join("|");
+  const repeated = units.length > 0 ? new RegExp(`^(?:${alternation})+$`) : null;
+
+  // 同じ語を 2 回以上繰り返したもの。返事ではなく相槌の勢い
+  const emphatic =
+    units.length > 0
+      ? new RegExp(`^(?:${alternation})(?:${alternation})+$`)
+      : null;
 
   const kept: TranscriptSegment[] = [];
 
@@ -570,9 +577,15 @@ export function dropStandaloneBackchannels(
       continue;
     }
 
-    // 直前が疑問文なら、これは相槌ではなく**返事**。消すと問いが宙に浮く
+    // 直前が疑問文なら、これは相槌ではなく**返事**。消すと問いが宙に浮く。
+    //
+    // ただし同じ語を繰り返しただけのもの（「そうそうそう」）は除く。返事としては
+    // 1 回で足り、繰り返しは相槌の勢いでしかない。
     const prev = kept[kept.length - 1];
-    if (prev && /[？?]\s*$/.test(prev.text.trim())) {
+    const isEmphatic =
+      (emphatic?.test(core) ?? false) || (emphatic?.test(compact) ?? false);
+
+    if (prev && /[？?]\s*$/.test(prev.text.trim()) && !isEmphatic) {
       kept.push(segment);
       continue;
     }
