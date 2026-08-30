@@ -790,33 +790,64 @@ function sanitizeHallucination(input: unknown): HallucinationSettings {
   };
 }
 
-function sanitizeBackchannel(input: unknown): BackchannelSettings {
+/** 文字列の配列が同じ中身か */
+function sameStrings(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((value, i) => value === b[i]);
+}
+
+/**
+ * 語の一覧を正規化する。既定と同じなら保存しない
+ *
+ * 管理画面は設定を取得してそのまま送り返すので、そのときの既定値が保存に焼き付く。
+ * すると**コード側の既定を更新しても効かなくなる**。実際に相槌の語を増やしても、
+ * 保存された古い一覧が使われ続けた。既定と同じものは持たせない。
+ */
+function sanitizeWordList(
+  input: unknown,
+  defaults: string[]
+): string[] | undefined {
+  if (!Array.isArray(input)) {
+    return undefined;
+  }
+
+  const words = input
+    .filter((w): w is string => typeof w === "string" && w.trim() !== "")
+    .map((w) => w.trim());
+
+  return sameStrings(words, defaults) ? undefined : words;
+}
+
+function sanitizeBackchannel(input: unknown): Partial<BackchannelSettings> {
   if (typeof input !== "object" || input === null) {
-    return { ...DEFAULT_BACKCHANNEL_SETTINGS };
+    return {};
   }
 
   const entry = input as Record<string, unknown>;
-  const rawUnits = entry.units;
 
-  return {
+  const settings: Partial<BackchannelSettings> = {
     enabled: entry.enabled !== false,
-    units: Array.isArray(rawUnits)
-      ? rawUnits
-          .filter((u): u is string => typeof u === "string" && u.trim() !== "")
-          .map((u) => u.trim())
-      : DEFAULT_BACKCHANNEL_SETTINGS.units,
     // 1 回に潰すと不自然なので下限を 2 にする
     maxRepeat: Math.max(
       2,
       toFiniteNumber(entry.maxRepeat, DEFAULT_BACKCHANNEL_SETTINGS.maxRepeat)
     ),
     dropStandalone: entry.dropStandalone !== false,
-    standalonePhrases: Array.isArray(entry.standalonePhrases)
-      ? entry.standalonePhrases
-          .filter((p): p is string => typeof p === "string" && p.trim() !== "")
-          .map((p) => p.trim())
-      : DEFAULT_BACKCHANNEL_SETTINGS.standalonePhrases,
   };
+
+  const units = sanitizeWordList(entry.units, DEFAULT_BACKCHANNEL_SETTINGS.units);
+  if (units) {
+    settings.units = units;
+  }
+
+  const phrases = sanitizeWordList(
+    entry.standalonePhrases,
+    DEFAULT_BACKCHANNEL_SETTINGS.standalonePhrases
+  );
+  if (phrases) {
+    settings.standalonePhrases = phrases;
+  }
+
+  return settings;
 }
 
 /**

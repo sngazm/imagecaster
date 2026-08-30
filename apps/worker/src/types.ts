@@ -122,7 +122,12 @@ export interface TranscriptPostProcessSettings {
   /** ハルシネーション除去の設定 */
   hallucination?: HallucinationSettings;
   /** 相槌の整形設定 */
-  backchannel?: BackchannelSettings;
+  /**
+   * 相槌の扱い。既定と同じ項目は保存しない
+   *
+   * 全項目を持たせると、コード側の既定を更新しても保存された古い値が使われ続ける。
+   */
+  backchannel?: Partial<BackchannelSettings>;
 }
 
 /**

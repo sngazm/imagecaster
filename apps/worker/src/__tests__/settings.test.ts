@@ -470,3 +470,54 @@ describe("相槌の設定が保存経路を往復すること", () => {
     expect(result.segments.map((s) => s.text)).toEqual(["はい。", "本編です。"]);
   });
 });
+
+describe("設定を往復させても既定値が焼き付かないこと", () => {
+  it("取得してそのまま送り返しても、語の一覧は保存されない", async () => {
+    // 管理画面は設定を取得してそのまま送り返す。全項目を保存すると、
+    // コード側の既定を更新しても古い一覧が使われ続ける。実際に相槌の語を
+    // 増やしても効かず、公開サイトに「いやいやいやいや。」が残った。
+    const current = (await (
+      await SELF.fetch("http://local.test/api/settings")
+    ).json()) as any;
+
+    await SELF.fetch("http://local.test/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transcriptPostProcess: current.transcriptPostProcess }),
+    });
+
+    const stored = await env.R2_BUCKET.get("index.json");
+    const index = JSON.parse(await stored!.text());
+    const saved = index.podcast.transcriptPostProcess.backchannel;
+
+    expect(saved.units).toBeUndefined();
+    expect(saved.standalonePhrases).toBeUndefined();
+  });
+
+  it("変えた語の一覧は保存される", async () => {
+    await SELF.fetch("http://local.test/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        transcriptPostProcess: {
+          speakerDefaults: [],
+          merge: { enabled: true, maxGapSec: null, maxDurationSec: 10, maxChars: 200 },
+          corrections: [],
+          backchannel: {
+            enabled: true,
+            maxRepeat: 3,
+            dropStandalone: true,
+            units: ["ふむ"],
+            standalonePhrases: ["ふむ"],
+          },
+        },
+      }),
+    });
+
+    const read = (await (
+      await SELF.fetch("http://local.test/api/settings")
+    ).json()) as any;
+
+    expect(read.transcriptPostProcess.backchannel.units).toEqual(["ふむ"]);
+  });
+});
