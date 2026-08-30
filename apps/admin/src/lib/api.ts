@@ -133,10 +133,27 @@ export interface BackchannelSettings {
   standalonePhrases: string[];
 }
 
+/**
+ * 校正が見つけた、辞書に入れたい規則の提案
+ *
+ * 自動では入らない。辞書は番組全体に効くので、機械の判断で足すと
+ * 公開中の文章を壊す。
+ */
+export interface CorrectionProposal {
+  from: string;
+  to: string;
+  note?: string;
+  episodeId: string;
+  occurrences: number;
+  proposedAt: string;
+}
+
 export interface TranscriptPostProcessSettings {
   speakerDefaults: SpeakerTrackAssignment[];
   merge: MergeSettings;
   corrections: CorrectionRule[];
+  /** 校正が見つけた提案。人が承認するまで効かない */
+  proposals?: CorrectionProposal[];
   backchannel?: BackchannelSettings;
   /** 同時発話を検出する範囲（冒頭からの秒数）。null なら検出しない */
   simultaneousUntilSec?: number | null;
@@ -501,6 +518,19 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+
+  /** 校正が見つけた提案を承認・却下する */
+  reviewProposals: (approve: CorrectionProposal[], reject: CorrectionProposal[]) =>
+    request<{ approved: number; rejected: number; remaining: number }>(
+      "/api/settings/proposals",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          approve: approve.map((p) => ({ from: p.from, to: p.to })),
+          reject: reject.map((p) => ({ from: p.from, to: p.to })),
+        }),
+      }
+    ),
 
   getArtworkUploadUrl: (contentType: string, fileSize: number) =>
     request<ArtworkUploadUrlResponse>("/api/settings/artwork/upload-url", {

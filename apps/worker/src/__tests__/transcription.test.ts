@@ -1114,7 +1114,7 @@ describe("校正で見つかった修正を登録する", () => {
     );
   }
 
-  it("番組全体のものは辞書に入り、この回かぎりのものは入らない", async () => {
+  it("番組全体のものは提案になり、この回かぎりのものはすぐ効く", async () => {
     const id = await episodeWithTranscript();
 
     const response = await send(id, [
@@ -1124,28 +1124,33 @@ describe("校正で見つかった修正を登録する", () => {
 
     expect(response.status).toBe(200);
     const body = (await response.json()) as {
-      dictionaryAdded: number;
+      proposed: number;
       episodeRules: number;
     };
-    expect(body.dictionaryAdded).toBe(1);
+    expect(body.proposed).toBe(1);
     expect(body.episodeRules).toBe(1);
 
     const saved = (await (
       await SELF.fetch("http://localhost/api/settings")
-    ).json()) as { transcriptPostProcess: { corrections: Array<{ from: string }> } };
-    const rules = saved.transcriptPostProcess.corrections;
+    ).json()) as {
+      transcriptPostProcess: {
+        corrections: Array<{ from: string }>;
+        proposals: Array<{ from: string }>;
+      };
+    };
 
-    expect(rules.some((r) => r.from === "アサナ")).toBe(true);
-    // この回かぎりのものを辞書に入れると、他の回で誤爆する
-    expect(rules.some((r) => r.from === "ソロスを")).toBe(false);
+    // 辞書には入らない。機械の判断で足すと公開中の文章を壊す
+    expect(saved.transcriptPostProcess.corrections.some((r) => r.from === "アサナ")).toBe(
+      false
+    );
+    expect(saved.transcriptPostProcess.proposals.some((p) => p.from === "アサナ")).toBe(
+      true
+    );
   });
 
-  it("どちらの修正も文字起こしに反映される", async () => {
+  it("この回かぎりの修正は文字起こしに反映される", async () => {
     const id = await episodeWithTranscript();
-    await send(id, [
-      { from: "アサナ", to: "Asana", general: true },
-      { from: "ソロスを", to: "そろそろ", general: false },
-    ]);
+    await send(id, [{ from: "ソロスを", to: "そろそろ", general: false }]);
 
     const meta = (await (
       await SELF.fetch(`http://localhost/api/episodes/${id}`)
@@ -1154,20 +1159,18 @@ describe("校正で見つかった修正を登録する", () => {
       await env.R2_BUCKET.get(`episodes/${meta.storageKey}/transcript.vtt`)
     )!.text();
 
-    expect(vtt).toContain("Asana");
     expect(vtt).toContain("そろそろ");
-    expect(vtt).not.toContain("アサナ");
   });
 
-  it("同じ規則を二度足さない", async () => {
+  it("同じ提案を二度溜めない", async () => {
     const id = await episodeWithTranscript();
     const rule = [{ from: "クロードコード", to: "Claude Code", general: true }];
 
-    const first = (await (await send(id, rule)).json()) as { dictionaryAdded: number };
-    const second = (await (await send(id, rule)).json()) as { dictionaryAdded: number };
+    const first = (await (await send(id, rule)).json()) as { proposed: number };
+    const second = (await (await send(id, rule)).json()) as { proposed: number };
 
-    expect(first.dictionaryAdded).toBe(1);
-    expect(second.dictionaryAdded).toBe(0);
+    expect(first.proposed).toBe(1);
+    expect(second.proposed).toBe(0);
   });
 
   it("空や変化のない規則は捨てる", async () => {
@@ -1179,9 +1182,9 @@ describe("校正で見つかった修正を登録する", () => {
         { from: "同じ", to: "同じ", general: true },
         { from: "あり", to: "", general: true },
       ])
-    ).json()) as { dictionaryAdded: number; episodeRules: number };
+    ).json()) as { proposed: number; episodeRules: number };
 
-    expect(body.dictionaryAdded).toBe(0);
+    expect(body.proposed).toBe(0);
     expect(body.episodeRules).toBe(0);
   });
 
@@ -1189,5 +1192,92 @@ describe("校正で見つかった修正を登録する", () => {
     const response = await send("nope", []);
 
     expect(response.status).toBe(404);
+  });
+});
+
+describe("校正の提案は人が承認するまで効かない", () => {
+  async function propose(rules: unknown[]): Promise<void> {
+    const { id, storageKey } = await createTestEpisode({ title: "提案" });
+    await setEpisodeToTranscribing(storageKey, id);
+    await env.R2_BUCKET.put(
+      `episodes/${storageKey}/transcript.raw.json`,
+      JSON.stringify({
+        language: "ja",
+        segments: [{ start: 0, end: 3, text: "アサナで管理してます。" }],
+      })
+    );
+    await SELF.fetch(`http://local.test/api/episodes/${id}/transcription-complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transcribeStatus: "completed" }),
+    });
+    await SELF.fetch(`http://local.test/api/episodes/${id}/transcript/corrections`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ corrections: rules }),
+    });
+  }
+
+  function read(): Promise<any> {
+    return SELF.fetch("http://local.test/api/settings").then((r) => r.json());
+  }
+
+  it("辞書には入らず、提案として溜まる", async () => {
+    // 機械の判断で辞書に足すと公開中の文章を壊す
+    await propose([{ from: "アサナ", to: "Asana", note: "ツール名", general: true }]);
+
+    const settings = await read();
+    const post = settings.transcriptPostProcess;
+
+    expect(post.corrections.some((r: any) => r.from === "アサナ")).toBe(false);
+    expect(post.proposals.some((p: any) => p.from === "アサナ")).toBe(true);
+  });
+
+  it("承認すると辞書に入る", async () => {
+    await propose([{ from: "アサナ", to: "Asana", general: true }]);
+
+    const response = await SELF.fetch("http://local.test/api/settings/proposals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ approve: [{ from: "アサナ", to: "Asana" }] }),
+    });
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { approved: number };
+    expect(body.approved).toBe(1);
+
+    const post = (await read()).transcriptPostProcess;
+    expect(post.corrections.some((r: any) => r.from === "アサナ")).toBe(true);
+    expect(post.proposals).toHaveLength(0);
+  });
+
+  it("却下すると提案から消え、辞書にも入らない", async () => {
+    await propose([{ from: "メール", to: "mail", general: true }]);
+
+    await SELF.fetch("http://local.test/api/settings/proposals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reject: [{ from: "メール", to: "mail" }] }),
+    });
+
+    const post = (await read()).transcriptPostProcess;
+    expect(post.corrections.some((r: any) => r.from === "メール")).toBe(false);
+    expect(post.proposals).toHaveLength(0);
+  });
+
+  it("同じ提案を二度溜めない", async () => {
+    await propose([{ from: "アサナ", to: "Asana", general: true }]);
+    await propose([{ from: "アサナ", to: "Asana", general: true }]);
+
+    const post = (await read()).transcriptPostProcess;
+    expect(post.proposals.filter((p: any) => p.from === "アサナ")).toHaveLength(1);
+  });
+
+  it("この回かぎりの修正はそのまま効く", async () => {
+    // 提案にするのは辞書に入れるものだけ。エピソードの修正は承認を待たない
+    await propose([{ from: "アサナ", to: "Asana", general: false }]);
+
+    const post = (await read()).transcriptPostProcess;
+    expect(post.proposals ?? []).toHaveLength(0);
   });
 });

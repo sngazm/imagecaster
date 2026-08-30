@@ -129,3 +129,66 @@ settings.post("/artwork/upload-complete", async (c) => {
 
   return c.json({ success: true, artworkUrl: body.artworkUrl });
 });
+
+/**
+ * POST /api/settings/proposals - 校正が見つけた提案を承認・却下する
+ *
+ * 辞書は公開済みの全エピソードに効くので、機械の判断では足さない。
+ * ここを通ったものだけが辞書に入る。
+ */
+settings.post("/proposals", async (c) => {
+  try {
+    const body = await c.req.json<{
+      approve?: Array<{ from?: unknown; to?: unknown }>;
+      reject?: Array<{ from?: unknown; to?: unknown }>;
+    }>();
+
+    const index = await getIndex(c.env);
+    const current =
+      index.podcast.transcriptPostProcess ?? DEFAULT_POST_PROCESS_SETTINGS;
+
+    const key = (r: { from?: unknown; to?: unknown }) => `${r.from}\u0000${r.to}`;
+    const approving = new Set((body.approve ?? []).map(key));
+    const rejecting = new Set((body.reject ?? []).map(key));
+
+    const proposals = current.proposals ?? [];
+    const corrections = [...current.corrections];
+    const known = new Set(corrections.map(key));
+    let approved = 0;
+
+    for (const proposal of proposals) {
+      if (!approving.has(key(proposal)) || known.has(key(proposal))) continue;
+
+      known.add(key(proposal));
+      corrections.push({
+        from: proposal.from,
+        to: proposal.to,
+        enabled: true,
+        note: proposal.note,
+      });
+      approved += 1;
+    }
+
+    // 承認したものも却下したものも、提案の一覧からは外す
+    const remaining = proposals.filter(
+      (p) => !approving.has(key(p)) && !rejecting.has(key(p))
+    );
+
+    index.podcast.transcriptPostProcess = {
+      ...current,
+      corrections,
+      proposals: remaining,
+    };
+    await saveIndex(c.env, index);
+
+    return c.json({
+      success: true,
+      approved,
+      rejected: proposals.length - remaining.length - approved,
+      remaining: remaining.length,
+    });
+  } catch (err) {
+    console.error("[settings/proposals] Error:", err);
+    return c.json({ error: "Failed to update proposals" }, 500);
+  }
+});

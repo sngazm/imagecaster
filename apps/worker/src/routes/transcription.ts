@@ -387,7 +387,8 @@ transcriptionEpisodes.post("/:id/transcript/reprocess", async (c) => {
  *
  * 文字起こしを回すマシンが、ローカルの claude に校正させた結果を送ってくる。
  * 本文をそのまま書き換えるのではなく**置換規則**として受け取り、番組全体に効くもの
- * （`general`）は辞書へ、この回かぎりのものはエピソードに保存する。
+ * （`general`）は**提案として溜め**、この回かぎりのものはエピソードに保存する。
+ * 辞書には自動で入れない。人が管理画面で承認したものだけが効く。
  *
  * こうしておくと、後処理をやり直しても修正が残る。辞書は次回以降の文字起こしにも
  * 自動で効くので、同じ誤りを毎回直さずに済む。
@@ -407,6 +408,7 @@ transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
         to?: unknown;
         note?: unknown;
         general?: unknown;
+        occurrences?: unknown;
       }>;
     }>();
 
@@ -414,7 +416,13 @@ transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
 
     const rules = incoming
       .filter(
-        (r): r is { from: string; to: string; note?: string; general?: boolean } =>
+        (r): r is {
+          from: string;
+          to: string;
+          note?: string;
+          general?: boolean;
+          occurrences?: number;
+        } =>
           typeof r.from === "string" &&
           typeof r.to === "string" &&
           r.from.trim() !== "" &&
@@ -426,33 +434,41 @@ transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
         to: r.to.trim(),
         note: typeof r.note === "string" ? r.note : undefined,
         general: r.general === true,
+        occurrences: typeof r.occurrences === "number" ? r.occurrences : 0,
       }));
 
     const index = await getIndex(c.env);
     const settings =
       index.podcast.transcriptPostProcess ?? DEFAULT_POST_PROCESS_SETTINGS;
 
-    // 番組全体の辞書。既にある規則は足さない
-    const dictionary = [...settings.corrections];
-    const known = new Set(dictionary.map((r) => `${r.from}\u0000${r.to}`));
+    // 番組全体に効きそうなものは**提案として溜める**。自動では辞書に入れない。
+    //
+    // 辞書は公開済みの全エピソードに効くので、機械の判断で足すと文章を壊す。
+    // 実際に `メール → mail` と `短期 → 短気` が入り、「メールフォーム」と
+    // 「短期的には」まで置き換わった。人が見て承認したものだけを入れる。
+    const known = new Set(settings.corrections.map((r) => `${r.from}\u0000${r.to}`));
+    const proposals = [...(settings.proposals ?? [])];
+    const proposed = new Set(proposals.map((p) => `${p.from}\u0000${p.to}`));
     let added = 0;
 
     for (const rule of rules.filter((r) => r.general)) {
       const key = `${rule.from}\u0000${rule.to}`;
-      if (known.has(key)) continue;
+      if (known.has(key) || proposed.has(key)) continue;
 
-      known.add(key);
-      dictionary.push({
+      proposed.add(key);
+      proposals.push({
         from: rule.from,
         to: rule.to,
-        enabled: true,
-        note: rule.note ? `校正で追加: ${rule.note}` : "校正で追加",
+        note: rule.note,
+        episodeId: meta.id,
+        occurrences: rule.occurrences ?? 0,
+        proposedAt: new Date().toISOString(),
       });
       added += 1;
     }
 
     if (added > 0) {
-      index.podcast.transcriptPostProcess = { ...settings, corrections: dictionary };
+      index.podcast.transcriptPostProcess = { ...settings, proposals };
       await saveIndex(c.env, index);
     }
 
@@ -495,7 +511,7 @@ transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
 
     return c.json({
       success: true,
-      dictionaryAdded: added,
+      proposed: added,
       episodeRules: merged.length,
       segments: result?.segments ?? 0,
     });

@@ -116,8 +116,29 @@ export interface HallucinationSettings {
  *
  * 番組全体の既定値。エピソードごとの話者割り当ては EpisodeMeta.speakerTracks で上書きする。
  */
+/**
+ * 校正が見つけた、辞書に入れたい規則の提案
+ *
+ * 自動では入れない。辞書は番組全体に効くので、機械の判断で足すと
+ * 公開中の文章を壊す。実際に `メール → mail` と `短期 → 短気` が入り、
+ * 「メールフォーム」と「短期的には」まで置き換わった。
+ */
+export interface CorrectionProposal {
+  from: string;
+  to: string;
+  /** なぜ誤認識と判断したか */
+  note?: string;
+  /** どのエピソードで見つかったか */
+  episodeId: string;
+  /** そのエピソードでの出現回数 */
+  occurrences: number;
+  proposedAt: string;
+}
+
 export interface TranscriptPostProcessSettings {
   speakerDefaults: SpeakerTrackAssignment[];
+  /** 校正が見つけた、辞書に入れたい規則の提案。人が承認するまで効かない */
+  proposals?: CorrectionProposal[];
   merge: MergeSettings;
   corrections: CorrectionRule[];
   /**

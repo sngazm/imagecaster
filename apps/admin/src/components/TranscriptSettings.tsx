@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api } from "../lib/api";
 import type {
   BackchannelSettings,
+  CorrectionProposal,
   CorrectionRule,
   SpeakerTrackAssignment,
   TranscriptPostProcessSettings,
@@ -44,6 +45,40 @@ export function TranscriptSettings({ value, onSaved }: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reprocessing, setReprocessing] = useState(false);
+  const [proposals, setProposals] = useState<CorrectionProposal[]>(
+    value.proposals ?? []
+  );
+  const [reviewing, setReviewing] = useState(false);
+
+  async function decide(
+    approve: CorrectionProposal[],
+    reject: CorrectionProposal[]
+  ): Promise<void> {
+    setReviewing(true);
+    setError(null);
+    try {
+      await api.reviewProposals(approve, reject);
+      const decided = new Set([...approve, ...reject].map((p) => `${p.from}\u0000${p.to}`));
+      setProposals((current) =>
+        current.filter((p) => !decided.has(`${p.from}\u0000${p.to}`))
+      );
+
+      // 承認したものは辞書に入るので、画面の一覧も合わせる
+      if (approve.length > 0) {
+        const settings = await api.getSettings();
+        if (settings.transcriptPostProcess) {
+          setDraft((d) => ({
+            ...d,
+            corrections: settings.transcriptPostProcess!.corrections,
+          }));
+        }
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "提案の反映に失敗しました");
+    } finally {
+      setReviewing(false);
+    }
+  }
 
   const backchannel = draft.backchannel ?? DEFAULT_BACKCHANNEL;
 
@@ -233,6 +268,74 @@ export function TranscriptSettings({ value, onSaved }: Props) {
           )}
         </div>
       </div>
+
+      {/* 校正の提案 */}
+      {proposals.length > 0 && (
+        <div className="card">
+          <h2 className="text-base font-semibold text-[var(--color-text-primary)] mb-1">
+            校正からの提案
+            <span className="ml-2 text-xs font-normal text-[var(--color-text-muted)]">
+              {proposals.length} 件
+            </span>
+          </h2>
+          <p className="text-xs text-[var(--color-text-muted)] mb-4">
+            文字起こしを読んだ Claude が見つけた誤りのうち、番組全体に効きそうなものです。
+            <strong>承認するまで辞書には入りません。</strong>
+            辞書は公開済みの全エピソードに効くので、目を通してから入れてください。
+          </p>
+
+          <ul className="space-y-2">
+            {proposals.map((proposal) => (
+              <li
+                key={`${proposal.from}-${proposal.to}`}
+                className="flex flex-wrap items-baseline gap-2 border-b border-[var(--color-border)] pb-2 last:border-0"
+              >
+                <span className="font-mono text-xs">{proposal.from}</span>
+                <span className="text-xs text-[var(--color-text-muted)]">→</span>
+                <span className="font-mono text-xs font-medium">{proposal.to}</span>
+
+                {proposal.note && (
+                  <span className="text-xs text-[var(--color-text-muted)]">
+                    （{proposal.note}）
+                  </span>
+                )}
+
+                <span className="text-xs text-[var(--color-text-muted)]">
+                  #{proposal.episodeId}
+                </span>
+
+                <span className="ml-auto flex gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-secondary text-xs py-1 px-2"
+                    disabled={reviewing}
+                    onClick={() => decide([proposal], [])}
+                  >
+                    辞書に入れる
+                  </button>
+                  <button
+                    type="button"
+                    className="text-xs text-[var(--color-text-muted)] hover:underline"
+                    disabled={reviewing}
+                    onClick={() => decide([], [proposal])}
+                  >
+                    見送る
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          <button
+            type="button"
+            className="btn btn-secondary mt-4 text-xs"
+            disabled={reviewing}
+            onClick={() => decide([], proposals)}
+          >
+            すべて見送る
+          </button>
+        </div>
+      )}
 
       {/* 相槌 */}
       <div className="card">
