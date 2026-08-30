@@ -758,6 +758,61 @@ export function removeFillers(
 }
 
 /**
+ * 文の途中に埋まった相槌を落とす
+ *
+ * 相槌が独立した行になっていれば `dropStandaloneBackchannels` が落とすが、
+ * 話者判定が揺れると相手の相槌が長い発話の中に取り込まれる。
+ *
+ *     だからね、絶対忘れちゃうんですよ。うん。っていうことが私のずっと悩みでして。
+ *
+ * この「うん。」は鉄塔の相槌で、あずまの発言ではない。行全体としては相槌でないので
+ * 従来の判定では見えなかった。
+ *
+ * **句点に挟まれたもの**だけを対象にする。「うん、そうだね」のように読点で
+ * 続くものは文の一部で、消すと意味が変わる。
+ */
+export function removeEmbeddedBackchannels(
+  segments: TranscriptSegment[],
+  settings: BackchannelSettings
+): { segments: TranscriptSegment[]; removed: number } {
+  if (!settings.dropStandalone || settings.standalonePhrases.length === 0) {
+    return { segments: segments.map((s) => ({ ...s })), removed: 0 };
+  }
+
+  const phrases = settings.standalonePhrases
+    .map((p) => p.trim())
+    .filter((p) => p !== "")
+    .map(escapeRegExp)
+    .sort((a, b) => b.length - a.length)
+    .join("|");
+
+  // 句点のあとに来て、句点で終わるもの。行頭のものは残す
+  // （行頭は「その行が相槌で始まる」だけで、次に本文が続くとは限らない）
+  const embedded = new RegExp(`(?<=[。．！？!?])(?:(?:${phrases})[。．]\\s*)+`, "g");
+
+  let removed = 0;
+
+  const cleaned = segments.map((segment) => {
+    const before = segment.text;
+    const text = before.replace(embedded, "").trim();
+
+    if (text === before) {
+      return { ...segment };
+    }
+
+    // 全部消えるなら元のまま残す。行全体が相槌なら別の処理が落とす
+    if (text === "") {
+      return { ...segment };
+    }
+
+    removed += 1;
+    return { ...segment, text };
+  });
+
+  return { segments: cleaned, removed };
+}
+
+/**
  * 相槌だけで構成されるセグメントを落とす
  *
  * 「はい。」「なるほど。」のように、それだけで1つのセグメントになっているものを消す。
@@ -927,9 +982,13 @@ export function postProcess(
   // 統合してからもう一度落とす。「そう」と「そうそう」が繋がって
   // 「そうそうそう」が生まれることがある。判定は読者が見る最終形に対して行う。
   const { segments: tidy } = dropStandaloneBackchannels(merged, backchannel);
+
+  // 統合してから、文の途中に埋まった相槌を落とす。話者判定が揺れると
+  // 相手の相槌が長い発話の中に取り込まれ、行全体としては相槌でなくなる
+  const { segments: cleared } = removeEmbeddedBackchannels(tidy, backchannel);
   // 番組全体の辞書を当ててから、この回かぎりの修正を当てる。
   // 全体の辞書に入れると誤爆するものを、ここで拾う
-  const { segments: corrected } = applyCorrections(tidy, options.corrections ?? []);
+  const { segments: corrected } = applyCorrections(cleared, options.corrections ?? []);
   const { segments } = applyCorrections(corrected, options.episodeCorrections ?? []);
 
   return {

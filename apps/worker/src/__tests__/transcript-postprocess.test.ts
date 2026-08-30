@@ -6,6 +6,7 @@ import {
   dropStandaloneBackchannels,
   repairSpeakerBoundaries,
   removeFillers,
+  removeEmbeddedBackchannels,
   DEFAULT_FILLER_SETTINGS,
   postProcess,
   DEFAULT_MERGE_OPTIONS,
@@ -1127,5 +1128,76 @@ describe("長い発話に挟まった相手の一言", () => {
 
       expect(new Set(result.segments.map((s) => s.speaker)).size).toBe(1);
     }
+  });
+});
+
+
+describe("removeEmbeddedBackchannels", () => {
+  const settings = DEFAULT_BACKCHANNEL_SETTINGS;
+
+  function clean(text: string): string {
+    return removeEmbeddedBackchannels([seg(0, 5, text)], settings).segments[0].text;
+  }
+
+  it("文の途中に埋まった相槌を落とす", () => {
+    // 話者判定が揺れると、相手の相槌が長い発話の中に取り込まれる。
+    // 行全体としては相槌でないので、行単位の判定では見えなかった
+    expect(
+      clean("だからね、絶対忘れちゃうんですよ。うん。っていうことが私の悩みで。")
+    ).toBe("だからね、絶対忘れちゃうんですよ。っていうことが私の悩みで。");
+  });
+
+  it("続けて並んでいるものをまとめて落とす", () => {
+    expect(clean("紙のノートでつけてみたりとか。うん。うん。もっと前からか。")).toBe(
+      "紙のノートでつけてみたりとか。もっと前からか。"
+    );
+  });
+
+  it("読点で続くものは残す", () => {
+    // 「うん、そうだね」の「うん」は文の一部。消すと意味が変わる
+    expect(clean("そうですね。うん、そうだね。それはある。")).toBe(
+      "そうですね。うん、そうだね。それはある。"
+    );
+  });
+
+  it("行頭の相槌は残す", () => {
+    // 行頭は「その行が相槌で始まる」だけで、行単位の判定の担当
+    expect(clean("はい。わかりました。")).toBe("はい。わかりました。");
+  });
+
+  it("全部消えるなら元のまま残す", () => {
+    // 行全体が相槌なら、行単位の判定が落とす
+    expect(clean("うん。")).toBe("うん。");
+  });
+
+  it("繰り返しは1つに減る", () => {
+    // 「はい。はい。」は残った1つを行単位の判定が落とす
+    expect(clean("はい。はい。")).toBe("はい。");
+  });
+
+  it("相槌でない短文は残す", () => {
+    expect(clean("わかった。それで。次に行こう。")).toBe("わかった。それで。次に行こう。");
+  });
+
+  it("時刻と話者は保つ", () => {
+    const result = removeEmbeddedBackchannels(
+      [seg(1.5, 5.5, "本編です。うん。続きです。", "あずま")],
+      settings
+    );
+
+    expect(result.segments[0]).toMatchObject({
+      start: 1.5,
+      end: 5.5,
+      speaker: "あずま",
+    });
+  });
+
+  it("dropStandalone が false なら何もしない", () => {
+    const result = removeEmbeddedBackchannels(
+      [seg(0, 5, "本編です。うん。続きです。")],
+      { ...settings, dropStandalone: false }
+    );
+
+    expect(result.segments[0].text).toBe("本編です。うん。続きです。");
   });
 });
