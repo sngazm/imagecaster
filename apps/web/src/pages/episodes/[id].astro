@@ -339,9 +339,14 @@ const ogImageUrl = getEpisodeOgImageUrl(episode.artworkUrl, podcastArtworkUrl);
   }
 
   // トランスクリプトセグメントのクリックで再生位置を変更
+  //
+  // 文字起こしはコピーできる必要があるので、テキストを選択しただけのときは
+  // 再生位置を動かさない。選択して読み返している最中に音が鳴り出すと邪魔になる。
   if (audio) {
     transcriptSegments.forEach((segment) => {
       segment.addEventListener('click', () => {
+        if (!window.getSelection()?.isCollapsed) return;
+
         const time = segment.getAttribute('data-time');
         if (time) {
           audio.currentTime = timeToSeconds(time);

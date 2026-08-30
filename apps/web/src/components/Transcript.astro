@@ -21,6 +21,16 @@ const SPEAKER_CLASSES = [
 /** 複数人が同時に喋っている区間は "あずま・鉄塔" のように連結されて届く */
 const SIMULTANEOUS_SEPARATOR = "・";
 
+/**
+ * 話者のアイコン
+ *
+ * 名前より速く誰の発言か分かる。用意が無い話者は名前のまま出す。
+ */
+const SPEAKER_ICONS: Record<string, string> = {
+  あずま: "/speakers/azuma.jpg",
+  鉄塔: "/speakers/tetto.jpg",
+};
+
 // 色は個々の話者に割り当てる。同時発話のラベルを 1 人分として数えないよう分解しておく
 const speakers = [
   ...new Set(
@@ -38,7 +48,7 @@ function speakerClass(speaker: string): string {
 }
 ---
 
-<details class="mt-4 border-t border-border pt-4 dark:border-border-dark group">
+<details open class="mt-4 border-t border-border pt-4 dark:border-border-dark group">
   <summary
     class="cursor-pointer list-none inline-flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent-hover select-none"
   >
@@ -55,7 +65,7 @@ function speakerClass(speaker: string): string {
         d="M9 5l7 7-7 7"
       />
     </svg>
-    文字起こしを見る
+    文字起こし
   </summary>
 
   <div
@@ -70,8 +80,7 @@ function speakerClass(speaker: string): string {
           segment.speaker !== segments[index - 1]?.speaker;
 
         return (
-          <button
-            type="button"
+          <div
             class:list={[
               "transcript-segment group flex w-full gap-3 py-1 text-left rounded transition-colors hover:bg-accent/10 dark:hover:bg-accent/20 cursor-pointer",
               isNewSpeaker && index > 0 && "mt-3",
@@ -79,23 +88,35 @@ function speakerClass(speaker: string): string {
             data-time={segment.start}
           >
             {hasSpeakers && (
-              <span class="shrink-0 w-14 pt-0.5">
+              <span class="shrink-0 w-14 pt-0.5 flex gap-1" aria-hidden="true">
                 {isNewSpeaker &&
                   segment.speaker
                     ?.split(SIMULTANEOUS_SEPARATOR)
-                    .map((name) => (
-                      <span
-                        class={`block truncate text-[11px] font-medium leading-tight ${speakerClass(name)}`}
-                      >
-                        {name}
-                      </span>
-                    ))}
+                    .map((name) =>
+                      SPEAKER_ICONS[name] ? (
+                        <img
+                          src={SPEAKER_ICONS[name]}
+                          alt={name}
+                          title={name}
+                          width="24"
+                          height="24"
+                          loading="lazy"
+                          class="h-6 w-6 shrink-0 rounded-full object-cover"
+                        />
+                      ) : (
+                        <span
+                          class={`block truncate text-[11px] font-medium leading-tight ${speakerClass(name)}`}
+                        >
+                          {name}
+                        </span>
+                      )
+                    )}
               </span>
             )}
-            <span class="text-sm leading-relaxed text-text-secondary dark:text-text-secondary-dark group-hover:text-text dark:group-hover:text-text-dark transition-colors">
+            <span class="transcript-text cursor-text text-sm leading-relaxed text-text-secondary dark:text-text-secondary-dark group-hover:text-text dark:group-hover:text-text-dark transition-colors">
               {segment.text}
             </span>
-          </button>
+          </div>
         );
       })
     }

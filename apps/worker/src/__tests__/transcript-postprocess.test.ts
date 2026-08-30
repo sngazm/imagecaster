@@ -5,6 +5,8 @@ import {
   removeHallucinations,
   dropStandaloneBackchannels,
   repairSpeakerBoundaries,
+  removeFillers,
+  DEFAULT_FILLER_SETTINGS,
   postProcess,
   DEFAULT_MERGE_OPTIONS,
   DEFAULT_BACKCHANNEL_SETTINGS,
@@ -570,7 +572,7 @@ describe("dropStandaloneBackchannels の返事の扱い", () => {
 
 
 describe("repairSpeakerBoundaries", () => {
-  it("文の途中で間も無く話者が変わったら、直前の話者に寄せる", () => {
+  it("文の途中で間も無く話者が変わったら、長く喋っている話者に寄せる", () => {
     // 音量判定のぶれで「多いかもし」「れないけど」が別々の人に割り振られていた
     const result = repairSpeakerBoundaries([
       seg(0, 3, "チームだったら多いかもし", "鉄塔"),
@@ -579,8 +581,18 @@ describe("repairSpeakerBoundaries", () => {
     ]);
 
     expect(result.segments.map((s) => s.speaker)).toEqual(["鉄塔", "鉄塔", "鉄塔"]);
-    // 2 件目を寄せた時点で 3 件目は同じ話者になるので、数えるのは 1 回
     expect(result.repaired).toBe(1);
+  });
+
+  it("短い断片が長い発話を引っ張らない", () => {
+    // 0.88秒の「で、そう」が16.9秒の発話を巻き込み、あずまの発言が
+    // 丸ごと鉄塔のものになっていた
+    const result = repairSpeakerBoundaries([
+      seg(933.86, 934.74, "で、そう", "鉄塔"),
+      seg(934.74, 951.66, "すると、向こうが提案してきたのが、確認の時間は必要で。", "あずま"),
+    ]);
+
+    expect(result.segments.map((s) => s.speaker)).toEqual(["あずま", "あずま"]);
   });
 
   it("句点で終わっていれば本物の交代として残す", () => {
@@ -864,5 +876,117 @@ describe("問いかけの直後の扱い", () => {
     );
 
     expect(result.segments).toHaveLength(1);
+  });
+});
+
+describe("笑い声の変形も落とす", () => {
+  it("「うふふふ。」を落とす", () => {
+    // 「ふんふんふん」と言っているものが笑い声として出てくる
+    const result = dropStandaloneBackchannels(
+      [seg(0, 2, "うふふふ。", "鉄塔"), seg(2, 4, "あはは。", "あずま")],
+      DEFAULT_BACKCHANNEL_SETTINGS
+    );
+
+    expect(result.segments).toHaveLength(0);
+  });
+
+  it("1文字の語が本文を消さない", () => {
+    const result = dropStandaloneBackchannels(
+      [
+        seg(0, 3, "あの話は面白かった。", "鉄塔"),
+        seg(3, 6, "うん、そうですね、確かに。", "あずま"),
+      ],
+      DEFAULT_BACKCHANNEL_SETTINGS
+    );
+
+    expect(result.segments).toHaveLength(2);
+  });
+});
+
+
+describe("removeFillers", () => {
+  const settings = DEFAULT_FILLER_SETTINGS;
+
+  function clean(text: string): string {
+    return removeFillers([seg(0, 3, text, "あずま")], settings).segments[0].text;
+  }
+
+  it("読点で挟まれた言いよどみを落とす", () => {
+    expect(
+      clean("AIが、その、効率化するってことを、あの、ゴールにしちゃうと、僕がその")
+    ).toBe("AIが効率化するってことをゴールにしちゃうと、僕がその");
+  });
+
+  it("行頭の言いよどみを落とす", () => {
+    expect(clean("なんか、そうやって、なんか、")).toBe("そうやって、");
+  });
+
+  it("続けて並んでいるものをまとめて落とす", () => {
+    // 「なんか」は格助詞で終わっていないので、切れ目として読点が残る
+    expect(clean("なんか、あの、あとなんか、こう、話が飛ぶんですけど。")).toBe(
+      "あとなんか、話が飛ぶんですけど。"
+    );
+  });
+
+  it("接続詞の重なりを1つにする", () => {
+    expect(clean("で、で、Asanaっていうツールを通じて。")).toBe(
+      "で、Asanaっていうツールを通じて。"
+    );
+  });
+
+  it("意味を持つ語は残す", () => {
+    // 読点が付いていないものは、文の一部として働いている
+    expect(clean("なんか変だよね。")).toBe("なんか変だよね。");
+    expect(clean("その話は面白かった。")).toBe("その話は面白かった。");
+    expect(clean("まあまあの出来でした。")).toBe("まあまあの出来でした。");
+  });
+
+  it("落とした結果が空になるなら元のまま残す", () => {
+    expect(clean("えー、あの、")).toBe("えー、あの、");
+  });
+
+  it("何も変わらない文はそのまま", () => {
+    expect(clean("これは普通の文です。")).toBe("これは普通の文です。");
+  });
+
+  it("enabled: false なら何もしない", () => {
+    const result = removeFillers([seg(0, 3, "AIが、その、効率化する")], {
+      ...settings,
+      enabled: false,
+    });
+
+    expect(result.segments[0].text).toBe("AIが、その、効率化する");
+  });
+
+  it("時刻と話者は保つ", () => {
+    const result = removeFillers([seg(1.5, 3.5, "なんか、本編です。", "鉄塔")], settings);
+
+    expect(result.segments[0]).toMatchObject({ start: 1.5, end: 3.5, speaker: "鉄塔" });
+  });
+});
+
+describe("言いよどみを落としたあとの読点", () => {
+  function clean(text: string): string {
+    return removeFillers([seg(0, 3, text)], DEFAULT_FILLER_SETTINGS).segments[0].text;
+  }
+
+  it("格助詞で終わるなら読点も落とす", () => {
+    // 「AIが」と「効率化する」は直接つながる。読点は言いよどみを挟むために
+    // 置かれただけ
+    expect(clean("AIが、その、効率化する")).toBe("AIが効率化する");
+    expect(clean("ことを、あの、ゴールにする")).toBe("ことをゴールにする");
+  });
+
+  it("接続助詞で終わるなら読点を残す", () => {
+    // そこが文の切れ目。落とすと「言うしまあ」になって読めなくなる
+    expect(clean("とも言うし、なんていうか、まあ一重しく")).toBe(
+      "とも言うし、まあ一重しく"
+    );
+  });
+
+  it("「〜ので、」は切れ目として扱う", () => {
+    expect(clean("使ってるんで、その、メッセージとか")).toBe(
+      "使ってるんで、メッセージとか"
+    );
   });
 });

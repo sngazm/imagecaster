@@ -9,6 +9,7 @@
 
 import type {
   BackchannelSettings,
+  FillerSettings,
   CorrectionRule,
   Env,
   EpisodeMeta,
@@ -53,6 +54,7 @@ export interface PostProcessOptions {
   backchannel?: Partial<BackchannelSettings>;
   /** この回かぎりの修正。番組全体の辞書のあとに当てる */
   episodeCorrections?: CorrectionRule[];
+  filler?: Partial<FillerSettings>;
 }
 
 /**
@@ -71,13 +73,37 @@ export const SPURIOUS_SWITCH_MAX_GAP_SEC = 0.05;
 /** 句読点で終わっているか。読点も文の切れ目として数える */
 const ANY_PUNCTUATION_END = /[。．、，,！？!?」』）)\]…]\s*$/;
 
+/**
+ * 言いよどみの既定
+ *
+ * 音で聞くと自然でも、文字で読むと目に付く。「AIが、その、効率化するってことを、
+ * あの、ゴールにしちゃうと」のような行を読みやすくする。
+ *
+ * 読点で挟まれているか行頭にあるものだけを落とすので、「なんか変だよね」の
+ * 「なんか」のように意味を持っているものは残る。
+ */
+export const DEFAULT_FILLER_SETTINGS: FillerSettings = {
+  enabled: true,
+  words: [
+    "えー", "えーと", "ええと", "えっと", "えと",
+    "あの", "あのー", "あのう", "あーの",
+    "その", "そのー",
+    "まあ", "まー", "まぁ",
+    "なんか", "なんていうか", "なんつうか",
+    "こう", "こー",
+    "ほら", "ね",
+    "うーんと", "んー",
+  ],
+};
+
 export const DEFAULT_BACKCHANNEL_SETTINGS: BackchannelSettings = {
   enabled: true,
   units: [
     "うん", "はい", "そう", "ええ", "へえ", "へー", "ああ", "あー", "なるほど",
     "ふん", "ふーん", "はぁ", "はあ", "ほう", "ほー", "うーん", "いや", "まあ",
-    // 笑い声。文字で読むと意味を持たない
-    "は", "ハ", "ふ", "フ", "え", "へ",
+    // 笑い声。文字で読むと意味を持たない。「うふふふ」は「ふんふんふん」の
+    // 聞き取りで、笑い声として出てくることもある
+    "は", "ハ", "ふ", "フ", "え", "へ", "う", "ウ", "あ", "ア",
   ],
   maxRepeat: 3,
   dropStandalone: true,
@@ -474,35 +500,188 @@ export function findHallucinationCandidates(
  *
  * 人が交代するには必ず間が空く。文の途中で、しかも間も無く入れ替わるのは、
  * 同じ人が喋り続けているのを切ってしまった場合しかない。
+ *
+ * 寄せる先は**その塊で最も長く喋っている話者**にする。直前に合わせると、
+ * 判定をしくじった短い断片が正しい発話を引っ張ってしまう。
  */
 export function repairSpeakerBoundaries(
   segments: TranscriptSegment[],
   maxGapSec: number = SPURIOUS_SWITCH_MAX_GAP_SEC
 ): { segments: TranscriptSegment[]; repaired: number } {
-  const result: TranscriptSegment[] = [];
+  const result = segments.map((segment) => ({ ...segment }));
   let repaired = 0;
 
-  for (const segment of segments) {
-    const previous = result[result.length - 1];
+  // 途切れずに続いている塊を集める。塊の中の話者の食い違いは、
+  // 音量判定のぶれでしかない
+  let start = 0;
+  while (start < result.length) {
+    let end = start;
+    while (end + 1 < result.length) {
+      const previous = result[end];
+      const next = result[end + 1];
 
-    const isSpurious =
-      previous !== undefined &&
-      Boolean(previous.speaker) &&
-      Boolean(segment.speaker) &&
-      previous.speaker !== segment.speaker &&
-      !ANY_PUNCTUATION_END.test(previous.text) &&
-      segment.start - previous.end <= maxGapSec;
+      const continues =
+        !ANY_PUNCTUATION_END.test(previous.text) &&
+        next.start - previous.end <= maxGapSec;
 
-    if (isSpurious) {
-      result.push({ ...segment, speaker: previous.speaker });
-      repaired += 1;
-      continue;
+      if (!continues) break;
+      end += 1;
     }
 
-    result.push({ ...segment });
+    if (end > start) {
+      const winner = dominantSpeaker(result.slice(start, end + 1));
+
+      if (winner) {
+        for (let i = start; i <= end; i++) {
+          if (result[i].speaker && result[i].speaker !== winner) {
+            result[i] = { ...result[i], speaker: winner };
+            repaired += 1;
+          }
+        }
+      }
+    }
+
+    start = end + 1;
   }
 
   return { segments: result, repaired };
+}
+
+/**
+ * 塊の中で最も長く喋っている話者
+ *
+ * 短いほうに合わせると、判定をしくじった断片が正しい発話を引っ張る。実際に
+ * 0.88 秒の「で、そう」（鉄塔）が 16.9 秒の「すると、向こうが提案してきたのが…」
+ * （あずま）を巻き込み、あずまの発言が丸ごと鉄塔のものになっていた。
+ */
+function dominantSpeaker(block: TranscriptSegment[]): string | null {
+  const totals = new Map<string, number>();
+
+  for (const segment of block) {
+    if (!segment.speaker) continue;
+    const duration = Math.max(0, segment.end - segment.start);
+    totals.set(segment.speaker, (totals.get(segment.speaker) ?? 0) + duration);
+  }
+
+  if (totals.size <= 1) {
+    return totals.size === 1 ? [...totals.keys()][0] : null;
+  }
+
+  return [...totals.entries()].sort((a, b) => b[1] - a[1])[0][0];
+}
+
+/**
+ * 読点の手前が、次の語に直接つながる形か
+ *
+ * 言いよどみを落としたあと読点を残すかの判断に使う。
+ *
+ * - 格助詞で終わる（「AIが、」「ことを、」）なら、次の語に直接つながる。
+ *   読点は言いよどみを挟むために置かれただけなので、一緒に落とす
+ * - 接続助詞で終わる（「言うし、」「〜ので、」）なら、そこが文の切れ目。
+ *   読点を落とすと「言うしまあ一重しく」になって読めなくなる
+ */
+function bindsToNextWord(head: string): boolean {
+  // 「ので」「んで」「から」「けど」は切れ目。「で」の判定より先に見る
+  if (/(?:ので|んで|から|けど|けれど|のに|たら|れば|よう)$/.test(head)) {
+    return false;
+  }
+
+  // 接続助詞。「言うし、」「やって、」のように、そこで文が切れている
+  if (/(?:[^ま]し|って|んで|いで|えて|けて|せて|べて|めて|れて)$/.test(head)) {
+    return false;
+  }
+
+  return /[がをにはもでとのへや]$/.test(head);
+}
+
+/** 正規表現に埋め込める形にする */
+function escapeRegExp(source: string): string {
+  return source.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * 言いよどみを落とす
+ *
+ * 音で聞くと自然でも、文字で読むと目に付く。次の 3 つの形だけを対象にする。
+ *
+ * | 形 | 例 |
+ * |---|---|
+ * | 読点で挟まれている | 「AIが、その、効率化する」→「AIが効率化する」 |
+ * | 行頭にある | 「なんか、そうやって」→「そうやって」 |
+ * | 接続詞が重なっている | 「で、で、Asana」→「で、Asana」 |
+ *
+ * 読点が付いていないものは残す。「なんか変だよね」の「なんか」は意味を持っていて、
+ * 消すと文が変わる。判定に文脈が要る場合は LLM の校正が拾う。
+ */
+export function removeFillers(
+  segments: TranscriptSegment[],
+  settings: FillerSettings
+): { segments: TranscriptSegment[]; removed: number } {
+  if (!settings.enabled || settings.words.length === 0) {
+    return { segments: segments.map((s) => ({ ...s })), removed: 0 };
+  }
+
+  const words = settings.words
+    .map((w) => w.trim())
+    .filter((w) => w !== "")
+    .map(escapeRegExp)
+    .sort((a, b) => b.length - a.length)
+    .join("|");
+
+  // 文の途中で読点に挟まれたもの。読点ごと落とす。
+  // 「AIが、効率化する」より「AIが効率化する」のほうが自然で、元の読点は
+  // 言いよどみを挟むために置かれたものでしかない。
+  //
+  // ただし落としたあとに読点が 1 つも無くなるなら、1 つ残す。
+  // 「言うし、なんていうか、まあ一重しく」から両方の読点を取ると
+  // 「言うしまあ一重しく」になって切れ目が読めなくなる。
+  const enclosed = new RegExp(`(?<=[^、。\\s])、(?:(?:${words})、)+`, "g");
+
+  // 行頭にあるもの。ここは読点ごと落とす
+  const leading = new RegExp(`^(?:(?:${words})、)+`, "");
+
+  // 行末にあるもの。手前の読点ごと落として、読点は 1 つだけ残す。
+  // 読点は次の行に続く印なので消さない
+  const trailing = new RegExp(`(?:、|^)(?:(?:${words})、)+$`, "");
+
+  // 「で、で、」のような接続詞の重なり
+  const doubled = /^(で|そう|だから|でも)、\1、/;
+
+  let removed = 0;
+
+  const cleaned = segments.map((segment) => {
+    const before = segment.text;
+    let text = before;
+
+    // 落としたあとに新しく隣り合う形が現れるので、変化が止まるまで通す
+    for (let pass = 0; pass < 4; pass++) {
+      // 行頭と行末を先に片付ける。文中の処理を先にすると、行頭の
+      // 言いよどみに付いた読点まで巻き込んでしまう
+      const next = text
+        .replace(leading, "")
+        .replace(trailing, "、")
+        // offset は置換中の文字列を基準にするので、text ではなく whole を見る
+        .replace(enclosed, (_match, offset: number, whole: string) =>
+          bindsToNextWord(whole.slice(0, offset)) ? "" : "、"
+        )
+        .replace(doubled, "$1、");
+
+      if (next === text) break;
+      text = next;
+    }
+
+    text = text.trim();
+
+    if (text !== before) {
+      removed += 1;
+    }
+
+    // 落とした結果が中身を失うなら、元のまま残す
+    const empty = text.replace(/[、。．，,\s]/g, "") === "";
+    return { ...segment, text: empty ? before : text };
+  });
+
+  return { segments: cleaned, removed };
 }
 
 /**
@@ -537,7 +716,7 @@ export function dropStandaloneBackchannels(
   const units = settings.units
     .map((u) => u.trim())
     .filter((u) => u !== "")
-    .map((u) => u.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .map(escapeRegExp)
     .sort((a, b) => b.length - a.length);
   const alternation = units.join("|");
   const repeated = units.length > 0 ? new RegExp(`^(?:${alternation})+$`) : null;
@@ -658,7 +837,13 @@ export function postProcess(
 
   // 回数を抑えてから、相槌だけのセグメントを落とす。順序が逆だと
   // 「うんうんうんうんうん」が対象語に一致せず残ってしまう
-  const { segments: tidied } = normalizeBackchannels(collapsed, backchannel);
+  // 言いよどみを先に落とす。「なんか、」が消えると相槌だけの行になることがある
+  const { segments: deflated } = removeFillers(collapsed, {
+    ...DEFAULT_FILLER_SETTINGS,
+    ...options.filler,
+  });
+
+  const { segments: tidied } = normalizeBackchannels(deflated, backchannel);
   const { segments: withoutFillers } = dropStandaloneBackchannels(tidied, backchannel);
 
   // 統合の前に直す。話者が違うままだと統合されず、単語の途中で切れた断片が残る

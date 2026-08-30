@@ -70,6 +70,15 @@ export interface CorrectionRule {
  * 「うんうんうんうんうんうん」のような相槌は実際にそう喋っていても、文字で読むと
  * くどい。読みやすさのために回数を抑える。
  */
+/**
+ * 言いよどみの扱い
+ */
+export interface FillerSettings {
+  enabled: boolean;
+  /** 落とす語。読点で挟まれたもの、行頭のものが対象 */
+  words: string[];
+}
+
 export interface BackchannelSettings {
   enabled: boolean;
   /** 対象にする相槌の単位 */
