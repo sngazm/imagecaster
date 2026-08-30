@@ -12,6 +12,16 @@ export interface TranscriptSegment {
 export type PublishStatus = "new" | "uploading" | "draft" | "scheduled" | "published";
 export type TranscribeStatus = "none" | "pending" | "transcribing" | "completed" | "failed" | "skipped";
 
+/**
+ * 話者のアイコン
+ *
+ * 文字起こしで名前の代わりに出す。番組の既定に、その回のぶんを足す。
+ */
+export interface SpeakerIcon {
+  name: string;
+  url: string;
+}
+
 export interface Episode {
   id: string;
   slug: string;
@@ -33,6 +43,8 @@ export interface Episode {
   /** Claude が書いたエピソードの感想 */
   claudeImpression?: string | null;
   claudeImpressionAt?: string | null;
+  /** この回だけの話者アイコン。ゲスト回で使う */
+  speakerIcons?: SpeakerIcon[] | null;
 }
 
 export interface PodcastInfo {
@@ -48,6 +60,8 @@ export interface PodcastInfo {
   // 購読リンク
   applePodcastsUrl?: string;
   spotifyUrl?: string;
+  /** 話者のアイコン。番組の既定。エピソード側で上書きできる */
+  speakerIcons?: SpeakerIcon[];
 }
 
 export interface PodcastIndex {

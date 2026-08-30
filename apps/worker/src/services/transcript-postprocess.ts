@@ -16,6 +16,7 @@ import type {
   EpisodeMeta,
   HallucinationSettings,
   MergeSettings,
+  SpeakerIcon,
   SpeakerTrackAssignment,
   TranscriptData,
   TranscriptPostProcessSettings,
@@ -1260,7 +1261,37 @@ export function sanitizePostProcessSettings(
     hallucination: sanitizeHallucination(entry.hallucination),
     backchannel: sanitizeBackchannel(entry.backchannel),
     proposals: sanitizeProposals(entry.proposals),
+    speakerIcons: sanitizeSpeakerIcons(entry.speakerIcons),
   };
+}
+
+/**
+ * 話者のアイコンを正規化する
+ *
+ * 名前と URL の両方が要る。片方だけでは表示できない。
+ */
+export function sanitizeSpeakerIcons(input: unknown): SpeakerIcon[] {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+
+  return input
+    .filter((entry): entry is Record<string, unknown> =>
+      typeof entry === "object" && entry !== null
+    )
+    .map((entry) => ({
+      name: typeof entry.name === "string" ? entry.name.trim() : "",
+      url: typeof entry.url === "string" ? entry.url.trim() : "",
+    }))
+    .filter((icon) => {
+      if (!icon.name || !icon.url || seen.has(icon.name)) {
+        return false;
+      }
+      seen.add(icon.name);
+      return true;
+    });
 }
 
 /**

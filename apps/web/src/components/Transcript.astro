@@ -3,9 +3,11 @@ import type { TranscriptSegment } from "../lib/types";
 
 interface Props {
   segments: TranscriptSegment[];
+  /** 話者名 → アイコンのURL。番組の既定にその回のぶんを足したもの */
+  icons?: Record<string, string>;
 }
 
-const { segments } = Astro.props;
+const { segments, icons = {} } = Astro.props;
 
 /**
  * 話者ごとの色。登場順に割り当てる。
@@ -22,14 +24,17 @@ const SPEAKER_CLASSES = [
 const SIMULTANEOUS_SEPARATOR = "・";
 
 /**
- * 話者のアイコン
+ * 番組の出演者のアイコン
  *
- * 名前より速く誰の発言か分かる。用意が無い話者は名前のまま出す。
+ * 名前より速く誰の発言か分かる。ゲストのぶんは props で渡ってくるので、
+ * ここは毎回出る 2 人だけ。用意が無い話者は名前のまま出す。
  */
-const SPEAKER_ICONS: Record<string, string> = {
+const BUILT_IN_ICONS: Record<string, string> = {
   あずま: "/speakers/azuma.jpg",
   鉄塔: "/speakers/tetto.jpg",
 };
+
+const SPEAKER_ICONS: Record<string, string> = { ...BUILT_IN_ICONS, ...icons };
 
 // 色は個々の話者に割り当てる。同時発話のラベルを 1 人分として数えないよう分解しておく
 const speakers = [

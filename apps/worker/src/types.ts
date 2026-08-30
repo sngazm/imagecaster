@@ -35,6 +35,18 @@ export interface Env {
  *
  * label が null のトラックは BGM などの非発話トラックで、話者判定の候補から外す。
  */
+/**
+ * 話者のアイコン
+ *
+ * 公開サイトで名前の代わりに出す。番組の既定（あずま・鉄塔）に加えて、
+ * ゲスト回ではエピソードごとに足せる。
+ */
+export interface SpeakerIcon {
+  /** 話者名。文字起こしの話者ラベルと一致させる */
+  name: string;
+  url: string;
+}
+
 export interface SpeakerTrackAssignment {
   track: number;
   label: string | null;
@@ -137,6 +149,8 @@ export interface CorrectionProposal {
 
 export interface TranscriptPostProcessSettings {
   speakerDefaults: SpeakerTrackAssignment[];
+  /** 話者のアイコン。公開サイトで名前の代わりに出す */
+  speakerIcons?: SpeakerIcon[];
   /** 校正が見つけた、辞書に入れたい規則の提案。人が承認するまで効かない */
   proposals?: CorrectionProposal[];
   merge: MergeSettings;
@@ -289,6 +303,12 @@ export interface EpisodeMeta {
   speakerTracks?: SpeakerTrackAssignment[] | null;
   // Whisper の生出力（話者判定済み・後処理前）の URL
   transcriptRawUrl?: string | null;
+  /**
+   * この回だけの話者アイコン
+   *
+   * ゲスト回で使う。番組の既定に足す形で、同じ名前があればこちらが勝つ。
+   */
+  speakerIcons?: SpeakerIcon[] | null;
   /**
    * 保存した話者トラック
    *

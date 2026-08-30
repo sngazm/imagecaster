@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import JSZip from "jszip";
 import { api, uploadToR2 } from "../lib/api";
 import type {
+  SpeakerIcon,
   EpisodeDetail,
   SpeakerTrackAssignment,
   UploadProgress,
@@ -93,6 +94,54 @@ export function SpeakerTracksPanel({ episode, defaults, onUpdated }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [reprocessing, setReprocessing] = useState(false);
+  const [icons, setIcons] = useState<SpeakerIcon[]>(episode.speakerIcons ?? []);
+  const [uploadingIcon, setUploadingIcon] = useState<string | null>(null);
+
+  /**
+   * ゲストのアイコンを上げる。
+   *
+   * 番組の既定（あずま・鉄塔）は公開サイトに置いてあるので、ここで扱うのは
+   * その回だけ出る人のぶん。
+   */
+  async function handleIconSelect(name: string, file: File): Promise<void> {
+    setUploadingIcon(name);
+    setError(null);
+
+    try {
+      const signed = await api.getSpeakerIconUploadUrl(
+        episode.id,
+        name,
+        file.type,
+        file.size
+      );
+      await uploadToR2(signed.uploadUrl, file);
+
+      const next = [
+        ...icons.filter((i) => i.name !== name),
+        { name, url: signed.url },
+      ];
+      await api.saveSpeakerIcons(episode.id, next);
+      setIcons(next);
+      setMessage(`${name} のアイコンを保存しました`);
+      onUpdated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "アイコンの保存に失敗しました");
+    } finally {
+      setUploadingIcon(null);
+    }
+  }
+
+  async function removeIcon(name: string): Promise<void> {
+    const next = icons.filter((i) => i.name !== name);
+
+    try {
+      await api.saveSpeakerIcons(episode.id, next.length > 0 ? next : null);
+      setIcons(next);
+      onUpdated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "アイコンの削除に失敗しました");
+    }
+  }
   const [deleting, setDeleting] = useState(false);
   const [retranscribing, setRetranscribing] = useState(false);
 
@@ -384,6 +433,17 @@ export function SpeakerTracksPanel({ episode, defaults, onUpdated }: Props) {
                   className="input"
                 />
               </div>
+
+              {/* アイコン。公開サイトで名前の代わりに出す */}
+              {entry.label && (
+                <IconSlot
+                  name={entry.label}
+                  url={icons.find((i) => i.name === entry.label)?.url}
+                  uploading={uploadingIcon === entry.label}
+                  onSelect={(file) => handleIconSelect(entry.label!, file)}
+                  onRemove={() => removeIcon(entry.label!)}
+                />
+              )}
             </div>
           ))}
 
@@ -495,6 +555,72 @@ export function SpeakerTracksPanel({ episode, defaults, onUpdated }: Props) {
             </p>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * 話者 1 人ぶんのアイコン
+ *
+ * あずまと鉄塔は公開サイトに置いてあるので、ここで足すのはゲストのぶん。
+ * 既に用意がある人は、その旨を出して上書きも受け付ける。
+ */
+function IconSlot({
+  name,
+  url,
+  uploading,
+  onSelect,
+  onRemove,
+}: {
+  name: string;
+  url?: string;
+  uploading: boolean;
+  onSelect: (file: File) => void;
+  onRemove: () => void;
+}) {
+  const builtIn = name === "あずま" || name === "鉄塔";
+
+  return (
+    <div className="flex shrink-0 items-center gap-1.5">
+      {url ? (
+        <img
+          src={url}
+          alt={name}
+          className="h-8 w-8 rounded-full object-cover"
+        />
+      ) : (
+        <span
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-[var(--color-border)] text-[10px] text-[var(--color-text-muted)]"
+          title={builtIn ? "公開サイトに用意があります" : "アイコン未設定"}
+        >
+          {builtIn ? "既定" : "—"}
+        </span>
+      )}
+
+      <label className="cursor-pointer text-xs text-[var(--color-accent)] hover:underline">
+        {uploading ? "..." : url ? "変える" : "設定"}
+        <input
+          type="file"
+          accept="image/jpeg,image/png"
+          className="hidden"
+          disabled={uploading}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) onSelect(file);
+            e.target.value = "";
+          }}
+        />
+      </label>
+
+      {url && (
+        <button
+          type="button"
+          onClick={onRemove}
+          className="text-xs text-[var(--color-text-muted)] hover:underline"
+        >
+          消す
+        </button>
       )}
     </div>
   );

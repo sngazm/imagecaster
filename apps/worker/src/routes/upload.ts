@@ -16,7 +16,8 @@ import {
   syncPublishedIndex,
   createPresignedUrl,
 } from "../services/r2";
-import { sanitizeSpeakerTracks } from "../services/transcript-postprocess";
+import {
+  sanitizeSpeakerIcons, sanitizeSpeakerTracks } from "../services/transcript-postprocess";
 import { regenerateFeed } from "../services/feed";
 import { postEpisodeToBluesky } from "../services/bluesky";
 import { triggerWebRebuild } from "../services/deploy";
@@ -521,6 +522,95 @@ upload.post("/:id/replace-from-url", async (c) => {
   } catch (error) {
     console.error(`[replace-from-url] Error for episode ${id}:`, error);
     return c.json({ error: "Failed to process audio file" }, 500);
+  }
+});
+
+/** 話者アイコンの置き場所 */
+function speakerIconKey(
+  storageKey: string,
+  name: string,
+  extension: string
+): string {
+  return `episodes/${storageKey}/speakers/${name}.${extension}`;
+}
+
+/**
+ * POST /api/episodes/:id/speaker-icons/upload-url - 話者アイコンの Presigned URL 発行
+ *
+ * ゲスト回でその回だけのアイコンを足すために使う。番組の既定（あずま・鉄塔）は
+ * 公開サイトに置いてあるので、ここで扱うのはゲスト分だけ。
+ */
+upload.post("/:id/speaker-icons/upload-url", async (c) => {
+  const id = c.req.param("id");
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    const body = await c.req.json<{
+      name?: unknown;
+      contentType?: unknown;
+      fileSize?: unknown;
+    }>();
+
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    if (!name) {
+      return c.json({ error: "name is required" }, 400);
+    }
+
+    if (typeof body.contentType !== "string" ||
+        !["image/jpeg", "image/png"].includes(body.contentType)) {
+      return c.json({ error: "Invalid content type. Use image/jpeg or image/png" }, 400);
+    }
+
+    if (typeof body.fileSize === "number" && body.fileSize > 5 * 1024 * 1024) {
+      return c.json({ error: "File too large. Max 5MB" }, 400);
+    }
+
+    const extension = body.contentType === "image/png" ? "png" : "jpg";
+    const key = speakerIconKey(meta.storageKey, name, extension);
+    const signed = await createPresignedUrl(c.env, key, {
+      method: "PUT",
+      contentType: body.contentType,
+    });
+
+    return c.json({
+      uploadUrl: signed.url,
+      url: `${c.env.R2_PUBLIC_URL}/${key}`,
+      expiresIn: signed.expiresIn,
+    });
+  } catch (err) {
+    console.error(`[speaker-icons/upload-url] Error for episode ${id}:`, err);
+    return c.json({ error: "Failed to create the upload URL" }, 500);
+  }
+});
+
+/**
+ * PUT /api/episodes/:id/speaker-icons - この回だけの話者アイコンを決める
+ *
+ * 番組の既定に足す形で、同じ名前があればこちらが勝つ。
+ */
+upload.put("/:id/speaker-icons", async (c) => {
+  const id = c.req.param("id");
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    const body = await c.req.json<{ speakerIcons?: unknown }>();
+    const icons = sanitizeSpeakerIcons(body.speakerIcons);
+
+    meta.speakerIcons = icons.length > 0 ? icons : null;
+    await saveEpisodeMeta(c.env, meta);
+
+    return c.json({ success: true, speakerIcons: meta.speakerIcons });
+  } catch (err) {
+    console.error(`[speaker-icons] Error for episode ${id}:`, err);
+    return c.json({ error: "Failed to save the speaker icons" }, 500);
   }
 });
 

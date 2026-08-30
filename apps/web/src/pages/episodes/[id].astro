@@ -21,6 +21,7 @@ export async function getStaticPaths() {
   const websiteUrl = index.podcast.websiteUrl;
   const podcastArtworkUrl = index.podcast.artworkUrl;
   const spotifyUrl = index.podcast.spotifyUrl || null;
+  const defaultIcons = index.podcast.speakerIcons ?? [];
 
   return Promise.all(
     episodes.map(async (episode, idx) => {
@@ -28,6 +29,15 @@ export async function getStaticPaths() {
         ? await getTranscriptSegments(episode.transcriptUrl)
         : [];
       const transcriptText = segmentsToText(transcriptSegments);
+
+      // 番組の既定に、その回のぶんを足す。同じ名前があればその回が勝つ。
+      // ゲスト回でだけ出る人のアイコンを、エピソード側で足せるようにするため
+      const speakerIcons = Object.fromEntries(
+        [...defaultIcons, ...(episode.speakerIcons ?? [])].map((icon) => [
+          icon.name,
+          icon.url,
+        ])
+      );
       // エピソードは新しい順なので: index小=新しい, index大=古い
       // 前のエピソード = より古い（index + 1）
       // 次のエピソード = より新しい（index - 1）
@@ -39,7 +49,7 @@ export async function getStaticPaths() {
         : null;
       return {
         params: { id: episode.id },
-        props: { episode, websiteUrl, transcriptSegments, transcriptText, podcastArtworkUrl, prevEpisode, nextEpisode, spotifyUrl },
+        props: { episode, websiteUrl, transcriptSegments, transcriptText, podcastArtworkUrl, prevEpisode, nextEpisode, spotifyUrl, speakerIcons },
       };
     })
   );
@@ -55,6 +65,7 @@ let podcastArtworkUrl: string;
 let prevEpisode: EpisodeNav | null = null;
 let nextEpisode: EpisodeNav | null = null;
 let spotifyUrl: string | null = null;
+let speakerIcons: Record<string, string> = {};
 
 if (Astro.props.episode) {
   // SSGモード: getStaticPathsからpropsが渡される
@@ -66,6 +77,7 @@ if (Astro.props.episode) {
   prevEpisode = Astro.props.prevEpisode || null;
   nextEpisode = Astro.props.nextEpisode || null;
   spotifyUrl = Astro.props.spotifyUrl || null;
+  speakerIcons = Astro.props.speakerIcons || {};
 } else {
   // SSRモード: paramsから取得してfetch
   const [fetchedEpisode, allEpisodes, index] = await Promise.all([
@@ -77,6 +89,11 @@ if (Astro.props.episode) {
   websiteUrl = index.podcast.websiteUrl;
   podcastArtworkUrl = index.podcast.artworkUrl;
   spotifyUrl = index.podcast.spotifyUrl || null;
+  speakerIcons = Object.fromEntries(
+    [...(index.podcast.speakerIcons ?? []), ...(episode.speakerIcons ?? [])].map(
+      (icon) => [icon.name, icon.url]
+    )
+  );
   transcriptSegments = episode.transcriptUrl
     ? await getTranscriptSegments(episode.transcriptUrl)
     : [];
@@ -207,7 +224,9 @@ const ogImageUrl = getEpisodeOgImageUrl(episode.artworkUrl, podcastArtworkUrl);
         <ClaudeImpression impression={episode.claudeImpression} />
       )}
 
-      {transcriptSegments.length > 0 && <Transcript segments={transcriptSegments} />}
+      {transcriptSegments.length > 0 && (
+        <Transcript segments={transcriptSegments} icons={speakerIcons} />
+      )}
     </div>
 
     <!-- シェア・外部リンク -->

@@ -58,6 +58,8 @@ export interface EpisodeDetail {
   transcriptUrl: string | null;
   /** この回かぎりの誤字修正。校正が見つけた文脈依存のもの */
   transcriptCorrections?: CorrectionRule[] | null;
+  /** この回だけの話者アイコン。ゲスト回で使う */
+  speakerIcons?: SpeakerIcon[] | null;
   artworkUrl: string | null;
   skipTranscription: boolean;
   hideTranscription?: boolean;
@@ -139,6 +141,16 @@ export interface BackchannelSettings {
  * 自動では入らない。辞書は番組全体に効くので、機械の判断で足すと
  * 公開中の文章を壊す。
  */
+/**
+ * 話者のアイコン
+ *
+ * 公開サイトで名前の代わりに出す。番組の既定にゲスト分を足せる。
+ */
+export interface SpeakerIcon {
+  name: string;
+  url: string;
+}
+
 export interface CorrectionProposal {
   from: string;
   to: string;
@@ -154,6 +166,8 @@ export interface TranscriptPostProcessSettings {
   corrections: CorrectionRule[];
   /** 校正が見つけた提案。人が承認するまで効かない */
   proposals?: CorrectionProposal[];
+  /** 話者のアイコン。番組の既定 */
+  speakerIcons?: SpeakerIcon[];
   backchannel?: BackchannelSettings;
   /** 同時発話を検出する範囲（冒頭からの秒数）。null なら検出しない */
   simultaneousUntilSec?: number | null;
@@ -448,6 +462,25 @@ export const api = {
     request<{ uploadUrl: string; expiresIn: number }>(
       `/api/episodes/${id}/tracks/upload-url`,
       { method: "POST", body: JSON.stringify({ contentType, fileSize }) }
+    ),
+
+  /** 話者アイコンの Presigned URL を発行する */
+  getSpeakerIconUploadUrl: (
+    id: string,
+    name: string,
+    contentType: string,
+    fileSize: number
+  ) =>
+    request<{ uploadUrl: string; url: string }>(
+      `/api/episodes/${id}/speaker-icons/upload-url`,
+      { method: "POST", body: JSON.stringify({ name, contentType, fileSize }) }
+    ),
+
+  /** この回だけの話者アイコンを保存する */
+  saveSpeakerIcons: (id: string, speakerIcons: SpeakerIcon[] | null) =>
+    request<{ success: boolean; speakerIcons: SpeakerIcon[] | null }>(
+      `/api/episodes/${id}/speaker-icons`,
+      { method: "PUT", body: JSON.stringify({ speakerIcons }) }
     ),
 
   /** この回の収録参加者を保存する。zip の有無に関わらず使える */

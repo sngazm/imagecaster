@@ -824,3 +824,85 @@ describe("話者トラックの保存", () => {
     expect(response.status).toBe(404);
   });
 });
+
+describe("話者アイコン", () => {
+  it("アイコンの Presigned URL を返す", async () => {
+    const { id } = await createTestEpisode({ title: "ゲスト回" });
+
+    const response = await SELF.fetch(
+      `http://localhost/api/episodes/${id}/speaker-icons/upload-url`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "藤原麻里菜",
+          contentType: "image/jpeg",
+          fileSize: 100000,
+        }),
+      }
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { url: string };
+    expect(body.url).toContain("/speakers/藤原麻里菜.jpg");
+  });
+
+  it("画像でなければ受け付けない", async () => {
+    const { id } = await createTestEpisode({ title: "ゲスト回" });
+
+    const response = await SELF.fetch(
+      `http://localhost/api/episodes/${id}/speaker-icons/upload-url`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "藤原麻里菜",
+          contentType: "text/plain",
+          fileSize: 100,
+        }),
+      }
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it("この回のアイコンを保存する", async () => {
+    const { id } = await createTestEpisode({ title: "ゲスト回" });
+
+    await SELF.fetch(`http://localhost/api/episodes/${id}/speaker-icons`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        speakerIcons: [
+          { name: "藤原麻里菜", url: "https://example.com/a.jpg" },
+          { name: "", url: "https://example.com/b.jpg" },
+          { name: "名前だけ", url: "" },
+        ],
+      }),
+    });
+
+    const meta = (await (
+      await SELF.fetch(`http://localhost/api/episodes/${id}`)
+    ).json()) as { speakerIcons: Array<{ name: string }> };
+
+    // 名前と URL の両方が揃っているものだけ残る
+    expect(meta.speakerIcons).toHaveLength(1);
+    expect(meta.speakerIcons[0].name).toBe("藤原麻里菜");
+  });
+
+  it("空を送ると消える", async () => {
+    const { id } = await createTestEpisode({ title: "ゲスト回" });
+
+    await SELF.fetch(`http://localhost/api/episodes/${id}/speaker-icons`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ speakerIcons: [] }),
+    });
+
+    const meta = (await (
+      await SELF.fetch(`http://localhost/api/episodes/${id}`)
+    ).json()) as { speakerIcons: unknown };
+
+    expect(meta.speakerIcons).toBeNull();
+  });
+});
