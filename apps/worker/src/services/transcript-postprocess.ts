@@ -76,6 +76,8 @@ export const DEFAULT_BACKCHANNEL_SETTINGS: BackchannelSettings = {
   units: [
     "うん", "はい", "そう", "ええ", "へえ", "へー", "ああ", "あー", "なるほど",
     "ふん", "ふーん", "はぁ", "はあ", "ほう", "ほー", "うーん",
+    // 笑い声。文字で読むと意味を持たない
+    "は", "ハ", "ふ", "フ", "え", "へ",
   ],
   maxRepeat: 3,
   dropStandalone: true,

@@ -723,3 +723,24 @@ describe("繰り返しの相槌を落とす", () => {
     expect(result.segments).toHaveLength(1);
   });
 });
+
+describe("笑い声を落とす", () => {
+  it("「ははは。」を落とす", () => {
+    const result = dropStandaloneBackchannels(
+      [seg(0, 2, "ははは。", "あずま"), seg(2, 4, "はぁはぁはぁ。", "鉄塔")],
+      DEFAULT_BACKCHANNEL_SETTINGS
+    );
+
+    expect(result.segments).toHaveLength(0);
+  });
+
+  it("1文字の語を並べただけでは本文を消さない", () => {
+    // 「は」「へ」は笑い声として登録しているが、文の一部を消してはいけない
+    const result = dropStandaloneBackchannels(
+      [seg(0, 3, "へえ、それはすごい。", "鉄塔"), seg(3, 5, "はい、わかりました。", "あずま")],
+      DEFAULT_BACKCHANNEL_SETTINGS
+    );
+
+    expect(result.segments).toHaveLength(2);
+  });
+});
