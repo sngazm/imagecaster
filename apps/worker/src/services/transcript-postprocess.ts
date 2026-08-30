@@ -241,7 +241,12 @@ export function applyCorrections(
   segments: TranscriptSegment[],
   corrections: CorrectionRule[]
 ): CorrectionResult {
-  const active = corrections.filter((rule) => rule.enabled && rule.from);
+  // 長い規則から先に当てる。短い規則が先に当たると、それを含む長い規則が
+  // 二度と一致しなくなる。「バント → 番頭」が「バントウ」に当たって
+  // 「番頭ウ」になり、「バントウ → 番頭」が効かなくなっていた。
+  const active = corrections
+    .filter((rule) => rule.enabled && rule.from)
+    .sort((a, b) => b.from.length - a.from.length);
 
   if (active.length === 0) {
     return { segments: segments.map((seg) => ({ ...seg })), applied: [] };

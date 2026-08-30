@@ -295,9 +295,10 @@ describe("applyCorrections", () => {
       { from: "使われないルール", to: "x", enabled: true },
     ]);
 
+    // 長い規則から当てるので、報告もその順になる
     expect(applied).toEqual([
-      { from: "テト", to: "鉄塔", count: 1 },
       { from: "テッド", to: "鉄塔", count: 1 },
+      { from: "テト", to: "鉄塔", count: 1 },
     ]);
   });
 
@@ -655,5 +656,36 @@ describe("postProcess で話者境界が直ってから統合されること", (
     expect(result.segments).toHaveLength(1);
     expect(result.segments[0].text).toBe("今のところそういう感じのスクリーンになっています。");
     expect(result.segments[0].speaker).toBe("あずま");
+  });
+});
+
+describe("applyCorrections の適用順", () => {
+  it("長い規則から先に当てる", () => {
+    // 短い規則が先に当たると「バントウ」が「番頭ウ」になり、
+    // 「バントウ」の規則が二度と一致しなくなる
+    const result = applyCorrections(
+      [seg(0, 2, "バントウとバントーとバント。")],
+      [
+        { from: "バント", to: "番頭", enabled: true },
+        { from: "バントウ", to: "番頭", enabled: true },
+        { from: "バントー", to: "番頭", enabled: true },
+      ]
+    );
+
+    expect(result.segments[0].text).toBe("番頭と番頭と番頭。");
+  });
+
+  it("並び順に関わらず結果が同じ", () => {
+    const rules = [
+      { from: "クロード", to: "Claude", enabled: true },
+      { from: "クロードコード", to: "Claude Code", enabled: true },
+    ];
+    const text = "クロードコードとクロード。";
+
+    const forward = applyCorrections([seg(0, 2, text)], rules);
+    const backward = applyCorrections([seg(0, 2, text)], [...rules].reverse());
+
+    expect(forward.segments[0].text).toBe("Claude CodeとClaude。");
+    expect(backward.segments[0].text).toBe(forward.segments[0].text);
   });
 });

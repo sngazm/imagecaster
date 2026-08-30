@@ -32,6 +32,22 @@ const BAD_WORDS = [
   "イメージキャスト",
 ];
 
+/**
+ * 置換が行き過ぎた形跡
+ *
+ * 辞書は番組全体に効くので、一般名詞を対象にした規則が入ると被害が広い。
+ * 実際に `メール → mail` と `コード → Code` が自動登録され、「メールフォーム」が
+ * 「mailフォーム」に、「コードを書く」が「Codeを書く」になった。
+ *
+ * 日本語の中に英単語が助詞と直結して現れるのは、その兆候になる。
+ */
+const OVER_REPLACED = [
+  { pattern: /[ぁ-んァ-ヴ一-龥]mail/, kind: "「メール」が置換されている" },
+  // 「Claude Code」のような正しい用例は除く。単独の Code が助詞に付くのが兆候
+  { pattern: /(?<!Claude |VS )Code[をがはにでとも]/, kind: "「コード」が置換されている" },
+  { pattern: /番頭[ーウ]/, kind: "「バントー」の置換が壊れている" },
+];
+
 function unescapeHtml(s) {
   return s
     .replace(/&lt;/g, "<")
@@ -68,6 +84,13 @@ async function auditEpisode(id) {
     for (const word of BAD_WORDS) {
       if (text.includes(word)) {
         findings.push({ kind: word, speakers, text });
+      }
+    }
+
+    // 辞書の規則が行き過ぎていないか
+    for (const { pattern, kind } of OVER_REPLACED) {
+      if (pattern.test(text)) {
+        findings.push({ kind, speakers, text });
       }
     }
 
