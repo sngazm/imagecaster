@@ -1,0 +1,130 @@
+#!/usr/bin/env node
+/**
+ * 公開サイトの文字起こしを読んで、違和感のある箇所を洗い出す。
+ *
+ * R2 のデータが正しくても、公開サイトのビルドが古ければ読者には古い内容が
+ * 見えている。「実装した」「テストが通った」で終わらせず、最終成果物である
+ * サイトを読み返すための道具。
+ *
+ *   node scripts/audit-site.mjs            # 最新6本
+ *   node scripts/audit-site.mjs 285 284    # 個別指定
+ */
+
+const SITE = process.env.SITE_URL ?? "https://cast.image.club";
+
+/** Whisper の定番ハルシネーションと、番組で確認済みの誤り */
+const BAD_WORDS = [
+  "ヤンヤン",
+  "ご視聴ありがとう",
+  "チャンネル登録",
+  "高評価とチャンネル",
+  // 出演者名の誤認識
+  "テッドです",
+  "テトです",
+  "さともです",
+  "てっとです",
+  "佐藤です",
+  "鉄道",
+  // 固有名詞の誤認識
+  "クロードコード",
+  "クローズコード",
+  "プロードコード",
+  "イメージキャスト",
+];
+
+function unescapeHtml(s) {
+  return s
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+/** 公開ページから文字起こしのセグメントを取り出す */
+function parseSegments(html) {
+  const blocks = html.match(/<button[^>]*transcript-segment[\s\S]*?<\/button>/g) ?? [];
+
+  return blocks.map((block) => {
+    const speakers = [...block.matchAll(/text-speaker-\d[^"]*"[^>]*>([^<]+)<\/span>/g)]
+      .map((m) => m[1].trim());
+    const body = block.match(/leading-relaxed[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/span>/);
+    const text = body ? unescapeHtml(body[1].replace(/<[^>]+>/g, "")).trim() : "";
+
+    return { speakers, text: text.replace(/\s+/g, " ") };
+  });
+}
+
+async function auditEpisode(id) {
+  const res = await fetch(`${SITE}/episodes/${id}/`);
+  if (!res.ok) {
+    return { id, error: `HTTP ${res.status}` };
+  }
+
+  const segments = parseSegments(await res.text());
+  const findings = [];
+
+  for (const { speakers, text } of segments) {
+    for (const word of BAD_WORDS) {
+      if (text.includes(word)) {
+        findings.push({ kind: word, speakers, text });
+      }
+    }
+
+    // VTT のタグがそのまま出ていないか
+    if (text.includes("<v ") || text.includes("</v>")) {
+      findings.push({ kind: "VTTタグの露出", speakers, text });
+    }
+
+    // 相槌が読みづらいほど繰り返されていないか
+    const repeat = text.match(/(うん|はい|そう|ええ|へえ)\1{3,}/);
+    if (repeat) {
+      findings.push({ kind: `相槌4回以上（${repeat[0]}）`, speakers, text });
+    }
+  }
+
+  const hasSpeakers = segments.some((s) => s.speakers.length > 0);
+  return { id, count: segments.length, hasSpeakers, findings };
+}
+
+const ids = process.argv.slice(2);
+const targets = ids.length ? ids : ["285", "284", "283", "282", "281", "280"];
+
+const results = [];
+for (const id of targets) {
+  results.push(await auditEpisode(id));
+}
+
+let total = 0;
+for (const r of results) {
+  if (r.error) {
+    console.log(`#${r.id}: ${r.error}`);
+    continue;
+  }
+  const speaker = r.hasSpeakers ? "話者あり" : "話者なし";
+  console.log(`#${r.id}: ${r.count} セグメント / ${speaker} / 指摘 ${r.findings.length}`);
+  total += r.findings.length;
+}
+
+const byKind = new Map();
+for (const r of results) {
+  for (const f of r.findings ?? []) {
+    if (!byKind.has(f.kind)) byKind.set(f.kind, []);
+    byKind.get(f.kind).push(f);
+  }
+}
+
+console.log(`\n合計 ${total} 件の指摘`);
+if (total === 0) {
+  console.log("問題は見つかりませんでした。");
+} else {
+  for (const [kind, list] of [...byKind].sort((a, b) => b[1].length - a[1].length)) {
+    console.log(`\n  ${list.length} 件  ${kind}`);
+    for (const f of list.slice(0, 2)) {
+      const who = f.speakers.length ? `[${f.speakers.join("・")}] ` : "";
+      console.log(`      ${who}${f.text.slice(0, 70)}`);
+    }
+  }
+}
+
+process.exit(total === 0 ? 0 : 1);
