@@ -106,6 +106,15 @@ export function SpeakerTracksPanel({ episode, defaults, onUpdated }: Props) {
   const hasTracks = Boolean(episode.tracksUploadedAt);
   const usingDefaults = !episode.speakerTracks || episode.speakerTracks.length === 0;
 
+  function addTrack(): void {
+    const next = tracks.length > 0 ? Math.max(...tracks.map((t) => t.track)) + 1 : 1;
+    setTracks([...tracks, { track: next, label: "" }]);
+  }
+
+  function removeTrack(index: number): void {
+    setTracks(tracks.filter((_, i) => i !== index));
+  }
+
   function updateTrack(index: number, patch: Partial<SpeakerTrackAssignment>) {
     setTracks((current) =>
       current.map((entry, i) => (i === index ? { ...entry, ...patch } : entry))
@@ -176,7 +185,9 @@ export function SpeakerTracksPanel({ episode, defaults, onUpdated }: Props) {
     setMessage(null);
 
     try {
-      await api.completeTracksUpload(episode.id, tracks);
+      // zip の有無に関わらず保存する。トラックは Nextcloud から自動で
+      // 取ってくることが多く、その場合 R2 に zip が無い
+      await api.saveSpeakerTracks(episode.id, tracks.length > 0 ? tracks : null);
       setMessage("割り当てを保存しました");
       onUpdated();
     } catch (err) {
@@ -322,12 +333,13 @@ export function SpeakerTracksPanel({ episode, defaults, onUpdated }: Props) {
             )}
           </div>
 
-          {detected && (
-            <p className="text-xs text-[var(--color-text-muted)]">
-              zip の中身から検出しました。喋っていないトラック（BGM
-              など）は名前を空にしてください。
-            </p>
-          )}
+          <p className="text-xs text-[var(--color-text-muted)]">
+            {detected
+              ? "zip の中身から検出しました。"
+              : "この回の収録に参加した人を、トラックの順に並べます。"}
+            喋っていないトラック（BGM など）は名前を空にしてください。
+            ゲスト回で増える日や、片方いない日はここで変えます。
+          </p>
 
           {tracks.map((entry, index) => (
             <div key={entry.track} className="flex items-center gap-2">
@@ -346,15 +358,35 @@ export function SpeakerTracksPanel({ episode, defaults, onUpdated }: Props) {
             </div>
           ))}
 
-          {hasTracks && !file && (
+          <div className="flex flex-wrap items-center gap-2 pt-1">
             <button
               type="button"
-              onClick={handleSaveAssignment}
-              className="btn btn-secondary"
+              onClick={() => addTrack()}
+              className="text-xs text-[var(--color-accent)] hover:underline"
             >
-              割り当てを保存
+              + トラックを足す
             </button>
-          )}
+
+            {tracks.length > 1 && (
+              <button
+                type="button"
+                onClick={() => removeTrack(tracks.length - 1)}
+                className="text-xs text-[var(--color-text-muted)] hover:underline"
+              >
+                − 最後を消す
+              </button>
+            )}
+
+            {!file && (
+              <button
+                type="button"
+                onClick={handleSaveAssignment}
+                className="btn btn-secondary ml-auto"
+              >
+                割り当てを保存
+              </button>
+            )}
+          </div>
         </div>
       )}
 

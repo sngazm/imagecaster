@@ -450,6 +450,13 @@ export const api = {
       { method: "POST", body: JSON.stringify({ contentType, fileSize }) }
     ),
 
+  /** この回の収録参加者を保存する。zip の有無に関わらず使える */
+  saveSpeakerTracks: (id: string, speakerTracks: SpeakerTrackAssignment[] | null) =>
+    request<{ success: boolean; speakerTracks: SpeakerTrackAssignment[] | null }>(
+      `/api/episodes/${id}/speaker-tracks`,
+      { method: "PUT", body: JSON.stringify({ speakerTracks }) }
+    ),
+
   completeTracksUpload: (
     id: string,
     speakerTracks?: SpeakerTrackAssignment[] | null

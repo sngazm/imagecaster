@@ -1074,3 +1074,58 @@ describe("統合の上限と文の切れ目", () => {
     expect(result).toHaveLength(2);
   });
 });
+
+describe("長い発話に挟まった相手の一言", () => {
+  it("節が切れていれば、別の発話として分ける", () => {
+    // あずまの長い話の途中に鉄塔が言葉を挟むことがある。巻き込むと
+    // 発言者が入れ替わる
+    const result = repairSpeakerBoundaries([
+      seg(0, 5, "AIがこんなに発達したのになんで仕事がこんなに大変なんだみたいな", "あずま"),
+      seg(5, 7, "話はしてましたけどもね。", "鉄塔"),
+      seg(7, 12, "まあ、どうして自分の仕事が今大変なのか。", "あずま"),
+    ]);
+
+    expect(result.segments.map((s) => s.speaker)).toEqual([
+      "あずま",
+      "鉄塔",
+      "あずま",
+    ]);
+  });
+
+  it("語の途中で切れていれば繋ぐ", () => {
+    // 音量判定のぶれで割れただけ
+    const result = repairSpeakerBoundaries([
+      seg(0, 3, "チームだったら多いかもし", "鉄塔"),
+      seg(3, 5, "れないけど、そ", "あずま"),
+      seg(5, 8, "こが結構自分で回している。", "鉄塔"),
+    ]);
+
+    expect(new Set(result.segments.map((s) => s.speaker)).size).toBe(1);
+  });
+
+  it("「〜して」で終わっていれば分ける", () => {
+    const result = repairSpeakerBoundaries([
+      seg(0, 4, "そうやって、なんか、こうして", "鉄塔"),
+      seg(4, 8, "大量のスパムメールがインターネットを覆っていくんですね。", "あずま"),
+    ]);
+
+    expect(result.segments.map((s) => s.speaker)).toEqual(["鉄塔", "あずま"]);
+  });
+
+  it("助詞や活用の途中なら繋ぐ", () => {
+    const cases: Array<[string, string]> = [
+      ["事できているぞ、という気持ち", "に慣れている"],
+      ["みたいな感じで、投", "げてくるとか、"],
+      ["で、そう", "すると、向こうが提案してきた。"],
+    ];
+
+    for (const [before, after] of cases) {
+      const result = repairSpeakerBoundaries([
+        seg(0, 3, before, "あずま"),
+        seg(3, 6, after, "鉄塔"),
+      ]);
+
+      expect(new Set(result.segments.map((s) => s.speaker)).size).toBe(1);
+    }
+  });
+});

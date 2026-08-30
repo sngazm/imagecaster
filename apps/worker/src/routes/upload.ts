@@ -650,6 +650,41 @@ upload.post("/:id/tracks/upload-url", async (c) => {
 });
 
 /**
+ * PUT /api/episodes/:id/speaker-tracks - この回の収録参加者を決める
+ *
+ * トラック番号 → 話者名の対応を、zip のアップロードとは切り離して保存する。
+ * トラックは Nextcloud から自動で取ってくることが多く、その場合 zip が
+ * R2 に無いので、アップロード完了通知には相乗りできない。
+ *
+ * ゲスト回で人が増える日や、片方いない日にここで変える。
+ * `null` を送ると番組の既定値に戻る。
+ */
+upload.put("/:id/speaker-tracks", async (c) => {
+  const id = c.req.param("id");
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    const body = await c.req.json<{ speakerTracks?: unknown }>();
+
+    meta.speakerTracks =
+      body.speakerTracks === null || body.speakerTracks === undefined
+        ? null
+        : sanitizeSpeakerTracks(body.speakerTracks);
+
+    await saveEpisodeMeta(c.env, meta);
+
+    return c.json({ success: true, speakerTracks: meta.speakerTracks });
+  } catch (err) {
+    console.error(`[speaker-tracks] Error for episode ${id}:`, err);
+    return c.json({ error: "Failed to save speaker tracks" }, 500);
+  }
+});
+
+/**
  * POST /api/episodes/:id/tracks/upload-complete - 話者トラックのアップロード完了通知
  *
  * トラック番号への話者割り当ても同時に受け取る。ゲスト回でトラック構成が変わるため、

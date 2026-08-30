@@ -85,6 +85,29 @@ const STRAY_FRAGMENT_MAX_GAP_SEC = 0.3;
 const ANY_PUNCTUATION_END = /[。．、，,！？!?」』）)\]…]\s*$/;
 
 /**
+ * 節として切れる形で終わっているか
+ *
+ * 「大変なんだみたいな」「こうして」のように意味が切れていれば、次の行は
+ * 相手の別の発話でありうる。「多いかもし」「で、そう」のように語の途中なら、
+ * 音量判定のぶれで割れただけ。
+ *
+ * 見分けるのは**終止形・連体形・接続助詞**。これで終わっていれば節が閉じている。
+ */
+const ENDS_A_CLAUSE = new RegExp(
+  "(?:" +
+    [
+      // 助動詞・終止形
+      "です", "ます", "ました", "でした", "ません", "ない", "たい", "らしい",
+      // 連体形・比況
+      "みたいな", "ような", "そうな", "という", "っていう",
+      // 接続助詞
+      "から", "ので", "んで", "けど", "けれど", "のに", "たら", "れば",
+      "ながら", "つつ", "して", "くて", "とか",
+    ].join("|") +
+    ")\\s*$"
+);
+
+/**
  * 言いよどみの既定
  *
  * 音で聞くと自然でも、文字で読むと目に付く。「AIが、その、効率化するってことを、
@@ -546,6 +569,16 @@ export function repairSpeakerBoundaries(
         !ANY_PUNCTUATION_END.test(previous.text) &&
         next.start - previous.end <= maxGapSec;
 
+      // 語の途中で切れているか。
+      //
+      // 音量判定のぶれで割れた場合、前の行は語の途中で終わる（「多いかもし」
+      // 「で、そう」「投」）。一方、相手が言葉を挟んだ場合は意味の切れる形で
+      // 終わる（「大変なんだみたいな」「そうやって、なんか、こうして」）。
+      //
+      // 前者だけを繋ぐ。後者まで繋ぐと、長い発話の中に挟まった相手の一言が
+      // 巻き込まれて、発言者が入れ替わる。
+      const splitsAWord = !ENDS_A_CLAUSE.test(previous.text.trimEnd());
+
       // 句読点で終わらない短い断片は、前後が同じ話者なら判定のぶれ。
       // 「文句言い続けて、」「だ」「いぶ周りに…」の「だ」がこれで、
       // 前後 0.1 秒の間があるだけで塊が切れ、語が割れていた。
@@ -555,7 +588,7 @@ export function repairSpeakerBoundaries(
         next.text.trim().length <= STRAY_FRAGMENT_MAX_CHARS &&
         next.start - previous.end <= STRAY_FRAGMENT_MAX_GAP_SEC;
 
-      if (!continues && !isStrayFragment) break;
+      if (!(continues && splitsAWord) && !isStrayFragment) break;
       end += 1;
     }
 
