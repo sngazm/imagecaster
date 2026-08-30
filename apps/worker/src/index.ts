@@ -13,6 +13,7 @@ import { backup } from "./routes/backup";
 import { spotify } from "./routes/spotify";
 import { debug } from "./routes/debug";
 import { transcriptionQueue, transcriptionEpisodes } from "./routes/transcription";
+import { clips, pendingClips } from "./routes/clips";
 import { getIndex, saveIndex, findEpisodeBySlug, saveEpisodeMeta, syncPublishedIndex } from "./services/r2";
 import { regenerateFeed } from "./services/feed";
 import { postEpisodeToBluesky } from "./services/bluesky";
@@ -172,6 +173,12 @@ api.route("/transcription", transcriptionQueue);
 
 // 文字起こしエピソード関連のルートをマウント（/api/episodes/:id/* の形式）
 api.route("/episodes", transcriptionEpisodes);
+
+// 切り抜き動画のルートをマウント（/api/episodes/:id/clips/* の形式）
+api.route("/episodes", clips);
+
+// 未処理の指示を手元が拾うためのルート
+api.route("/clips", pendingClips);
 
 // URLからタイトルを取得（microlink.io API経由）
 api.post("/fetch-link-title", async (c) => {

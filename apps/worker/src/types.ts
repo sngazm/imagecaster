@@ -608,3 +608,102 @@ export interface DeploymentsResponse {
   accountId?: string;
   projectName?: string;
 }
+
+// ---------------------------------------------------------------------------
+// 切り抜き動画
+//
+// 描画はクラウドではできない（ffmpeg も素材も手元にある）。管理画面は指示を
+// 預かるだけで、実際の作り直しは手元の道具が引き取る。詳しくは
+// docs/clip-viewer-spec.md を参照。
+// ---------------------------------------------------------------------------
+
+/**
+ * 切り抜きの状態。OK を出したものだけが投稿予約に進む
+ */
+export type ClipStatus = "draft" | "approved" | "rejected";
+
+/**
+ * 字幕への直しの指示。
+ *
+ * 文字を直接書き換えるのではなく指示として預かる。字幕は音のタイムスタンプに
+ * 紐づいているので、文字だけ差し替えると音とずれる。読んで区切りを決め直すのは
+ * 作り直す側（Claude Code）の仕事。
+ */
+export type ClipRequestItem =
+  | { type: "edit"; index: number; text: string }
+  | { type: "note"; index: number; text: string }
+  | { type: "delete"; index: number }
+  | { type: "insert"; afterIndex: number; text: string };
+
+/**
+ * まとめて送られた指示ひとかたまり
+ */
+export interface ClipRequest {
+  id: string;
+  createdAt: string;
+  /** どの版に対する指示か。版が変わると字幕の通し番号がずれるため */
+  baseVersion: number;
+  /** 反映された版。未処理なら null */
+  appliedIn: number | null;
+  items: ClipRequestItem[];
+}
+
+/**
+ * 作った版。上書きせずに積む。見比べたいのと、悪くなったときに戻れるように
+ */
+export interface ClipVersion {
+  n: number;
+  createdAt: string;
+  note?: string;
+  /** どの指示を反映して作ったか */
+  fromRequest?: string;
+}
+
+/**
+ * 切り抜き 1 本分
+ */
+export interface ClipMeta {
+  id: string;
+  episodeId: string;
+  /** 画面に出す短い名前 */
+  label: string;
+  /** 元エピソードでの区間（表示用） */
+  range: [string, string];
+  /** 実際に切り出した範囲（秒） */
+  clip: { start: number; duration: number };
+  latest: number;
+  status: ClipStatus;
+  versions: ClipVersion[];
+  requests: ClipRequest[];
+}
+
+/**
+ * エピソードごとの切り抜き一覧
+ */
+export interface ClipIndex {
+  clips: Array<{ id: string; label: string; latest: number; status: ClipStatus }>;
+}
+
+/**
+ * 字幕 1 枚。rows が画面の行にそのまま対応する
+ */
+export interface ClipSubtitle {
+  index: number;
+  speaker: string;
+  start: number;
+  end: number;
+  rows: string[];
+}
+
+/**
+ * 手元が拾う、未処理の指示があるもの
+ */
+export interface PendingClip {
+  episodeId: string;
+  storageKey: string;
+  clipId: string;
+  label: string;
+  requestId: string;
+  baseVersion: number;
+  items: ClipRequestItem[];
+}

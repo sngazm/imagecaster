@@ -530,6 +530,36 @@ export function findHallucinationCandidates(
   return candidates.sort((a, b) => b.count - a.count).slice(0, 20);
 }
 
+/** 語尾の残りとみなす長さ。これを超えるなら語の続きではない */
+const WORD_TAIL_MAX_CHARS = 4;
+
+/** 文が閉じる印。読点は含めない（読点では文は閉じない） */
+const CLOSES_A_SENTENCE = /[。．！？!?]/;
+
+/**
+ * 前の話者の語尾の**あとに**、別の発話が続いているか
+ *
+ * Whisper のセグメント境界は語の途中に落ちるので、次のセグメントの頭に前の
+ * 話者の語尾だけが残る。それだけなら塊にまとめてよい。
+ *
+ * ところが #281 では 藤原「…ゆっくり大きな声でやれば絶対ウケ」のあとが
+ * あずま「る。 えー、おもろ。」だった。「る。」は藤原の語尾だが、そのあとの
+ * 「えー、おもろ。」はあずまの発話で、まとめて藤原に寄せるとあずまの発言が
+ * 消える。実際に消えていた。
+ *
+ * 見分けるのは**最初の句点の位置**。語尾は短く、そこで文が閉じる。閉じたあとに
+ * まだ本文が続くなら、それは語尾ではなくもう一人の発話が入っている。
+ */
+function carriesANewUtterance(segment: TranscriptSegment): boolean {
+  const text = segment.text.trim();
+  const at = text.search(CLOSES_A_SENTENCE);
+
+  // 句点が無い、または短い語尾で終わっているだけ
+  if (at < 0 || at > WORD_TAIL_MAX_CHARS) return false;
+
+  return text.slice(at + 1).trim().length > 0;
+}
+
 /**
  * 音量判定のぶれで文の途中に落ちた話者の境界を直す
  *
@@ -590,7 +620,8 @@ export function repairSpeakerBoundaries(
         next.text.trim().length <= STRAY_FRAGMENT_MAX_CHARS &&
         next.start - previous.end <= STRAY_FRAGMENT_MAX_GAP_SEC;
 
-      if (!(continues && splitsAWord) && !isStrayFragment) break;
+      if (!(continues && splitsAWord && !carriesANewUtterance(next)) && !isStrayFragment)
+        break;
       end += 1;
     }
 

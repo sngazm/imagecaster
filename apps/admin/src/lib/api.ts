@@ -693,6 +693,44 @@ export const api = {
     }>("/api/spotify/fetch-episodes", {
       method: "POST",
     }),
+
+  // --- 切り抜き動画 -------------------------------------------------------
+  //
+  // 描画はクラウドではできないので、ここでは指示を預けるだけ。作り直しは
+  // 手元の道具が引き取る。docs/clip-viewer-spec.md を参照。
+
+  /** この回の切り抜き一覧 */
+  getClips: (episodeId: string) =>
+    request<{ clips: ClipListEntry[] }>(`/api/episodes/${episodeId}/clips`),
+
+  /** 切り抜き 1 本分。baseUrl + /v{n}/clip.mp4 が動画の URL */
+  getClip: (episodeId: string, clipId: string) =>
+    request<ClipDetail>(`/api/episodes/${episodeId}/clips/${clipId}`),
+
+  /** その版の字幕 */
+  getClipSubtitles: (episodeId: string, clipId: string, version: number) =>
+    request<ClipSubtitle[]>(
+      `/api/episodes/${episodeId}/clips/${clipId}/versions/${version}/subs`
+    ),
+
+  /** 直しの指示を預ける。字幕はここでは書き換わらない */
+  postClipRequest: (
+    episodeId: string,
+    clipId: string,
+    baseVersion: number,
+    items: ClipRequestItem[]
+  ) =>
+    request<ClipRequest>(
+      `/api/episodes/${episodeId}/clips/${clipId}/requests`,
+      { method: "POST", body: JSON.stringify({ baseVersion, items }) }
+    ),
+
+  /** OK / ボツ */
+  setClipStatus: (episodeId: string, clipId: string, status: ClipStatus) =>
+    request<ClipDetail>(`/api/episodes/${episodeId}/clips/${clipId}/status`, {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+    }),
 };
 
 export interface UploadProgress {
@@ -888,4 +926,66 @@ export async function fetchTranscriptSegments(
   } catch {
     return [];
   }
+}
+
+// --- 切り抜き動画 ---------------------------------------------------------
+
+export type ClipStatus = "draft" | "approved" | "rejected";
+
+export interface ClipListEntry {
+  id: string;
+  label: string;
+  latest: number;
+  status: ClipStatus;
+}
+
+/**
+ * 字幕への直しの指示。
+ *
+ * 文字を直接書き換えるのではなく指示として預ける。字幕は音のタイムスタンプに
+ * 紐づいているので、文字だけ差し替えると音とずれる。読んで区切りを決め直すのは
+ * 作り直す側の仕事。
+ */
+export type ClipRequestItem =
+  | { type: "edit"; index: number; text: string }
+  | { type: "note"; index: number; text: string }
+  | { type: "delete"; index: number }
+  | { type: "insert"; afterIndex: number; text: string };
+
+export interface ClipRequest {
+  id: string;
+  createdAt: string;
+  baseVersion: number;
+  appliedIn: number | null;
+  items: ClipRequestItem[];
+}
+
+export interface ClipVersion {
+  n: number;
+  createdAt: string;
+  note?: string;
+  fromRequest?: string;
+}
+
+export interface ClipDetail {
+  id: string;
+  episodeId: string;
+  label: string;
+  range: [string, string];
+  clip: { start: number; duration: number };
+  latest: number;
+  status: ClipStatus;
+  versions: ClipVersion[];
+  requests: ClipRequest[];
+  /** 動画の置き場。baseUrl + /v{n}/clip.mp4 */
+  baseUrl: string;
+}
+
+/** 字幕 1 枚。rows が画面の行にそのまま対応する */
+export interface ClipSubtitle {
+  index: number;
+  speaker: string;
+  start: number;
+  end: number;
+  rows: string[];
 }

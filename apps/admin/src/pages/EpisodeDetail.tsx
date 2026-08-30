@@ -4,6 +4,7 @@ import { api, EpisodeDetail as EpisodeDetailType, formatDuration, formatFileSize
 import { SpeakerTracksPanel } from "../components/SpeakerTracksPanel";
 import { TranscriptViewer } from "../components/TranscriptViewer";
 import { ClaudeImpressionPanel } from "../components/ClaudeImpressionPanel";
+import { ClipsPanel } from "../components/ClipsPanel";
 import type { DescriptionTemplate, ReferenceLink, TranscriptSegment, PublishStatus, TranscribeStatus, UploadProgress, SpeakerTrackAssignment } from "../lib/api";
 import { UploadProgressBar } from "../components/UploadProgressBar";
 import { HtmlEditor, type PreviewContext } from "../components/HtmlEditor";
@@ -1010,6 +1011,13 @@ export default function EpisodeDetail() {
                     episode={episode}
                     onUpdated={reloadEpisode}
                   />
+                </div>
+
+                <div className="border-t border-[var(--color-border)] pt-4">
+                  <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-3">
+                    切り抜き動画
+                  </h3>
+                  <ClipsPanel episodeId={episode.id} />
                 </div>
               </div>
             ) : (

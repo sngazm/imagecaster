@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { ClipViewer } from "./pages/ClipViewer";
 import EpisodeList from "./pages/EpisodeList";
 import EpisodeNew from "./pages/EpisodeNew";
 import EpisodeDetail from "./pages/EpisodeDetail";
@@ -24,6 +25,7 @@ function AppContent() {
           <Route path="/" element={<EpisodeList />} />
           <Route path="/new" element={<EpisodeNew />} />
           <Route path="/episodes/:id" element={<EpisodeDetail />} />
+          <Route path="/episodes/:id/clips/:clipId" element={<ClipViewer />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>

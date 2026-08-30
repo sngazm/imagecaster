@@ -1251,3 +1251,56 @@ describe("相槌が連なった行", () => {
     expect(result.segments[0].text).toContain("面白い");
   });
 });
+
+describe("repairSpeakerBoundaries: 語尾のあとに別の発話が続く場合", () => {
+  it("語尾の後ろに続く別人の発話を巻き込まない", () => {
+    // #281 で実際に起きた。藤原の「…絶対ウケ」のあとが
+    // あずま「る。 えー、おもろ。」で、「る。」だけが藤原の語尾。
+    // 塊にまとめて長いほう（藤原）に寄せると、あずまの発言が消えていた
+    const result = repairSpeakerBoundaries([
+      {
+        start: 1.5,
+        end: 10.1,
+        text: "同じ台本でも、ゆっくり大きな声でやれば絶対ウケ",
+        speaker: "藤原麻里菜",
+      },
+      { start: 10.1, end: 12.1, text: "る。 えー、おもろ。", speaker: "あずま" },
+    ]);
+
+    expect(result.segments[1].speaker).toBe("あずま");
+  });
+
+  it("語尾だけなら今まで通り繋ぐ", () => {
+    // 「多いかもし」「れないけど、そこが〜」は同じ人が喋り続けている
+    const result = repairSpeakerBoundaries([
+      { start: 0, end: 5, text: "そういうことは多いかもし", speaker: "あずま" },
+      {
+        start: 5,
+        end: 6,
+        text: "れないけど、そこが難しいところですね。",
+        speaker: "鉄塔",
+      },
+    ]);
+
+    expect(result.segments[1].speaker).toBe("あずま");
+  });
+
+  it("句点が無ければ語の続きとして繋ぐ", () => {
+    const result = repairSpeakerBoundaries([
+      { start: 0, end: 5, text: "それは投", speaker: "あずま" },
+      { start: 5, end: 6, text: "げやりすぎるでしょう", speaker: "鉄塔" },
+    ]);
+
+    expect(result.segments[1].speaker).toBe("あずま");
+  });
+
+  it("語尾が長ければ語の続きではないので繋ぐ", () => {
+    // 5 文字以上あってから句点が来るのは、語尾ではなく普通の短い発話
+    const result = repairSpeakerBoundaries([
+      { start: 0, end: 5, text: "それで結局どうなったのか", speaker: "あずま" },
+      { start: 5, end: 6, text: "ということなんですよ。", speaker: "鉄塔" },
+    ]);
+
+    expect(result.segments[1].speaker).toBe("あずま");
+  });
+});

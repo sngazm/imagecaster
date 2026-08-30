@@ -48,6 +48,7 @@ export default defineConfig({
             { label: '設定', slug: 'api/settings' },
             { label: 'テンプレート', slug: 'api/templates' },
             { label: 'インポート', slug: 'api/import' },
+            { label: '切り抜き動画', slug: 'api/clips' },
           ],
         },
         {
