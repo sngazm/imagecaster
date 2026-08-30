@@ -386,6 +386,8 @@ export interface TranscriptionQueueItem {
   speakerTracks?: SpeakerTrackAssignment[];
   // 同時発話を検出する範囲（冒頭からの秒数）。null / 未設定なら検出しない
   simultaneousUntilSec?: number | null;
+  // エピソードの概要。冒頭の要約を initial_prompt に足すのに使う
+  description?: string;
 }
 
 /**

@@ -118,6 +118,9 @@ transcriptionQueue.get("/queue", async (c) => {
         sourceAudioUrl: meta.sourceAudioUrl,
         duration: meta.duration,
         lockedAt: meta.transcriptionLockedAt || "",
+        // 冒頭の要約を initial_prompt に足すのに使う。その回で出てくる語を
+        // 渡しておくと固有名詞の精度が上がる
+        description: meta.description || "",
       };
 
       // 話者の割り当ては常に渡す。
