@@ -231,11 +231,19 @@ export function mergeSegments(
 
     const withinGap = opts.maxGapSec === null || gap <= opts.maxGapSec;
 
+    // 上限に達していても、文の途中なら繋ぐ。
+    //
+    // 上限をそのまま切れ目にすると「だんだん良くなってきて、だ」「いぶ周りに…」
+    // のように語の途中で割れる。上限は「このくらいで区切りたい」という目安で
+    // あって、語を割ってよいという意味ではない。切るのは句読点のある位置だけ。
+    const atSentenceEnd = SENTENCE_END.test(previous.text.trimEnd());
+    const withinLimits =
+      mergedDuration <= opts.maxDurationSec && mergedText.length <= opts.maxChars;
+
     const canMerge =
       isSameSpeaker(previous, current) &&
       withinGap &&
-      mergedDuration <= opts.maxDurationSec &&
-      mergedText.length <= opts.maxChars;
+      (withinLimits || !atSentenceEnd);
 
     if (canMerge) {
       previous.end = current.end;

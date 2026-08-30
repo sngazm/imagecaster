@@ -70,9 +70,10 @@ describe("mergeSegments", () => {
   });
 
   it("統合後の長さが上限を超える場合は分けたままにする", () => {
+    // 句点で終わっているので、上限を切れ目にしてよい
     const segments = [
-      seg(0, 20, "長い話", "あずま"),
-      seg(20, 40, "さらに長い話", "あずま"),
+      seg(0, 20, "長い話。", "あずま"),
+      seg(20, 40, "さらに長い話。", "あずま"),
     ];
 
     const result = mergeSegments(segments, { maxDurationSec: 30 });
@@ -82,8 +83,8 @@ describe("mergeSegments", () => {
 
   it("統合後の文字数が上限を超える場合は分けたままにする", () => {
     const segments = [
-      seg(0, 2, "あ".repeat(80), "あずま"),
-      seg(2, 4, "い".repeat(80), "あずま"),
+      seg(0, 2, "あ".repeat(79) + "。", "あずま"),
+      seg(2, 4, "い".repeat(79) + "。", "あずま"),
     ];
 
     const result = mergeSegments(segments, { maxChars: 150 });
@@ -1045,5 +1046,31 @@ describe("句読点で終わらない断片の扱い", () => {
     ]);
 
     expect(result.segments[1].speaker).toBe("鉄塔");
+  });
+});
+
+describe("統合の上限と文の切れ目", () => {
+  it("上限に達していても、文の途中なら繋ぐ", () => {
+    // 上限をそのまま切れ目にすると語の途中で割れる
+    const segments = [
+      seg(0, 9, "あ".repeat(190) + "だんだん良くなってきて、だ", "あずま"),
+      seg(9, 12, "いぶ周りにお勧めできる感じ。", "あずま"),
+    ];
+
+    const result = mergeSegments(segments);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].text).toContain("だんだん良くなってきて、だいぶ周りに");
+  });
+
+  it("句点で終わっていれば上限で切る", () => {
+    const segments = [
+      seg(0, 9, "あ".repeat(190) + "ここで終わります。", "あずま"),
+      seg(9, 12, "次の話です。", "あずま"),
+    ];
+
+    const result = mergeSegments(segments);
+
+    expect(result).toHaveLength(2);
   });
 });
