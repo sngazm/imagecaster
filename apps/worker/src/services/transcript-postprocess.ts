@@ -313,6 +313,14 @@ function replaceAll(text: string, from: string, to: string): { text: string; cou
 }
 
 /**
+ * 置換を繰り返す上限
+ *
+ * 規則が連鎖するので 1 周では足りない。一方で「A → B」「B → A」のような
+ * 循環があると止まらないため、変化が無くなるか、この回数で打ち切る。
+ */
+const CORRECTION_MAX_PASSES = 3;
+
+/**
  * 辞書による誤字修正を適用する
  */
 export function applyCorrections(
@@ -335,12 +343,24 @@ export function applyCorrections(
   const replaced = segments.map((segment) => {
     let text = segment.text;
 
-    for (const rule of active) {
-      const result = replaceAll(text, rule.from, rule.to);
-      if (result.count > 0) {
-        text = result.text;
-        counts.set(rule, (counts.get(rule) ?? 0) + result.count);
+    // 変化がなくなるまで繰り返す。規則は連鎖することがある。
+    //
+    // 「テンプ → 天賦」と「…私の天賦のさえだったかも… → …天賦の才…」が
+    // 並んでいると、長い規則を先に当てても本文はまだ「テンプ」なので
+    // 一致しない。そのあと「テンプ → 天賦」が当たり、長いほうは二度と
+    // 見られない。#281 で校正が見つけた修正が丸ごと効いていなかった。
+    for (let pass = 0; pass < CORRECTION_MAX_PASSES; pass++) {
+      const before = text;
+
+      for (const rule of active) {
+        const result = replaceAll(text, rule.from, rule.to);
+        if (result.count > 0) {
+          text = result.text;
+          counts.set(rule, (counts.get(rule) ?? 0) + result.count);
+        }
       }
+
+      if (text === before) break;
     }
 
     return { ...segment, text };

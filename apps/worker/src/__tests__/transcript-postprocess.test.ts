@@ -1304,3 +1304,46 @@ describe("repairSpeakerBoundaries: 語尾のあとに別の発話が続く場合
     expect(result.segments[1].speaker).toBe("あずま");
   });
 });
+
+describe("applyCorrections: 規則が連鎖する場合", () => {
+  it("短い規則が作った文字列に、長い規則が当たる", () => {
+    // #281 で校正の修正が丸ごと効いていなかった。生の本文は「テンプのさえ」で、
+    // 長い規則の from は「天賦のさえ」。長いほうを先に当てても本文はまだ
+    // 「テンプ」なので一致せず、そのあと「テンプ → 天賦」が当たって終わっていた
+    const result = applyCorrections(
+      [{ start: 0, end: 5, text: "私のテンプのさえだったかもしれない" }],
+      [
+        { from: "テンプ", to: "天賦", enabled: true },
+        {
+          from: "私の天賦のさえだったかもしれない",
+          to: "私の天賦の才だったかもしれない",
+          enabled: true,
+        },
+      ]
+    );
+
+    expect(result.segments[0].text).toBe("私の天賦の才だったかもしれない");
+  });
+
+  it("循環する規則でも止まる", () => {
+    const result = applyCorrections(
+      [{ start: 0, end: 5, text: "あいうえお" }],
+      [
+        { from: "あいう", to: "かきく", enabled: true },
+        { from: "かきく", to: "あいう", enabled: true },
+      ]
+    );
+
+    // どちらかで止まっていればよい。無限に回らないことが要点
+    expect(["あいうえお", "かきくえお"]).toContain(result.segments[0].text);
+  });
+
+  it("繰り返しても回数は二重に数えない", () => {
+    const result = applyCorrections(
+      [{ start: 0, end: 5, text: "テストです" }],
+      [{ from: "テスト", to: "試験", enabled: true }]
+    );
+
+    expect(result.applied[0].count).toBe(1);
+  });
+});
