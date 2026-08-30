@@ -40,6 +40,7 @@ const CAMEL_CASE_NAMES = [
   "YouTube", "GitHub", "JavaScript", "TypeScript", "PostgreSQL", "iPhone",
   "iPad", "macOS", "iOS", "OpenAI", "DaVinci", "InDesign", "SoundCloud",
   "iTerm", "iCloud", "eBay", "PayPal", "LinkedIn", "WordPress",
+  "ToDo", "OpenClaw", "OpenAI", "AdGuard", "DaVinci", "McDonald",
 ];
 
 /**
