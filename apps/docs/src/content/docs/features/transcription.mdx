@@ -194,6 +194,37 @@ Whisper の生出力は `transcript.raw.json` として残るため、文字起�
 以後の入力にします。複製しないと、後処理済みのファイルを入力にしてしまい
 統合や置き換えが二重にかかります。
 
+### POST /api/episodes/:id/transcript/corrections
+
+校正で見つかった修正を**置換規則**として登録します。文字起こしを回すマシンが、
+ローカルの `claude` に校正させた結果を送ってきます。
+
+```typescript
+{
+  corrections: Array<{
+    from: string;     // 置換前
+    to: string;       // 置換後
+    note?: string;    // なぜ誤認識と判断したか
+    general?: boolean; // 番組全体の辞書に入れるか
+  }>;
+}
+```
+
+`general: true` のものは番組全体の辞書に入り、次回以降の文字起こしにも効きます。
+`false` のものはそのエピソードにだけ保存されます。「ソロスを」→「そろそろ」のような
+文脈に依る修正を辞書に入れると、他の回で誤爆するためです。
+
+登録後、そのエピソードの後処理が自動でやり直されます。
+
+```typescript
+{
+  success: boolean;
+  dictionaryAdded: number;  // 辞書に足した件数（既にある規則は数えない）
+  episodeRules: number;     // この回かぎりの規則の件数
+  segments: number;
+}
+```
+
 ### POST /api/transcription/reprocess-all
 
 公開済みエピソード（`index.json` に載っているもの）をまとめて再処理待ちに積みます。

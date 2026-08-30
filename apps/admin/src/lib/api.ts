@@ -56,6 +56,8 @@ export interface EpisodeDetail {
   sourceAudioUrl: string | null;
   sourceGuid: string | null;
   transcriptUrl: string | null;
+  /** この回かぎりの誤字修正。校正が見つけた文脈依存のもの */
+  transcriptCorrections?: CorrectionRule[] | null;
   artworkUrl: string | null;
   skipTranscription: boolean;
   hideTranscription?: boolean;

@@ -373,6 +373,34 @@ export function SpeakerTracksPanel({ episode, defaults, onUpdated }: Props) {
         </div>
       )}
 
+      {/* この回かぎりの修正 */}
+      {episode.transcriptCorrections && episode.transcriptCorrections.length > 0 && (
+        <div className="border-t border-[var(--color-border)] pt-3">
+          <h3 className="text-sm font-medium mb-1">この回かぎりの修正</h3>
+          <p className="text-xs text-[var(--color-text-muted)] mb-2">
+            校正が見つけた、文脈に依る修正です。番組全体の辞書に入れると他の回で
+            誤爆するため、このエピソードにだけ当てています。
+          </p>
+          <ul className="space-y-1">
+            {episode.transcriptCorrections.map((rule, index) => (
+              <li
+                key={`${rule.from}-${index}`}
+                className="text-xs font-mono flex items-baseline gap-2"
+              >
+                <span className="text-[var(--color-text-muted)]">{rule.from}</span>
+                <span className="text-[var(--color-text-muted)]">→</span>
+                <span>{rule.to}</span>
+                {rule.note && (
+                  <span className="font-sans text-[var(--color-text-muted)]">
+                    （{rule.note}）
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* やり直し */}
       {episode.transcriptUrl && (
         <div className="border-t border-[var(--color-border)] pt-3 space-y-4">
