@@ -54,7 +54,7 @@ export default defineConfig({
           label: '機能',
           items: [
             { label: '文字起こし', slug: 'features/transcription' },
-            { label: '話者分離', slug: 'features/speaker-separation' },
+            { label: '話者分離と仕上げ', slug: 'features/speaker-separation' },
             { label: 'Bluesky 連携', slug: 'features/bluesky' },
             { label: 'RSS フィード', slug: 'features/rss' },
             { label: 'バックアップ', slug: 'features/backup' },
