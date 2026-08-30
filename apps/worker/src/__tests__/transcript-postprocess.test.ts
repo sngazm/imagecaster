@@ -764,3 +764,46 @@ describe("否定の相槌も落とす", () => {
     expect(result.segments).toHaveLength(1);
   });
 });
+
+describe("区切りを挟んだ相槌も落とす", () => {
+  it("読点で区切られた相槌を落とす", () => {
+    const result = dropStandaloneBackchannels(
+      [seg(0, 2, "はい、はい、はい。", "あずま")],
+      DEFAULT_BACKCHANNEL_SETTINGS
+    );
+
+    expect(result.segments).toHaveLength(0);
+  });
+
+  it("促音で区切られた笑い声を落とす", () => {
+    const result = dropStandaloneBackchannels(
+      [
+        seg(0, 2, "はっはっはっはっ。", "鉄塔"),
+        seg(2, 4, "ああ、は、は、は、は。", "鉄塔"),
+      ],
+      DEFAULT_BACKCHANNEL_SETTINGS
+    );
+
+    expect(result.segments).toHaveLength(0);
+  });
+
+  it("相槌でない繰り返しは残す", () => {
+    // 擬音や副詞。意味を持っている
+    const result = dropStandaloneBackchannels(
+      [seg(0, 2, "バチバチバチバチ。", "あずま"), seg(2, 4, "どんどんどんどん。", "鉄塔")],
+      DEFAULT_BACKCHANNEL_SETTINGS
+    );
+
+    expect(result.segments).toHaveLength(2);
+  });
+
+  it("読点で終わる相槌はやはり残す", () => {
+    // 次の発話の一部である可能性を優先する
+    const result = dropStandaloneBackchannels(
+      [seg(0, 2, "はい、はい、", "あずま")],
+      DEFAULT_BACKCHANNEL_SETTINGS
+    );
+
+    expect(result.segments).toHaveLength(1);
+  });
+});

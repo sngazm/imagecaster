@@ -554,8 +554,16 @@ export function dropStandaloneBackchannels(
 
     // 句点・感嘆符などを外した中身が相槌そのものか
     const core = text.replace(/[。．！？!?\s]+$/g, "");
+
+    // 区切りを詰めてから判定する。「はい、はい、はい。」「はっはっはっ。」は
+    // 読点や促音を挟むだけで、相槌や笑い声であることに変わりはない
+    const compact = core.replace(/[、，,っッー\s]/g, "");
+
     const isBackchannel =
-      core !== "" && (phrases.has(core) || (repeated?.test(core) ?? false));
+      core !== "" &&
+      (phrases.has(core) ||
+        (repeated?.test(core) ?? false) ||
+        (compact.length >= 2 && (repeated?.test(compact) ?? false)));
 
     if (!isBackchannel) {
       kept.push(segment);
