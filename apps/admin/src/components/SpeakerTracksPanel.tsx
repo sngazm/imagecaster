@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import JSZip from "jszip";
 import { api, uploadToR2 } from "../lib/api";
 import type {
@@ -102,6 +102,18 @@ export function SpeakerTracksPanel({ episode, defaults, onUpdated }: Props) {
       ? episode.speakerTracks
       : defaults
   );
+
+  // 番組の既定値は設定から非同期に読み込まれる。useState の初期値は最初の
+  // 一度しか評価されないので、あとから届いた分を取り込む。
+  //
+  // これが無いと、エピソード固有の割り当てが無い回で一覧が空のままになり、
+  // 「割り当てを保存」ボタンごと画面に出なかった。
+  useEffect(() => {
+    if (tracks.length > 0 || defaults.length === 0) {
+      return;
+    }
+    setTracks(defaults);
+  }, [defaults, tracks.length]);
 
   const hasTracks = Boolean(episode.tracksUploadedAt);
   const usingDefaults = !episode.speakerTracks || episode.speakerTracks.length === 0;
