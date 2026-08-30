@@ -618,6 +618,20 @@ export function tracksKey(storageKey: string): string {
 }
 
 /**
+ * 保存した話者トラック 1 本ぶんのキー
+ *
+ * 番号と話者名を名前に入れる。切り抜き動画を作るときに、どれが誰の声か
+ * ファイル名だけで分かるようにするため。
+ */
+export function speakerTrackKey(
+  storageKey: string,
+  track: number,
+  label: string
+): string {
+  return `episodes/${storageKey}/tracks/${track}-${label}.m4a`;
+}
+
+/**
  * POST /api/episodes/:id/tracks/upload-url - 話者トラック zip の Presigned URL 発行
  *
  * 話者ごとに分かれた音声トラックの zip をアップロードするための URL を返す。
@@ -681,6 +695,93 @@ upload.put("/:id/speaker-tracks", async (c) => {
   } catch (err) {
     console.error(`[speaker-tracks] Error for episode ${id}:`, err);
     return c.json({ error: "Failed to save speaker tracks" }, 500);
+  }
+});
+
+/**
+ * POST /api/episodes/:id/speaker-tracks/upload-url - 話者トラック 1 本の Presigned URL
+ *
+ * 文字起こしを回すマシンが、圧縮したトラックを直接置くために使う。
+ * zip とは別に、1 人ぶんずつ個別のファイルとして保存する。切り抜き動画など、
+ * 文字起こし以外の用途で使えるようにするため。
+ */
+upload.post("/:id/speaker-tracks/upload-url", async (c) => {
+  const id = c.req.param("id");
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    const body = await c.req.json<{ track?: unknown; label?: unknown }>();
+
+    if (typeof body.track !== "number" || typeof body.label !== "string") {
+      return c.json({ error: "track (number) and label (string) are required" }, 400);
+    }
+
+    const label = body.label.trim();
+    if (!label) {
+      return c.json({ error: "label must not be empty" }, 400);
+    }
+
+    const key = speakerTrackKey(meta.storageKey, body.track, label);
+    const signed = await createPresignedUrl(c.env, key, {
+      method: "PUT",
+      contentType: "audio/mp4",
+    });
+
+    return c.json({
+      uploadUrl: signed.url,
+      url: `${c.env.R2_PUBLIC_URL}/${key}`,
+      expiresIn: signed.expiresIn,
+    });
+  } catch (err) {
+    console.error(`[speaker-tracks/upload-url] Error for episode ${id}:`, err);
+    return c.json({ error: "Failed to create the upload URL" }, 500);
+  }
+});
+
+/**
+ * POST /api/episodes/:id/speaker-tracks/upload-complete - 保存したトラックを記録する
+ */
+upload.post("/:id/speaker-tracks/upload-complete", async (c) => {
+  const id = c.req.param("id");
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    const body = await c.req.json<{
+      files?: Array<{ track?: unknown; label?: unknown }>;
+    }>();
+
+    const files = (Array.isArray(body.files) ? body.files : [])
+      .filter(
+        (f): f is { track: number; label: string } =>
+          typeof f.track === "number" &&
+          typeof f.label === "string" &&
+          f.label.trim() !== ""
+      )
+      .map((f) => ({
+        track: f.track,
+        label: f.label.trim(),
+        url: `${c.env.R2_PUBLIC_URL}/${speakerTrackKey(
+          meta.storageKey,
+          f.track,
+          f.label.trim()
+        )}`,
+      }));
+
+    meta.speakerTrackFiles = files.length > 0 ? files : null;
+    await saveEpisodeMeta(c.env, meta);
+
+    return c.json({ success: true, speakerTrackFiles: meta.speakerTrackFiles });
+  } catch (err) {
+    console.error(`[speaker-tracks/upload-complete] Error for episode ${id}:`, err);
+    return c.json({ error: "Failed to record the tracks" }, 500);
   }
 });
 

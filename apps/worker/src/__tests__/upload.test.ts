@@ -746,3 +746,81 @@ describe("Upload API", () => {
     });
   });
 });
+
+describe("話者トラックの保存", () => {
+  it("トラックごとの Presigned URL を返す", async () => {
+    const { id } = await createTestEpisode({ title: "トラック保存" });
+
+    const response = await SELF.fetch(
+      `http://localhost/api/episodes/${id}/speaker-tracks/upload-url`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ track: 1, label: "あずま" }),
+      }
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { uploadUrl: string; url: string };
+
+    // 切り抜き動画を作るとき、どれが誰の声かファイル名で分かるように
+    expect(body.url).toContain("/tracks/1-あずま.m4a");
+    expect(body.uploadUrl).toContain("http");
+  });
+
+  it("番号と話者名が要る", async () => {
+    const { id } = await createTestEpisode({ title: "トラック保存" });
+
+    const response = await SELF.fetch(
+      `http://localhost/api/episodes/${id}/speaker-tracks/upload-url`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ track: 1 }),
+      }
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it("保存したトラックをエピソードに記録する", async () => {
+    const { id } = await createTestEpisode({ title: "トラック保存" });
+
+    await SELF.fetch(
+      `http://localhost/api/episodes/${id}/speaker-tracks/upload-complete`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          files: [
+            { track: 1, label: "あずま" },
+            { track: 2, label: "鉄塔" },
+          ],
+        }),
+      }
+    );
+
+    const meta = (await (
+      await SELF.fetch(`http://localhost/api/episodes/${id}`)
+    ).json()) as {
+      speakerTrackFiles: Array<{ track: number; label: string; url: string }>;
+    };
+
+    expect(meta.speakerTrackFiles).toHaveLength(2);
+    expect(meta.speakerTrackFiles[1].label).toBe("鉄塔");
+    expect(meta.speakerTrackFiles[1].url).toContain("2-鉄塔.m4a");
+  });
+
+  it("知らないエピソードなら404", async () => {
+    const response = await SELF.fetch(
+      "http://localhost/api/episodes/nope/speaker-tracks/upload-url",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ track: 1, label: "あずま" }),
+      }
+    );
+
+    expect(response.status).toBe(404);
+  });
+});

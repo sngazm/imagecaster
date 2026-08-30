@@ -290,6 +290,12 @@ export interface EpisodeMeta {
   // Whisper の生出力（話者判定済み・後処理前）の URL
   transcriptRawUrl?: string | null;
   /**
+   * 保存した話者トラック
+   *
+   * 圧縮して個別に置く。切り抜き動画など、文字起こし以外の用途で使えるように。
+   */
+  speakerTrackFiles?: Array<{ track: number; label: string; url: string }> | null;
+  /**
    * この回かぎりの誤字修正
    *
    * 番組全体の辞書に入れると誤爆するもの（「ソロスを」→「そろそろ」など）を、
