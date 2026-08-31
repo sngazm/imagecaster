@@ -1410,6 +1410,13 @@ export function transcriptKeys(storageKey: string) {
     json: `episodes/${storageKey}/transcript.json`,
     /** 後処理済み VTT（公開サイトが読む） */
     vtt: `episodes/${storageKey}/transcript.vtt`,
+    /**
+     * 人が直した正解（教師データ）
+     *
+     * 話者分離と後処理を評価するための答え合わせ用。公開には使わない。
+     * 推測でロジックを積み上げるのをやめ、正解との差で測るために置く。
+     */
+    truth: `episodes/${storageKey}/transcript.truth.json`,
   };
 }
 

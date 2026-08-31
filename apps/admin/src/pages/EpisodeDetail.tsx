@@ -988,6 +988,19 @@ export default function EpisodeDetail() {
                   />
                 )}
 
+                {/*
+                  正解データを作る。話者分離を推測で直すのをやめ、人が示した
+                  正解との差で測るために置いている。公開には影響しない
+                */}
+                {episode.transcriptRawUrl && (
+                  <Link
+                    to={`/episodes/${episode.id}/truth`}
+                    className="mt-3 inline-flex items-center gap-1.5 text-sm text-[var(--color-accent)] hover:text-[var(--color-accent-hover)]"
+                  >
+                    正解データを作る（タイムライン編集）
+                  </Link>
+                )}
+
                 {/* 話者トラック（音量で話者を判定するための素材） */}
                 {!episode.skipTranscription && (
                   <div className="border-t border-[var(--color-border)] pt-4">

@@ -735,3 +735,91 @@ transcriptionEpisodes.delete("/:id/impression", async (c) => {
 });
 
 export { transcriptionQueue, transcriptionEpisodes };
+
+/**
+ * GET /api/episodes/:id/transcript/truth - 人が直した正解を取得する
+ *
+ * まだ無ければ 404 ではなく空を返す。編集画面は「生データから始める」ので、
+ * 無いことは異常ではない。
+ */
+transcriptionEpisodes.get("/:id/transcript/truth", async (c) => {
+  const id = c.req.param("id");
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    const keys = transcriptKeys(meta.storageKey);
+    const obj = await c.env.R2_BUCKET.get(keys.truth);
+
+    if (!obj) {
+      return c.json({ exists: false, segments: [], updatedAt: null });
+    }
+
+    const data = JSON.parse(await obj.text()) as {
+      segments?: unknown;
+      updatedAt?: string;
+    };
+
+    return c.json({
+      exists: true,
+      segments: Array.isArray(data.segments) ? data.segments : [],
+      updatedAt: data.updatedAt ?? null,
+    });
+  } catch (err) {
+    console.error(`[transcript/truth] Error for episode ${id}:`, err);
+    return c.json({ error: "Failed to read the truth" }, 500);
+  }
+});
+
+/**
+ * PUT /api/episodes/:id/transcript/truth - 人が直した正解を保存する
+ *
+ * 公開しているものには一切触らない。答え合わせのための置き場所なので、
+ * ここに書いてもサイトは変わらない。
+ */
+transcriptionEpisodes.put("/:id/transcript/truth", async (c) => {
+  const id = c.req.param("id");
+
+  try {
+    const body = await c.req.json<{ segments?: unknown }>();
+
+    if (!Array.isArray(body.segments)) {
+      return c.json({ error: "segments must be an array" }, 400);
+    }
+
+    const segments = body.segments
+      .map((raw) => {
+        const seg = raw as Record<string, unknown>;
+        return {
+          start: Number(seg.start),
+          end: Number(seg.end),
+          text: typeof seg.text === "string" ? seg.text : "",
+          speaker: typeof seg.speaker === "string" ? seg.speaker : null,
+        };
+      })
+      .filter((seg) => Number.isFinite(seg.start) && Number.isFinite(seg.end))
+      .sort((a, b) => a.start - b.start);
+
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    const keys = transcriptKeys(meta.storageKey);
+    const updatedAt = new Date().toISOString();
+
+    await c.env.R2_BUCKET.put(
+      keys.truth,
+      JSON.stringify({ updatedAt, segments }),
+      { httpMetadata: { contentType: "application/json" } }
+    );
+
+    return c.json({ success: true, segments: segments.length, updatedAt });
+  } catch (err) {
+    console.error(`[transcript/truth] Error for episode ${id}:`, err);
+    return c.json({ error: "Failed to save the truth" }, 500);
+  }
+});

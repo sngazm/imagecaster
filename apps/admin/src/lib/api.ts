@@ -477,6 +477,16 @@ export const api = {
     ),
 
   /** この回だけの話者アイコンを保存する */
+  // 正解データ（教師データ）
+  getTruth: (id: string) =>
+    request<TruthResponse>(`/api/episodes/${id}/transcript/truth`),
+
+  saveTruth: (id: string, segments: TruthSegment[]) =>
+    request<{ success: boolean; segments: number; updatedAt: string }>(
+      `/api/episodes/${id}/transcript/truth`,
+      { method: "PUT", body: JSON.stringify({ segments }) }
+    ),
+
   saveSpeakerIcons: (id: string, speakerIcons: SpeakerIcon[] | null) =>
     request<{ success: boolean; speakerIcons: SpeakerIcon[] | null }>(
       `/api/episodes/${id}/speaker-icons`,
@@ -844,6 +854,20 @@ export interface RawSegment {
   end: number;
   text: string;
   speaker?: string | null;
+}
+
+/** 人が直した正解。話者分離と後処理を評価するための答え合わせに使う */
+export interface TruthSegment {
+  start: number;
+  end: number;
+  text: string;
+  speaker: string | null;
+}
+
+export interface TruthResponse {
+  exists: boolean;
+  segments: TruthSegment[];
+  updatedAt: string | null;
 }
 
 /** "00:01:23" を秒に直す */
