@@ -213,6 +213,11 @@ export interface PodcastIndex {
   // 後処理のやり直し待ちエピソードのID一覧（Cronが少しずつ処理する）
   // 辞書や統合条件を変えたときに全エピソードへ再適用するために使う
   transcriptReprocessIds?: string[];
+  // 未処理の指示がある切り抜きの一覧（"エピソードID/切り抜きID" の形）
+  // 手元の道具が 1 時間おきに /api/clips/pending を叩くため、全件走査で
+  // 読むと Worker のリソース制限に達する。undefined の場合は未構築を意味し、
+  // 次回の巡回時に全件走査で初期化される
+  clipRequestIds?: string[];
 }
 
 /**

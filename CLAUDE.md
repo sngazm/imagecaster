@@ -166,6 +166,21 @@ await jwtVerify(jwt, JWKS, { audience: ACCESS_AUD });
 | POST | /api/episodes/:id/impression | Claudeの感想を生成 |
 | DELETE | /api/episodes/:id/impression | Claudeの感想を削除 |
 
+### Clips（切り抜き動画）
+| Method | Path | 説明 |
+|--------|------|------|
+| GET | /api/episodes/:id/clips | この回の切り抜き一覧 |
+| GET | /api/episodes/:id/clips/:clipId | 切り抜き 1 本分の meta |
+| POST | /api/episodes/:id/clips/:clipId/upload-url | 版の動画を置く Presigned URL |
+| PUT | /api/episodes/:id/clips/:clipId | 版を追加する（生成側から） |
+| GET | /api/episodes/:id/clips/:clipId/versions/:n/subs | その版の字幕 |
+| POST | /api/episodes/:id/clips/:clipId/requests | 直しの指示を預ける |
+| PUT | /api/episodes/:id/clips/:clipId/status | OK / ボツ |
+| GET | /api/clips/pending | 未処理の指示があるもの（手元が拾う） |
+
+※ 描画は Worker ではできない（ffmpeg も素材も手元）。管理画面は指示を預かるだけで、
+作り直しは手元の道具（imagecaster-video）が引き取る。詳細は `docs/clip-viewer-spec.md`
+
 ### Settings
 | Method | Path | 説明 |
 |--------|------|------|
@@ -231,7 +246,12 @@ podcast-bucket/
 │       ├── transcript.raw.json  # Whisperの生出力（後処理の入力）
 │       ├── transcript.json      # 後処理済み
 │       ├── transcript.vtt       # 後処理済みVTT（公開サイトが読む）
-│       └── artwork.jpg          # エピソードアートワーク（任意）
+│       ├── artwork.jpg          # エピソードアートワーク（任意）
+│       └── clips/               # 切り抜き動画（任意）
+│           ├── index.json       # この回の切り抜き一覧
+│           └── {clipId}/
+│               ├── meta.json    # 区間・版の一覧・状態・指示
+│               └── v{n}/        # clip.mp4 / subs.json / cards.json / manifest.json
 ├── templates.json          # テンプレート一覧
 ├── index.json              # エピソード一覧 + Podcast設定
 ├── feed.xml                # RSSフィード

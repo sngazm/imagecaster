@@ -26,6 +26,7 @@ sidebar:
 |---------|------|------|
 | GET | `/api/episodes/:id/clips` | この回の切り抜き一覧 |
 | GET | `/api/episodes/:id/clips/:clipId` | 切り抜き 1 本分の meta |
+| POST | `/api/episodes/:id/clips/:clipId/upload-url` | 版の動画を置く Presigned URL |
 | PUT | `/api/episodes/:id/clips/:clipId` | 版を追加する（生成側から） |
 | GET | `/api/episodes/:id/clips/:clipId/versions/:n/subs` | その版の字幕 |
 | POST | `/api/episodes/:id/clips/:clipId/requests` | 直しの指示を預ける |
@@ -35,6 +36,41 @@ sidebar:
 動画そのものは R2 の公開 URL から直接読みます。音声と同じ扱いで、Worker を通しません。
 `GET /api/episodes/:id/clips/:clipId` のレスポンスに含まれる `baseUrl` を使い、
 `{baseUrl}/v{n}/clip.mp4` が版ごとの動画です。
+
+## 版を上げる
+
+生成側は 2 段階で載せます。**動画を先に置いてから登録します。** 逆にすると、
+登録は済んでいるのに動画が無い版が管理画面に出ます。
+
+```
+POST /api/episodes/285/clips/c1/upload-url   →  { n, key, uploadUrl, expiresIn }
+PUT  {uploadUrl}                                 動画（Content-Type: video/mp4）
+PUT  /api/episodes/285/clips/c1                  版として登録
+```
+
+動画は数十 MB になるため Worker の本体には流しません。音声・アートワーク・話者
+トラックと同じく、鍵は Worker が持ったまま置き場だけを渡します。`n` を省略すると
+次の版を返すので、そのまま `PUT` で登録すれば番号が揃います。
+
+登録の本文で、その版の中身も一緒に置けます。
+
+```json
+{
+  "label": "脳が5つにちぎれる",
+  "range": ["10:49", "11:47"],
+  "clip": { "start": 644.0, "duration": 68.0 },
+  "subs": [{ "index": 0, "speaker": "あずま", "start": 0, "end": 1.6, "rows": ["…"] }],
+  "cards": [{ "at": 17.6, "word": "tmux", "image": "https://…" }],
+  "manifest": { "…": "画像の出どころ" },
+  "appliedRequest": "r1",
+  "note": "字幕の指示を反映"
+}
+```
+
+`subs` / `cards` / `manifest` はそれぞれ `v{n}/` の下に書かれます。
+
+**版が積まれると `status` は `draft` に戻ります。** OK / ボツ はその版に対して
+出したものなので、作り直したら見直しからやり直します。
 
 ## R2 の置き場
 
@@ -72,6 +108,20 @@ episodes/{storageKey}/clips/
 
 反映された指示には `appliedIn` に版番号が入り、`GET /api/clips/pending` から外れます。
 **印を付け忘れると手元が何度も拾ってしまいます。**
+
+### 巡回は索引を見る
+
+手元の `watch.py` は 1 時間おきに `/api/clips/pending` を叩きます。全エピソードの
+`meta.json` を読んでから各回の `clips/index.json` を読む作りだと、1 リクエストで
+500 回以上 R2 を読むことになり、Worker のリソース制限（Error 1102）に達します。
+文字起こしキューが同じ形で一度詰まっているため、同じ手当てをしてあります。
+
+`index.json` の `clipRequestIds` に「未処理の指示がある切り抜き」を
+`"エピソードID/切り抜きID"` の形で持ち、指示を預かったときと版が積まれたときに
+更新します。巡回はこれに載っているものだけを読みます。
+
+`clipRequestIds` が `undefined`（未構築）のときだけ全件走査して作り直します。
+`transcriptionQueueIds` と同じ形です。
 
 ## 状態
 

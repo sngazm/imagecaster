@@ -116,6 +116,24 @@ describe("Clips API", () => {
       expect(mine[0].requestId).toBe("r1");
     });
 
+    it("一度巡回して索引ができたあとに預けた指示も拾える", async () => {
+      await putVersion("c1", { label: "テスト" });
+
+      // 1 時間おきに叩かれるので、巡回では全件走査しない。索引はこの 1 回目で
+      // 作られ、以降はそれしか読まない。つまり預けるたびに索引を更新しないと、
+      // 指示は永久に拾われないまま溜まる。いちばん原因を追いにくい壊れ方
+      expect(await myPending()).toHaveLength(0);
+
+      await postRequest([{ type: "delete", index: 1 }]);
+
+      const mine = await myPending();
+      expect(mine).toHaveLength(1);
+      expect(mine[0].requestId).toBe("r1");
+
+      await putVersion("c1", { appliedRequest: "r1" });
+      expect(await myPending()).toHaveLength(0);
+    });
+
     it("反映した版を積むと、拾われなくなる", async () => {
       await putVersion("c1", { label: "テスト" });
       await postRequest([{ type: "delete", index: 1 }]);
@@ -155,9 +173,73 @@ describe("Clips API", () => {
       expect(entry.latest).toBe(1);
     });
 
+    it("作り直した版が来たら OK は取り消される", async () => {
+      await putVersion("c1", { label: "テスト" });
+      await setStatus("approved");
+
+      // OK はその版に対して出したもの。作り直したら見直しからやり直す
+      const clip = await (await putVersion("c1")).json();
+      expect(clip.latest).toBe(2);
+      expect(clip.status).toBe("draft");
+    });
+
     it("知らない状態は受け取らない", async () => {
       await putVersion("c1", { label: "テスト" });
       expect((await setStatus("とりあえず保留")).status).toBe(400);
+    });
+  });
+
+  describe("版の中身", () => {
+    const subs = (text: string) => [
+      { index: 0, speaker: "あずま", start: 0, end: 1.5, rows: [text] },
+    ];
+
+    it("動画の置き場を Presigned URL で渡す", async () => {
+      await putVersion("c1", { label: "テスト" });
+
+      const res = await SELF.fetch(
+        `http://localhost/api/episodes/${episodeId}/clips/c1/upload-url`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        }
+      );
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      // 版を指定しなければ次の版。そのまま PUT すれば番号が揃う
+      expect(json.n).toBe(2);
+      expect(json.key).toContain("/clips/c1/v2/clip.mp4");
+      expect(json.uploadUrl).toContain("X-Amz-Signature");
+    });
+
+    it("字幕を一緒に置くと、その版の字幕として読める", async () => {
+      await putVersion("c1", { label: "テスト", subs: subs("え、ちなみに") });
+
+      const res = await SELF.fetch(
+        `http://localhost/api/episodes/${episodeId}/clips/c1/versions/1/subs`
+      );
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual(subs("え、ちなみに"));
+    });
+
+    it("版ごとに別の字幕が残る", async () => {
+      await putVersion("c1", { subs: subs("まえの版") });
+      await putVersion("c1", { subs: subs("あとの版") });
+
+      const read = async (n: number) =>
+        (
+          await (
+            await SELF.fetch(
+              `http://localhost/api/episodes/${episodeId}/clips/c1/versions/${n}/subs`
+            )
+          ).json()
+        )[0].rows[0];
+
+      // 見比べるために積んでいる。前の版が上書きされたら意味がない
+      expect(await read(1)).toBe("まえの版");
+      expect(await read(2)).toBe("あとの版");
     });
   });
 

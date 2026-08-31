@@ -24,7 +24,16 @@ podcast-bucket/
         ├── transcript.raw.json  # Whisper の生出力（後処理の入力）
         ├── transcript.json      # 後処理済み（統合・誤字修正後）
         ├── transcript.vtt       # 字幕（公開サイトが読む）
-        └── artwork.jpg          # エピソード固有のアートワーク（任意）
+        ├── artwork.jpg          # エピソード固有のアートワーク（任意）
+        └── clips/               # 切り抜き動画（任意）
+            ├── index.json       # この回の切り抜き一覧
+            └── {clipId}/
+                ├── meta.json    # 区間・版の一覧・状態・直しの指示
+                └── v{n}/
+                    ├── clip.mp4      # その版の動画
+                    ├── subs.json     # その版で実際に描かれた字幕
+                    ├── cards.json    # その版で出した画像
+                    └── manifest.json # 画像の出どころ
 ```
 
 ### 文字起こしの 3 つのファイル
@@ -34,6 +43,17 @@ podcast-bucket/
 `transcript.json` と `transcript.vtt` を作り直せるのはこのためです。
 
 `tracks.zip` は話者判定にのみ使うので、文字起こしが済んだら削除してかまいません。
+
+### 切り抜き動画の版
+
+`clips/{clipId}/v{n}/` は**上書きしません**。作り直しても前の版が残ります。見比べたい
+のと、悪くなったときに戻れるようにするためです。
+
+動画は手元（WSL）で描かれ、Presigned URL で直に R2 へ入ります。数十 MB を Worker に
+流す理由がないためで、音声・アートワーク・話者トラックと同じ扱いです。読むときも
+公開 URL から直接で、Worker を通しません。
+
+詳しくは [切り抜き動画 API](/api/clips/) を参照してください。
 
 ### storageKey について
 
