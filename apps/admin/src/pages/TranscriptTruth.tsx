@@ -31,11 +31,6 @@ const HANDLE_PX = 6;
 /** 波形の刻み。levels.json と揃える */
 const LEVEL_FRAME_SEC = 0.05;
 
-interface Editing {
-  index: number;
-  text: string;
-}
-
 /** 端をつまんで動かしている最中の状態 */
 interface Dragging {
   index: number;
@@ -157,10 +152,18 @@ export function TranscriptTruth() {
 
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [selected, setSelected] = useState<number | null>(null);
-  const [editing, setEditing] = useState<Editing | null>(null);
   const [playhead, setPlayhead] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [dragging, setDragging] = useState<Dragging | null>(null);
+
+  /**
+   * 取り消し用の履歴。
+   *
+   * 話者を変える・分割する・端を動かすは、間違えたときに戻せないと怖くて
+   * 触れない。正解を作る作業は試しながら進むものなので、戻せることが要る。
+   */
+  const history = useRef<TruthSegment[][]>([]);
+  const [canUndo, setCanUndo] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -256,9 +259,32 @@ export function TranscriptTruth() {
 
   // ---- 編集 ----
 
-  const update = useCallback((next: TruthSegment[]) => {
-    setSegments([...next].sort((a, b) => a.start - b.start));
+  const remember = useCallback((current: TruthSegment[]) => {
+    history.current.push(current);
+    // 際限なく貯めない。50 手も戻れば足りる
+    if (history.current.length > 50) history.current.shift();
+    setCanUndo(true);
+  }, []);
+
+  const update = useCallback(
+    (next: TruthSegment[]) => {
+      setSegments((current) => {
+        remember(current);
+        return [...next].sort((a, b) => a.start - b.start);
+      });
+      setDirty(true);
+    },
+    [remember]
+  );
+
+  const undo = useCallback(() => {
+    const previous = history.current.pop();
+    if (!previous) return;
+
+    setSegments(previous);
+    setSelected(null);
     setDirty(true);
+    setCanUndo(history.current.length > 0);
   }, []);
 
   const moveToLane = useCallback(
@@ -344,14 +370,6 @@ export function TranscriptTruth() {
     },
     [segments, duration]
   );
-
-  const commitText = useCallback(() => {
-    if (!editing) return;
-    const next = [...segments];
-    next[editing.index] = { ...next[editing.index], text: editing.text };
-    update(next);
-    setEditing(null);
-  }, [editing, segments, update]);
 
   // ---- 端をつまんで伸び縮み ----
 
@@ -466,9 +484,18 @@ export function TranscriptTruth() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (editing) return;
-      const target = e.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+      // 取り消しは本文を書いている最中でも効かせる。ブラウザの取り消しは
+      // その入力欄の中だけなので、こちらが受けると被る。入力欄では譲る
+      const target = e.target as KeyboardEvent["target"] & HTMLElement;
+      const inField = target.tagName === "INPUT" || target.tagName === "TEXTAREA";
+
+      if ((e.metaKey || e.ctrlKey) && e.key === "z" && !inField) {
+        e.preventDefault();
+        undo();
+        return;
+      }
+
+      if (inField) return;
 
       if (e.code === "Space") {
         e.preventDefault();
@@ -507,7 +534,6 @@ export function TranscriptTruth() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [
-    editing,
     lanes,
     moveToLane,
     playSelected,
@@ -517,6 +543,7 @@ export function TranscriptTruth() {
     selected,
     splitAt,
     togglePlay,
+    undo,
   ]);
 
   useEffect(() => {
@@ -540,7 +567,7 @@ export function TranscriptTruth() {
   if (!episode) {
     return (
       <div className="p-8">
-        <p className="text-[var(--color-danger)]">{error ?? "エピソードが見つかりません"}</p>
+        <p className="text-[var(--color-error)]">{error ?? "エピソードが見つかりません"}</p>
         <Link to="/" className="text-[var(--color-accent)]">
           一覧へ戻る
         </Link>
@@ -572,7 +599,7 @@ export function TranscriptTruth() {
           </span>
 
           <div className="ml-auto flex items-center gap-2">
-            <button type="button" onClick={togglePlay} className="btn btn-secondary btn-sm">
+            <button type="button" onClick={togglePlay} className="btn btn-secondary text-xs">
               {playing ? "停止" : "再生"}
             </button>
             <span className="w-20 font-mono text-xs tabular-nums text-[var(--color-text-muted)]">
@@ -582,7 +609,7 @@ export function TranscriptTruth() {
               type="button"
               onClick={() => setZoom((z) => Math.max(0, z - 1))}
               disabled={zoom === 0}
-              className="btn btn-secondary btn-sm"
+              className="btn btn-secondary text-xs"
             >
               −
             </button>
@@ -593,36 +620,45 @@ export function TranscriptTruth() {
               type="button"
               onClick={() => setZoom((z) => Math.min(ZOOM_STEPS.length - 1, z + 1))}
               disabled={zoom === ZOOM_STEPS.length - 1}
-              className="btn btn-secondary btn-sm"
+              className="btn btn-secondary text-xs"
             >
               ＋
             </button>
             <button
               type="button"
+              onClick={undo}
+              disabled={!canUndo}
+              title="取り消し（⌘Z）"
+              className="btn btn-secondary text-xs"
+            >
+              取り消し
+            </button>
+            <button
+              type="button"
               onClick={save}
               disabled={saving || !dirty}
-              className="btn btn-primary btn-sm"
+              className="btn btn-primary text-xs"
             >
               {saving ? "保存中..." : dirty ? "正解を保存" : "保存済み"}
             </button>
           </div>
         </div>
 
-        {error && <p className="mt-2 text-xs text-[var(--color-danger)]">{error}</p>}
+        {error && <p className="mt-2 text-xs text-[var(--color-error)]">{error}</p>}
 
         <p className="mt-2 text-[11px] leading-relaxed text-[var(--color-text-muted)]">
           クリックで再生位置を置く / <kbd>Space</kbd> 再生 / <kbd>Enter</kbd> 選んだ発言だけ聞く
           / <kbd>↑↓</kbd> 話者を変える / <kbd>S</kbd> 再生位置で分割 / <kbd>←→</kbd> 0.1 秒（Shift で 1 秒）
-          / 発言の端をつまんで伸び縮み / ダブルクリックで本文を書く
+          / <kbd>⌘Z</kbd> 取り消し / 発言の端をつまんで伸び縮み / 本文は下の欄にそのまま書ける
         </p>
       </header>
 
       <div ref={scrollRef} className="flex-1 overflow-auto">
         <div className="relative" style={{ width: LABEL_WIDTH + trackWidth + 80 }}>
           {/* 時間の目盛り */}
-          <div className="sticky top-0 z-20 flex h-6 border-b border-[var(--color-border)] bg-[var(--color-bg)]">
+          <div className="sticky top-0 z-20 flex h-6 border-b border-[var(--color-border)] bg-[var(--color-bg-base)]">
             <div
-              className="sticky left-0 z-10 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-bg)]"
+              className="sticky left-0 z-10 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-bg-base)]"
               style={{ width: LABEL_WIDTH }}
             />
             <div
@@ -653,7 +689,7 @@ export function TranscriptTruth() {
               style={{ height: LANE_HEIGHT }}
             >
               <div
-                className="sticky left-0 z-10 flex shrink-0 items-center justify-between gap-1 border-r border-[var(--color-border)] bg-[var(--color-bg)] px-2"
+                className="sticky left-0 z-10 flex shrink-0 items-center justify-between gap-1 border-r border-[var(--color-border)] bg-[var(--color-bg-base)] px-2"
                 style={{ width: LABEL_WIDTH }}
               >
                 <span className="truncate text-xs font-medium">{laneLabel(lane)}</span>
@@ -702,17 +738,13 @@ export function TranscriptTruth() {
                         // 「再生位置で分割」がその発言の中で使えない
                         seek(segment.start + (e.clientX - box.left) / pxPerSec);
                       }}
-                      onDoubleClick={(e) => {
-                        e.stopPropagation();
-                        setEditing({ index, text: segment.text });
-                      }}
                       title={segment.text}
                       className={`absolute top-1 overflow-hidden rounded border text-[10px] leading-tight transition-colors ${
                         isSelected
                           ? "z-10 border-[var(--color-accent)] bg-[var(--color-accent)]/30 ring-1 ring-[var(--color-accent)]"
                           : segment.speaker
                             ? "border-[var(--color-border)] bg-[var(--color-bg-elevated)]/90 hover:border-[var(--color-accent)]"
-                            : "border-dashed border-[var(--color-danger)] bg-[var(--color-danger)]/15"
+                            : "border-dashed border-[var(--color-error)] bg-[var(--color-error)]/15"
                       }`}
                       style={{
                         left: segment.start * pxPerSec,
@@ -725,6 +757,7 @@ export function TranscriptTruth() {
                         onPointerDown={(e) => {
                           e.stopPropagation();
                           setSelected(index);
+                          remember(segments);
                           setDragging({
                             index,
                             edge: "start",
@@ -739,6 +772,7 @@ export function TranscriptTruth() {
                         onPointerDown={(e) => {
                           e.stopPropagation();
                           setSelected(index);
+                          remember(segments);
                           setDragging({
                             index,
                             edge: "end",
@@ -766,10 +800,10 @@ export function TranscriptTruth() {
 
           {/* 再生位置 */}
           <div
-            className="pointer-events-none absolute top-0 bottom-0 z-30 w-px bg-[var(--color-danger)]"
+            className="pointer-events-none absolute top-0 bottom-0 z-30 w-px bg-[var(--color-error)]"
             style={{ left: LABEL_WIDTH + playhead * pxPerSec }}
           >
-            <span className="absolute -top-0.5 -left-1 h-2 w-2 rotate-45 bg-[var(--color-danger)]" />
+            <span className="absolute -top-0.5 -left-1 h-2 w-2 rotate-45 bg-[var(--color-error)]" />
           </div>
         </div>
       </div>
@@ -784,7 +818,7 @@ export function TranscriptTruth() {
             <select
               value={selectedSegment.speaker ?? UNASSIGNED}
               onChange={(e) => moveToLane(selected!, e.target.value)}
-              className="input input-sm"
+              className="input text-xs"
             >
               {lanes.map((lane) => (
                 <option key={lane} value={lane}>
@@ -793,13 +827,13 @@ export function TranscriptTruth() {
               ))}
             </select>
 
-            <button type="button" onClick={playSelected} className="btn btn-secondary btn-sm">
+            <button type="button" onClick={playSelected} className="btn btn-secondary text-xs">
               ここだけ聞く
             </button>
             <button
               type="button"
               onClick={() => splitAt(playhead)}
-              className="btn btn-secondary btn-sm"
+              className="btn btn-secondary text-xs"
             >
               再生位置で分割
             </button>
@@ -807,41 +841,32 @@ export function TranscriptTruth() {
             <button
               type="button"
               onClick={() => remove(selected!)}
-              className="btn btn-danger btn-sm ml-auto"
+              className="btn btn-secondary ml-auto text-xs text-[var(--color-error)]"
             >
               削除
             </button>
           </div>
 
-          {editing?.index === selected ? (
-            <div className="mt-2 flex gap-2">
-              <textarea
-                value={editing.text}
-                onChange={(e) => setEditing({ ...editing, text: e.target.value })}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) commitText();
-                  if (e.key === "Escape") setEditing(null);
-                }}
-                rows={2}
-                autoFocus
-                className="input flex-1 text-sm"
-              />
-              <button type="button" onClick={commitText} className="btn btn-primary btn-sm">
-                確定
-              </button>
-            </div>
-          ) : (
-            <p
-              onDoubleClick={() => setEditing({ index: selected!, text: selectedSegment.text })}
-              className="mt-2 cursor-text text-sm leading-relaxed"
-            >
-              {selectedSegment.text || (
-                <span className="text-[var(--color-text-muted)]">
-                  （空・ダブルクリックで書く）
-                </span>
-              )}
-            </p>
-          )}
+          {/*
+            常に書ける状態にしておく。ダブルクリックしないと書けないと、
+            直したいと思ってから手が止まる。正解を作る作業は「聞いて、直す」の
+            繰り返しなので、間に操作を挟まない
+          */}
+          <textarea
+            key={selected}
+            value={selectedSegment.text}
+            onChange={(e) => {
+              const next = [...segments];
+              next[selected!] = { ...next[selected!], text: e.target.value };
+              // 1 文字ごとに履歴へ積むと取り消しが使いものにならない。
+              // 本文の取り消しは入力欄自身のものに任せる
+              setSegments(next);
+              setDirty(true);
+            }}
+            rows={2}
+            placeholder="ここに本文を書く"
+            className="input mt-2 w-full text-sm leading-relaxed"
+          />
         </footer>
       )}
 
