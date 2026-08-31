@@ -33,6 +33,9 @@ const LABEL_WIDTH = 112;
 /** 端をつまむ幅 */
 const HANDLE_PX = 6;
 
+/** 範囲の端をつまむ幅。発言より掴みやすくしておく */
+const RANGE_HANDLE_PX = 10;
+
 /** 波形の刻み。levels.json と揃える */
 const LEVEL_FRAME_SEC = 0.05;
 
@@ -171,6 +174,9 @@ export function TranscriptTruth() {
   const [verified, setVerified] = useState<TruthRange[]>([]);
   const [loop, setLoop] = useState(true);
   const [selecting, setSelecting] = useState<number | null>(null);
+
+  /** 範囲の端をつまんで動かしている最中の、どちらの端か */
+  const [movingEdge, setMovingEdge] = useState<"start" | "end" | null>(null);
 
   /**
    * 取り消し用の履歴。
@@ -424,6 +430,48 @@ export function TranscriptTruth() {
       window.removeEventListener("pointerup", onUp);
     };
   }, [dragging, pxPerSec, setEdge]);
+
+  /**
+   * 範囲の端をつまんで動かす。
+   *
+   * 選び直すより、いま見ている範囲を少し伸ばす・縮めるほうが多い。文の途中で
+   * 切れていたら端を動かして合わせる。
+   */
+  useEffect(() => {
+    if (!movingEdge || !range) return;
+
+    const onMove = (e: PointerEvent) => {
+      const box = scrollRef.current?.getBoundingClientRect();
+      if (!box) return;
+
+      const at = Math.max(
+        0,
+        Math.min(
+          (e.clientX - box.left + (scrollRef.current?.scrollLeft ?? 0) - LABEL_WIDTH) /
+            pxPerSec,
+          duration
+        )
+      );
+
+      setRange((current) => {
+        if (!current) return current;
+
+        return movingEdge === "start"
+          ? { ...current, start: Math.min(at, current.end - 0.5) }
+          : { ...current, end: Math.max(at, current.start + 0.5) };
+      });
+    };
+
+    const onUp = () => setMovingEdge(null);
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, [movingEdge, range, pxPerSec, duration]);
 
   // ---- 保存 ----
 
@@ -708,8 +756,41 @@ export function TranscriptTruth() {
 
           {range ? (
             <>
-              <span className="font-mono tabular-nums">
-                {formatTime(range.start)} – {formatTime(range.end)}（
+              {/* 数値でも直せるようにする。ドラッグでは秒単位まで合わせづらい */}
+              <input
+                type="number"
+                step={0.1}
+                min={0}
+                max={range.end - 0.5}
+                value={range.start.toFixed(1)}
+                onChange={(e) =>
+                  setRange({
+                    ...range,
+                    start: Math.max(0, Math.min(Number(e.target.value), range.end - 0.5)),
+                  })
+                }
+                className="input w-24 font-mono text-xs tabular-nums"
+              />
+              <span className="text-[var(--color-text-muted)]">–</span>
+              <input
+                type="number"
+                step={0.1}
+                min={range.start + 0.5}
+                max={duration}
+                value={range.end.toFixed(1)}
+                onChange={(e) =>
+                  setRange({
+                    ...range,
+                    end: Math.min(
+                      duration,
+                      Math.max(Number(e.target.value), range.start + 0.5)
+                    ),
+                  })
+                }
+                className="input w-24 font-mono text-xs tabular-nums"
+              />
+              <span className="text-[var(--color-text-muted)]">
+                秒（{formatTime(range.start)}–{formatTime(range.end)}・
                 {Math.round(range.end - range.start)}秒）
               </span>
               <button
@@ -963,6 +1044,25 @@ export function TranscriptTruth() {
                   width: (range.end - range.start) * pxPerSec,
                 }}
               />
+
+              {/* 端をつまんで動かす */}
+              {(["start", "end"] as const).map((edge) => (
+                <div
+                  key={edge}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    setMovingEdge(edge);
+                  }}
+                  title={edge === "start" ? "範囲の頭を動かす" : "範囲の終わりを動かす"}
+                  className="absolute top-0 bottom-0 z-25 flex cursor-ew-resize items-start justify-center bg-[var(--color-accent)]/30 hover:bg-[var(--color-accent)]/60"
+                  style={{
+                    left: LABEL_WIDTH + range[edge] * pxPerSec - RANGE_HANDLE_PX / 2,
+                    width: RANGE_HANDLE_PX,
+                  }}
+                >
+                  <span className="mt-0.5 h-4 w-1 rounded bg-[var(--color-accent)]" />
+                </div>
+              ))}
             </>
           )}
 
