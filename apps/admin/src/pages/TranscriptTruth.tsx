@@ -495,6 +495,32 @@ export function TranscriptTruth() {
     }
   }, [id, segments, range, verified]);
 
+  /**
+   * いまの内容をファイルとして落とす。
+   *
+   * 保存先は R2 で公開 URL からも取れるが、URL を組むのが面倒なので手元に
+   * 落とせるようにしておく。採点や別の道具に渡すときに使う。
+   */
+  const download = useCallback(() => {
+    const payload = {
+      episode: episode?.id ?? id,
+      title: episode?.title ?? null,
+      ranges: range ? [...verified, range] : verified,
+      segments,
+    };
+
+    const url = URL.createObjectURL(
+      new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" })
+    );
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `transcript.truth.${episode?.id ?? id}.json`;
+    link.click();
+
+    URL.revokeObjectURL(url);
+  }, [episode, id, range, verified, segments]);
+
   // ---- 音声 ----
 
   const seek = useCallback(
@@ -729,6 +755,14 @@ export function TranscriptTruth() {
               className="btn btn-secondary text-xs"
             >
               ＋
+            </button>
+            <button
+              type="button"
+              onClick={download}
+              title="いまの内容を JSON で落とす"
+              className="btn btn-secondary text-xs"
+            >
+              ↓ JSON
             </button>
             <button
               type="button"
