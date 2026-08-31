@@ -737,6 +737,34 @@ transcriptionEpisodes.delete("/:id/impression", async (c) => {
 export { transcriptionQueue, transcriptionEpisodes };
 
 /**
+ * 確かめた範囲をまとめる
+ *
+ * 少しずつ増やしていくので、重なったり隣り合ったりする。そのまま貯めると
+ * 数え上げが二重になるため、繋げてから保存する。
+ */
+function mergeRanges(
+  ranges: Array<{ start: number; end: number }>
+): Array<{ start: number; end: number }> {
+  const valid = ranges
+    .filter((r) => Number.isFinite(r.start) && Number.isFinite(r.end) && r.end > r.start)
+    .sort((a, b) => a.start - b.start);
+
+  const merged: Array<{ start: number; end: number }> = [];
+
+  for (const range of valid) {
+    const last = merged[merged.length - 1];
+
+    if (last && range.start <= last.end) {
+      last.end = Math.max(last.end, range.end);
+    } else {
+      merged.push({ ...range });
+    }
+  }
+
+  return merged;
+}
+
+/**
  * GET /api/episodes/:id/transcript/truth - 人が直した正解を取得する
  *
  * まだ無ければ 404 ではなく空を返す。編集画面は「生データから始める」ので、
@@ -755,17 +783,19 @@ transcriptionEpisodes.get("/:id/transcript/truth", async (c) => {
     const obj = await c.env.R2_BUCKET.get(keys.truth);
 
     if (!obj) {
-      return c.json({ exists: false, segments: [], updatedAt: null });
+      return c.json({ exists: false, segments: [], ranges: [], updatedAt: null });
     }
 
     const data = JSON.parse(await obj.text()) as {
       segments?: unknown;
+      ranges?: unknown;
       updatedAt?: string;
     };
 
     return c.json({
       exists: true,
       segments: Array.isArray(data.segments) ? data.segments : [],
+      ranges: Array.isArray(data.ranges) ? data.ranges : [],
       updatedAt: data.updatedAt ?? null,
     });
   } catch (err) {
@@ -784,7 +814,7 @@ transcriptionEpisodes.put("/:id/transcript/truth", async (c) => {
   const id = c.req.param("id");
 
   try {
-    const body = await c.req.json<{ segments?: unknown }>();
+    const body = await c.req.json<{ segments?: unknown; ranges?: unknown }>();
 
     if (!Array.isArray(body.segments)) {
       return c.json({ error: "segments must be an array" }, 400);
@@ -803,6 +833,16 @@ transcriptionEpisodes.put("/:id/transcript/truth", async (c) => {
       .filter((seg) => Number.isFinite(seg.start) && Number.isFinite(seg.end))
       .sort((a, b) => a.start - b.start);
 
+    // 確かめた範囲。76 分を一度に直すのは無理なので、少しずつ増やす。
+    // 採点する側は「どこが確かめ済みか」を知らないと、まだ見ていない箇所の
+    // 食い違いを間違いとして数えてしまう
+    const ranges = mergeRanges(
+      (Array.isArray(body.ranges) ? body.ranges : []).map((raw) => {
+        const range = raw as Record<string, unknown>;
+        return { start: Number(range.start), end: Number(range.end) };
+      })
+    );
+
     const meta = await findEpisodeBySlug(c.env, id);
     if (!meta) {
       return c.json({ error: "Episode not found" }, 404);
@@ -813,11 +853,16 @@ transcriptionEpisodes.put("/:id/transcript/truth", async (c) => {
 
     await c.env.R2_BUCKET.put(
       keys.truth,
-      JSON.stringify({ updatedAt, segments }),
+      JSON.stringify({ updatedAt, ranges, segments }),
       { httpMetadata: { contentType: "application/json" } }
     );
 
-    return c.json({ success: true, segments: segments.length, updatedAt });
+    return c.json({
+      success: true,
+      segments: segments.length,
+      ranges,
+      updatedAt,
+    });
   } catch (err) {
     console.error(`[transcript/truth] Error for episode ${id}:`, err);
     return c.json({ error: "Failed to save the truth" }, 500);

@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../lib/api";
-import type { EpisodeDetail, RawSegment, TruthSegment } from "../lib/api";
+import type {
+  EpisodeDetail,
+  RawSegment,
+  TruthRange,
+  TruthSegment,
+} from "../lib/api";
 
 /**
  * 正解データ作成エディタ。
@@ -144,7 +149,6 @@ export function TranscriptTruth() {
   const [segments, setSegments] = useState<TruthSegment[]>([]);
   const [levels, setLevels] = useState<Levels>({});
   const [source, setSource] = useState<"truth" | "raw" | null>(null);
-  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -157,6 +161,18 @@ export function TranscriptTruth() {
   const [dragging, setDragging] = useState<Dragging | null>(null);
 
   /**
+   * いま作業している範囲。
+   *
+   * 76 分を一度に直すのは無理なので、区間を決めて少しずつ確かめる。確かめた
+   * 範囲は保存し、採点する側はそこだけを見る。範囲を記録しないと、まだ見て
+   * いない箇所の食い違いを間違いとして数えてしまう。
+   */
+  const [range, setRange] = useState<TruthRange | null>(null);
+  const [verified, setVerified] = useState<TruthRange[]>([]);
+  const [loop, setLoop] = useState(true);
+  const [selecting, setSelecting] = useState<number | null>(null);
+
+  /**
    * 取り消し用の履歴。
    *
    * 話者を変える・分割する・端を動かすは、間違えたときに戻せないと怖くて
@@ -165,7 +181,14 @@ export function TranscriptTruth() {
   const history = useRef<TruthSegment[][]>([]);
   const [canUndo, setCanUndo] = useState(false);
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  /**
+   * 音声要素は state で持つ。
+   *
+   * ref にしていたら再生位置のバーが動かなかった。読み込み中は早期 return で
+   * <audio> がまだ描かれておらず、イベントを繋ぐ処理が「要素が無い」状態で
+   * 走って何もしないまま終わっていた。state なら要素が付いた時点で走る。
+   */
+  const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const pxPerSec = ZOOM_STEPS[zoom];
@@ -188,7 +211,7 @@ export function TranscriptTruth() {
         if (truth.exists && truth.segments.length > 0) {
           setSegments(toTruth(truth.segments));
           setSource("truth");
-          setUpdatedAt(truth.updatedAt);
+          setVerified(truth.ranges ?? []);
         } else if (detail.transcriptRawUrl) {
           // 正解がまだ無いので、Whisper の生出力から始める
           const response = await fetch(detail.transcriptRawUrl);
@@ -256,6 +279,12 @@ export function TranscriptTruth() {
   }, [segments, episode]);
 
   const trackWidth = duration * pxPerSec;
+
+  /** 確かめ済みの合計。どこまで進んだかを出すのに使う */
+  const verifiedSec = useMemo(
+    () => verified.reduce((sum, r) => sum + (r.end - r.start), 0),
+    [verified]
+  );
 
   // ---- 編集 ----
 
@@ -404,8 +433,11 @@ export function TranscriptTruth() {
     setError(null);
 
     try {
-      const result = await api.saveTruth(id, segments);
-      setUpdatedAt(result.updatedAt);
+      // いま見ていた範囲を確かめ済みに加える
+      const next = range ? [...verified, range] : verified;
+      const result = await api.saveTruth(id, segments, next);
+
+      setVerified(result.ranges);
       setSource("truth");
       setDirty(false);
     } catch (e) {
@@ -413,18 +445,16 @@ export function TranscriptTruth() {
     } finally {
       setSaving(false);
     }
-  }, [id, segments]);
+  }, [id, segments, range, verified]);
 
   // ---- 音声 ----
 
   const seek = useCallback((at: number) => {
     setPlayhead(at);
-    const audio = audioRef.current;
     if (audio) audio.currentTime = at;
   }, []);
 
   const togglePlay = useCallback(() => {
-    const audio = audioRef.current;
     if (!audio) return;
     if (audio.paused) void audio.play();
     else audio.pause();
@@ -434,7 +464,6 @@ export function TranscriptTruth() {
   const playSelected = useCallback(() => {
     if (selected === null) return;
     const segment = segments[selected];
-    const audio = audioRef.current;
     if (!audio) return;
 
     audio.currentTime = segment.start;
@@ -450,23 +479,46 @@ export function TranscriptTruth() {
   }, [segments, selected]);
 
   useEffect(() => {
-    const audio = audioRef.current;
     if (!audio) return;
 
-    const onTime = () => setPlayhead(audio.currentTime);
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
+    const onSeeked = () => setPlayhead(audio.currentTime);
 
-    audio.addEventListener("timeupdate", onTime);
     audio.addEventListener("play", onPlay);
     audio.addEventListener("pause", onPause);
+    audio.addEventListener("seeked", onSeeked);
 
     return () => {
-      audio.removeEventListener("timeupdate", onTime);
       audio.removeEventListener("play", onPlay);
       audio.removeEventListener("pause", onPause);
+      audio.removeEventListener("seeked", onSeeked);
     };
-  }, [episode]);
+  }, [audio]);
+
+  /**
+   * 再生中は毎フレーム位置を読む。
+   *
+   * timeupdate は 1 秒に 4 回しか来ないので、バーがカクついて位置が読めない。
+   */
+  useEffect(() => {
+    if (!audio || !playing) return;
+
+    let frame = 0;
+    const tick = () => {
+      setPlayhead(audio.currentTime);
+
+      // 範囲を決めているときは、その中を繰り返す
+      if (loop && range && audio.currentTime >= range.end) {
+        audio.currentTime = range.start;
+      }
+
+      frame = requestAnimationFrame(tick);
+    };
+
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [audio, playing, loop, range]);
 
   // 再生位置が画面から出たら追いかける
   useEffect(() => {
@@ -595,7 +647,10 @@ export function TranscriptTruth() {
           <span className="text-xs text-[var(--color-text-muted)]">
             {segments.length} 発言 / {lanes.length - 1} 人
             {source === "raw" && "・生データから開始"}
-            {updatedAt && `・保存 ${new Date(updatedAt).toLocaleString("ja-JP")}`}
+            {verifiedSec > 0 &&
+              `・確かめ済み ${Math.round(verifiedSec / 60)}分（${Math.round(
+                (verifiedSec / duration) * 100
+              )}%）`}
           </span>
 
           <div className="ml-auto flex items-center gap-2">
@@ -636,12 +691,69 @@ export function TranscriptTruth() {
             <button
               type="button"
               onClick={save}
-              disabled={saving || !dirty}
+              disabled={saving || (!dirty && !range)}
               className="btn btn-primary text-xs"
             >
-              {saving ? "保存中..." : dirty ? "正解を保存" : "保存済み"}
+              {saving ? "保存中..." : range ? "この範囲を正解にする" : dirty ? "正解を保存" : "保存済み"}
             </button>
           </div>
+        </div>
+
+        {/* 作業する範囲。76 分を一度に直すのは無理なので、少しずつ確かめる */}
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-[var(--color-text-muted)]">範囲</span>
+
+          {range ? (
+            <>
+              <span className="font-mono tabular-nums">
+                {formatTime(range.start)} – {formatTime(range.end)}（
+                {Math.round(range.end - range.start)}秒）
+              </span>
+              <button
+                type="button"
+                onClick={() => seek(range.start)}
+                className="btn btn-secondary text-xs"
+              >
+                頭から
+              </button>
+              <label className="flex items-center gap-1">
+                <input
+                  type="checkbox"
+                  checked={loop}
+                  onChange={(e) => setLoop(e.target.checked)}
+                />
+                繰り返す
+              </label>
+              <button
+                type="button"
+                onClick={() => setRange(null)}
+                className="btn btn-secondary text-xs"
+              >
+                範囲を外す
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="text-[var(--color-text-muted)]">
+                目盛りを横にドラッグして選ぶ / または
+              </span>
+              {[1, 3, 5].map((minutes) => (
+                <button
+                  key={minutes}
+                  type="button"
+                  onClick={() =>
+                    setRange({
+                      start: playhead,
+                      end: Math.min(playhead + minutes * 60, duration),
+                    })
+                  }
+                  className="btn btn-secondary text-xs"
+                >
+                  ここから{minutes}分
+                </button>
+              ))}
+            </>
+          )}
         </div>
 
         {error && <p className="mt-2 text-xs text-[var(--color-error)]">{error}</p>}
@@ -662,12 +774,29 @@ export function TranscriptTruth() {
               style={{ width: LABEL_WIDTH }}
             />
             <div
-              className="relative cursor-pointer"
+              className="relative cursor-ew-resize"
               style={{ width: trackWidth }}
               onPointerDown={(e) => {
                 const box = e.currentTarget.getBoundingClientRect();
-                seek(Math.max(0, (e.clientX - box.left) / pxPerSec));
+                const at = Math.max(0, (e.clientX - box.left) / pxPerSec);
+
+                // 目盛りはドラッグで範囲を選ぶ。ただの click なら再生位置
+                setSelecting(at);
+                seek(at);
               }}
+              onPointerMove={(e) => {
+                if (selecting === null) return;
+                const box = e.currentTarget.getBoundingClientRect();
+                const at = Math.max(0, (e.clientX - box.left) / pxPerSec);
+
+                if (Math.abs(at - selecting) > 0.3) {
+                  setRange({
+                    start: Math.min(selecting, at),
+                    end: Math.max(selecting, at),
+                  });
+                }
+              }}
+              onPointerUp={() => setSelecting(null)}
             >
               {Array.from({ length: Math.floor(duration / tick) + 1 }, (_, i) => (
                 <span
@@ -798,6 +927,42 @@ export function TranscriptTruth() {
             </div>
           ))}
 
+          {/* 確かめ済みの範囲。どこまで進んだかが見えるように */}
+          {verified.map((done, i) => (
+            <div
+              key={i}
+              className="pointer-events-none absolute top-6 bottom-0 z-0 bg-[var(--color-success)]/10"
+              style={{
+                left: LABEL_WIDTH + done.start * pxPerSec,
+                width: (done.end - done.start) * pxPerSec,
+              }}
+            />
+          ))}
+
+          {/* いま作業している範囲。外は暗くする */}
+          {range && (
+            <>
+              <div
+                className="pointer-events-none absolute top-0 bottom-0 z-20 bg-[var(--color-bg-base)]/70"
+                style={{ left: LABEL_WIDTH, width: range.start * pxPerSec }}
+              />
+              <div
+                className="pointer-events-none absolute top-0 bottom-0 z-20 bg-[var(--color-bg-base)]/70"
+                style={{
+                  left: LABEL_WIDTH + range.end * pxPerSec,
+                  width: Math.max(0, (duration - range.end) * pxPerSec),
+                }}
+              />
+              <div
+                className="pointer-events-none absolute top-0 bottom-0 z-20 border-x-2 border-[var(--color-accent)]"
+                style={{
+                  left: LABEL_WIDTH + range.start * pxPerSec,
+                  width: (range.end - range.start) * pxPerSec,
+                }}
+              />
+            </>
+          )}
+
           {/* 再生位置 */}
           <div
             className="pointer-events-none absolute top-0 bottom-0 z-30 w-px bg-[var(--color-error)]"
@@ -871,7 +1036,7 @@ export function TranscriptTruth() {
       )}
 
       {episode.audioUrl && (
-        <audio ref={audioRef} src={episode.audioUrl} preload="metadata" />
+        <audio ref={setAudio} src={episode.audioUrl} preload="metadata" />
       )}
     </div>
   );

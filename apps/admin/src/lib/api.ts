@@ -483,11 +483,16 @@ export const api = {
   getTruth: (id: string) =>
     request<TruthResponse>(`/api/episodes/${id}/transcript/truth`),
 
-  saveTruth: (id: string, segments: TruthSegment[]) =>
-    request<{ success: boolean; segments: number; updatedAt: string }>(
-      `/api/episodes/${id}/transcript/truth`,
-      { method: "PUT", body: JSON.stringify({ segments }) }
-    ),
+  saveTruth: (id: string, segments: TruthSegment[], ranges: TruthRange[]) =>
+    request<{
+      success: boolean;
+      segments: number;
+      ranges: TruthRange[];
+      updatedAt: string;
+    }>(`/api/episodes/${id}/transcript/truth`, {
+      method: "PUT",
+      body: JSON.stringify({ segments, ranges }),
+    }),
 
   saveSpeakerIcons: (id: string, speakerIcons: SpeakerIcon[] | null) =>
     request<{ success: boolean; speakerIcons: SpeakerIcon[] | null }>(
@@ -866,9 +871,16 @@ export interface TruthSegment {
   speaker: string | null;
 }
 
+/** 人が確かめた範囲。ここだけを採点の対象にする */
+export interface TruthRange {
+  start: number;
+  end: number;
+}
+
 export interface TruthResponse {
   exists: boolean;
   segments: TruthSegment[];
+  ranges: TruthRange[];
   updatedAt: string | null;
 }
 
