@@ -56,7 +56,10 @@ export function ClipViewer() {
   // まだ送っていない指示。溜めてからまとめて送る
   const [items, setItems] = useState<ClipRequestItem[]>([]);
   const [editing, setEditing] = useState<number | null>(null);
+  // 直した文字と、区切りへの指示は別の箱にする。ひとつにまとめると、元の文字を
+  // 入れておいたときに消し忘れて、それがそのまま指示として飛ぶ
   const [draft, setDraft] = useState("");
+  const [note, setNote] = useState("");
   const [sending, setSending] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -103,6 +106,7 @@ export function ClipViewer() {
     setItems((prev) => [...prev, item]);
     setEditing(null);
     setDraft("");
+    setNote("");
   };
 
   const send = async () => {
@@ -256,7 +260,9 @@ export function ClipViewer() {
                     className="btn btn-ghost px-2 py-1 text-xs"
                     onClick={() => {
                       setEditing(s.index);
-                      setDraft("");
+                      // 元の文字を入れておく。打ち直させる理由がない
+                      setDraft(s.rows.join(""));
+                      setNote("");
                     }}
                   >
                     直す
@@ -272,58 +278,94 @@ export function ClipViewer() {
               </div>
 
               {editing === s.index && (
-                <div className="mt-2 space-y-2">
-                  <textarea
-                    className="input w-full text-sm"
-                    rows={2}
-                    autoFocus
-                    placeholder="直した文字、または「区切りを前に寄せて」のような指示"
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      className="btn btn-primary px-3 py-1 text-xs"
-                      disabled={!draft.trim()}
-                      onClick={() =>
-                        addItem({ type: "edit", index: s.index, text: draft.trim() })
-                      }
-                    >
-                      この文字に直す
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-secondary px-3 py-1 text-xs"
-                      disabled={!draft.trim()}
-                      onClick={() =>
-                        addItem({ type: "note", index: s.index, text: draft.trim() })
-                      }
-                    >
-                      指示として伝える
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-ghost px-3 py-1 text-xs"
-                      onClick={() =>
-                        addItem({
-                          type: "insert",
-                          afterIndex: s.index,
-                          text: draft.trim(),
-                        })
-                      }
-                      disabled={!draft.trim()}
-                    >
-                      この後に追加
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-ghost px-3 py-1 text-xs"
-                      onClick={() => setEditing(null)}
-                    >
-                      やめる
-                    </button>
+                <div className="mt-3 space-y-4 rounded border border-[var(--color-border)] p-3">
+                  {/* 文字を直す。箱には元の文字が入っている */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-semibold">
+                      文字を直す
+                    </label>
+                    <textarea
+                      className="input w-full text-sm"
+                      rows={2}
+                      autoFocus
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        className="btn btn-primary px-3 py-1 text-xs"
+                        // 元のままなら直すものがない
+                        disabled={
+                          !draft.trim() || draft.trim() === s.rows.join("")
+                        }
+                        onClick={() =>
+                          addItem({ type: "edit", index: s.index, text: draft.trim() })
+                        }
+                      >
+                        この文字に直す
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost px-2 py-1 text-xs"
+                        onClick={() => setDraft(s.rows.join(""))}
+                        disabled={draft === s.rows.join("")}
+                      >
+                        元に戻す
+                      </button>
+                    </div>
+                    <p className="text-xs text-secondary">
+                      直るのはこの動画の字幕だけです（公開サイトの文字起こしはそのまま）
+                    </p>
                   </div>
+
+                  {/* 区切りへの注文と、ここに足したいもの。文字を直す箱とは別 */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-semibold">
+                      区切りへの指示、ここに足したい字幕
+                    </label>
+                    <textarea
+                      className="input w-full text-sm"
+                      rows={2}
+                      placeholder="「区切りを前に寄せて」／ここに足したい字幕"
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="btn btn-secondary px-3 py-1 text-xs"
+                        disabled={!note.trim()}
+                        onClick={() =>
+                          addItem({ type: "note", index: s.index, text: note.trim() })
+                        }
+                      >
+                        指示として伝える
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost px-3 py-1 text-xs"
+                        disabled={!note.trim()}
+                        onClick={() =>
+                          addItem({
+                            type: "insert",
+                            afterIndex: s.index,
+                            text: note.trim(),
+                          })
+                        }
+                      >
+                        この後に追加
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="btn btn-ghost px-3 py-1 text-xs"
+                    onClick={() => setEditing(null)}
+                  >
+                    やめる
+                  </button>
                 </div>
               )}
             </div>

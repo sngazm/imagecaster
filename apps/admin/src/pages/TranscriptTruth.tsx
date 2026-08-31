@@ -449,16 +449,19 @@ export function TranscriptTruth() {
 
   // ---- 音声 ----
 
-  const seek = useCallback((at: number) => {
-    setPlayhead(at);
-    if (audio) audio.currentTime = at;
-  }, []);
+  const seek = useCallback(
+    (at: number) => {
+      setPlayhead(at);
+      if (audio) audio.currentTime = at;
+    },
+    [audio]
+  );
 
   const togglePlay = useCallback(() => {
     if (!audio) return;
     if (audio.paused) void audio.play();
     else audio.pause();
-  }, []);
+  }, [audio]);
 
   /** 選んでいる発言だけを聞く。誰が喋っているかを確かめる基本の操作 */
   const playSelected = useCallback(() => {
@@ -476,7 +479,7 @@ export function TranscriptTruth() {
       }
     };
     audio.addEventListener("timeupdate", stop);
-  }, [segments, selected]);
+  }, [audio, segments, selected]);
 
   useEffect(() => {
     if (!audio) return;
