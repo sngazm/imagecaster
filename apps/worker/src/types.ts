@@ -327,6 +327,8 @@ export interface EpisodeMeta {
    * このエピソードだけに当てる。番組全体の辞書のあとに適用する。
    */
   transcriptCorrections?: CorrectionRule[] | null;
+  /** トラックごとの音量（波形）。正解データ作成画面が読む */
+  levelsUrl?: string | null;
 }
 
 /**

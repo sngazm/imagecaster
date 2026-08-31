@@ -1417,6 +1417,13 @@ export function transcriptKeys(storageKey: string) {
      * 推測でロジックを積み上げるのをやめ、正解との差で測るために置く。
      */
     truth: `episodes/${storageKey}/transcript.truth.json`,
+    /**
+     * トラックごとの音量（波形）
+     *
+     * 話者判定はこの数字を見て決めている。間違っているところを人が直すときも
+     * 同じものが見えているのが早い。0.05 秒刻み・0〜255 に丸めて base64。
+     */
+    levels: `episodes/${storageKey}/levels.json`,
   };
 }
 

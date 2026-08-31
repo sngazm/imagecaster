@@ -823,3 +823,54 @@ transcriptionEpisodes.put("/:id/transcript/truth", async (c) => {
     return c.json({ error: "Failed to save the truth" }, 500);
   }
 });
+
+/**
+ * PUT /api/episodes/:id/levels - トラックごとの音量（波形）を保存する
+ *
+ * 話者判定はこの数字を見て決めている。間違っているところを人が直すときも同じ
+ * ものが見えているのが早いので、正解データ作成画面に渡すために置く。
+ *
+ * 0.05 秒刻みで 0〜255 に丸め、base64 で送る。76 分・3 人で 300KB ほど。
+ */
+transcriptionEpisodes.put("/:id/levels", async (c) => {
+  const id = c.req.param("id");
+
+  try {
+    const body = await c.req.json<{
+      frameSec?: number;
+      tracks?: Record<string, string>;
+    }>();
+
+    if (!body.tracks || typeof body.tracks !== "object") {
+      return c.json({ error: "tracks must be an object" }, 400);
+    }
+
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    const keys = transcriptKeys(meta.storageKey);
+
+    await c.env.R2_BUCKET.put(
+      keys.levels,
+      JSON.stringify({
+        frameSec: body.frameSec ?? 0.05,
+        tracks: body.tracks,
+      }),
+      { httpMetadata: { contentType: "application/json" } }
+    );
+
+    meta.levelsUrl = `${c.env.R2_PUBLIC_URL}/${keys.levels}`;
+    await saveEpisodeMeta(c.env, meta);
+
+    return c.json({
+      success: true,
+      tracks: Object.keys(body.tracks).length,
+      levelsUrl: meta.levelsUrl,
+    });
+  } catch (err) {
+    console.error(`[levels] Error for episode ${id}:`, err);
+    return c.json({ error: "Failed to save the levels" }, 500);
+  }
+});

@@ -87,6 +87,8 @@ export interface EpisodeDetail {
   tracksUploadedAt?: string | null;
   speakerTracks?: SpeakerTrackAssignment[] | null;
   transcriptRawUrl?: string | null;
+  /** トラックごとの音量（波形）。正解データ作成画面が読む */
+  levelsUrl?: string | null;
 }
 
 /**
