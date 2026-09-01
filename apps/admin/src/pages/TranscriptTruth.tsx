@@ -176,7 +176,6 @@ export function TranscriptTruth() {
   const [range, setRange] = useState<TruthRange | null>(null);
   const [verified, setVerified] = useState<TruthRange[]>([]);
   const [loop, setLoop] = useState(true);
-  const [selecting, setSelecting] = useState<number | null>(null);
 
   /** 範囲の端をつまんで動かしている最中の、どちらの端か */
   const [movingEdge, setMovingEdge] = useState<"start" | "end" | null>(null);
@@ -190,6 +189,12 @@ export function TranscriptTruth() {
    */
   const [output, setOutput] = useState<TruthSegment[]>([]);
   const [showOutput, setShowOutput] = useState(true);
+
+  /** 現状の出力のうち、いま選んでいるもの。中身を読むためだけ */
+  const [pickedOutput, setPickedOutput] = useState<number | null>(null);
+
+  /** 本文の入力欄。選択した範囲を抜き出すのに使う */
+  const textRef = useRef<HTMLTextAreaElement | null>(null);
 
   /**
    * 取り消し用の履歴。
@@ -320,6 +325,23 @@ export function TranscriptTruth() {
 
   const trackWidth = duration * pxPerSec;
 
+  /**
+   * いま流れている発言。再生位置より手前で、いちばん最後に始まったもの。
+   *
+   * 聞きながら「いまどこを読んでいるか」が見えないと、話者を直すときに耳と
+   * 目が合わない。字幕のように出す。
+   */
+  const onAir = useMemo(() => {
+    let found: TruthSegment | null = null;
+
+    for (const segment of segments) {
+      if (segment.start > playhead) break;
+      if (segment.end >= playhead || !found) found = segment;
+    }
+
+    return found;
+  }, [segments, playhead]);
+
   /** 確かめ済みの合計。どこまで進んだかを出すのに使う */
   const verifiedSec = useMemo(
     () => verified.reduce((sum, r) => sum + (r.end - r.start), 0),
@@ -394,6 +416,42 @@ export function TranscriptTruth() {
     },
     [segments, update]
   );
+
+  /**
+   * 本文の選んだ部分を抜き出して、未割当のトラックに出す。
+   *
+   * 1 つの発言に二人分が入っているとき、間で切るだけでは足りないことがある。
+   * 相手の言葉が文の途中に挟まっていると、時間では切り分けられない。文字で
+   * 選んで抜き出し、あとから端を合わせて話者を決める。
+   *
+   * 抜き出したものは元と同じ長さで出す。正しい時刻は聞いて決めるものなので、
+   * ここでは推測しない。
+   */
+  const extractSelection = useCallback(() => {
+    if (selected === null) return;
+
+    const field = textRef.current;
+    if (!field) return;
+
+    const from = field.selectionStart;
+    const to = field.selectionEnd;
+
+    if (from === to) {
+      setError("本文の抜き出したい部分を選んでください");
+      return;
+    }
+
+    const segment = segments[selected];
+    const taken = segment.text.slice(from, to);
+    const left = (segment.text.slice(0, from) + segment.text.slice(to)).trim();
+
+    update([
+      ...segments.filter((_, i) => i !== selected),
+      { ...segment, text: left },
+      { ...segment, text: taken.trim(), speaker: null },
+    ]);
+    setError(null);
+  }, [segments, selected, update]);
 
   /** 再生位置に新しい発言を足す。落ちていた発話を書き起こすのに使う */
   const addAtPlayhead = useCallback(
@@ -894,27 +952,37 @@ export function TranscriptTruth() {
               </button>
             </>
           ) : (
-            <>
-              <span className="text-[var(--color-text-muted)]">
-                目盛りを横にドラッグして選ぶ / または
-              </span>
-              {[1, 3, 5].map((minutes) => (
-                <button
-                  key={minutes}
-                  type="button"
-                  onClick={() =>
-                    setRange({
-                      start: playhead,
-                      end: Math.min(playhead + minutes * 60, duration),
-                    })
-                  }
-                  className="btn btn-secondary text-xs"
-                >
-                  ここから{minutes}分
-                </button>
-              ))}
-            </>
+            <span className="text-[var(--color-text-muted)]">
+              再生位置を置いて「ここから」「ここまで」で決める
+            </span>
           )}
+
+          <button
+            type="button"
+            onClick={() =>
+              setRange((current) => ({
+                start: playhead,
+                end: Math.max(current?.end ?? playhead + 60, playhead + 1),
+              }))
+            }
+            title="再生位置を範囲の頭にする"
+            className="btn btn-secondary text-xs"
+          >
+            ここから
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              setRange((current) => ({
+                start: Math.min(current?.start ?? Math.max(0, playhead - 60), playhead - 1),
+                end: playhead,
+              }))
+            }
+            title="再生位置を範囲の終わりにする"
+            className="btn btn-secondary text-xs"
+          >
+            ここまで
+          </button>
         </div>
 
         {error && <p className="mt-2 text-xs text-[var(--color-error)]">{error}</p>}
@@ -922,7 +990,7 @@ export function TranscriptTruth() {
         <p className="mt-2 text-[11px] leading-relaxed text-[var(--color-text-muted)]">
           クリックで再生位置を置く / <kbd>Space</kbd> 再生 / <kbd>Enter</kbd> 選んだ発言だけ聞く
           / <kbd>↑↓</kbd> 話者を変える / <kbd>S</kbd> 再生位置で分割 / <kbd>←→</kbd> 0.1 秒（Shift で 1 秒）
-          / <kbd>⌘Z</kbd> 取り消し / 発言の端をつまんで伸び縮み / 本文は下の欄にそのまま書ける
+          / <kbd>⌘Z</kbd> 取り消し / 発言の端をつまんで伸び縮み / 本文を選んで「抜き出す」
           <br />
           上段が正解（編集できる）、下の薄い帯が校正まで通した現状の出力（読むだけ）。
           本文の誤りは校正が直す担当なので、ここでは<b>誰がいつ喋ったか</b>だけ直せば足ります。
@@ -938,29 +1006,15 @@ export function TranscriptTruth() {
               style={{ width: LABEL_WIDTH }}
             />
             <div
-              className="relative cursor-ew-resize"
+              className="relative cursor-pointer"
               style={{ width: trackWidth }}
               onPointerDown={(e) => {
+                // 目盛りは再生位置を置くだけ。範囲は「ここから」「ここまで」で
+                // 決める。ドラッグで範囲が変わると、位置を送るつもりで
+                // 範囲を作ってしまう
                 const box = e.currentTarget.getBoundingClientRect();
-                const at = Math.max(0, (e.clientX - box.left) / pxPerSec);
-
-                // 目盛りはドラッグで範囲を選ぶ。ただの click なら再生位置
-                setSelecting(at);
-                seek(at);
+                seek(Math.max(0, (e.clientX - box.left) / pxPerSec));
               }}
-              onPointerMove={(e) => {
-                if (selecting === null) return;
-                const box = e.currentTarget.getBoundingClientRect();
-                const at = Math.max(0, (e.clientX - box.left) / pxPerSec);
-
-                if (Math.abs(at - selecting) > 0.3) {
-                  setRange({
-                    start: Math.min(selecting, at),
-                    end: Math.max(selecting, at),
-                  });
-                }
-              }}
-              onPointerUp={() => setSelecting(null)}
             >
               {Array.from({ length: Math.floor(duration / tick) + 1 }, (_, i) => (
                 <span
@@ -1026,7 +1080,15 @@ export function TranscriptTruth() {
                       <div
                         key={`out-${index}`}
                         title={segment.text}
-                        className="pointer-events-none absolute overflow-hidden whitespace-nowrap rounded-sm border border-[var(--color-text-muted)]/40 bg-[var(--color-text-muted)]/15 px-1 text-[9px] leading-[16px] text-[var(--color-text-muted)]"
+                        onPointerDown={(e) => {
+                          e.stopPropagation();
+                          setPickedOutput(index);
+                        }}
+                        className={`absolute cursor-pointer overflow-hidden whitespace-nowrap rounded-sm border px-1 text-[9px] leading-[16px] transition-colors ${
+                          pickedOutput === index
+                            ? "border-[var(--color-info)] bg-[var(--color-info)]/25 text-[var(--color-text-primary)]"
+                            : "border-[var(--color-text-muted)]/40 bg-[var(--color-text-muted)]/15 text-[var(--color-text-muted)] hover:border-[var(--color-info)]"
+                        }`}
                         style={{
                           left: segment.start * pxPerSec,
                           width: Math.max(3, (segment.end - segment.start) * pxPerSec),
@@ -1050,11 +1112,10 @@ export function TranscriptTruth() {
                       key={index}
                       onPointerDown={(e) => {
                         e.stopPropagation();
-                        const box = e.currentTarget.getBoundingClientRect();
+                        // 選ぶだけ。再生位置は動かさない。聞きながら
+                        // 選び直すとき、位置が飛ぶと聞き直しになる
                         setSelected(index);
-                        // クリックした位置に再生位置を置く。先頭に飛ばすと
-                        // 「再生位置で分割」がその発言の中で使えない
-                        seek(segment.start + (e.clientX - box.left) / pxPerSec);
+                        setPickedOutput(null);
                       }}
                       title={segment.text}
                       className={`absolute top-1 overflow-hidden rounded border text-[10px] leading-tight transition-colors ${
@@ -1181,6 +1242,38 @@ export function TranscriptTruth() {
         </div>
       </div>
 
+      {/* いま流れている発言。聞きながら目で追えるように */}
+      <div className="shrink-0 border-t border-[var(--color-border)] bg-[var(--color-bg-elevated)]/40 px-4 py-2">
+        <div className="flex items-baseline gap-3">
+          <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">
+            {onAir?.speaker ?? "—"}
+          </span>
+          <p className="min-h-[1.4em] flex-1 text-sm leading-relaxed">
+            {onAir?.text || (
+              <span className="text-[var(--color-text-muted)]">（無音）</span>
+            )}
+          </p>
+        </div>
+
+        {pickedOutput !== null && output[pickedOutput] && (
+          <div className="mt-1 flex items-baseline gap-3 border-t border-[var(--color-border)] pt-1">
+            <span className="shrink-0 text-[10px] text-[var(--color-info)]">
+              現状 {output[pickedOutput].speaker ?? "未割当"}
+            </span>
+            <p className="flex-1 select-text text-xs leading-relaxed text-[var(--color-text-secondary)]">
+              {output[pickedOutput].text}
+            </p>
+            <button
+              type="button"
+              onClick={() => setPickedOutput(null)}
+              className="shrink-0 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+      </div>
+
       {selectedSegment && (
         <footer className="shrink-0 border-t border-[var(--color-border)] px-4 py-3">
           <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -1210,6 +1303,14 @@ export function TranscriptTruth() {
             >
               再生位置で分割
             </button>
+            <button
+              type="button"
+              onClick={extractSelection}
+              title="本文の選んだ部分を、未割当のトラックに抜き出す"
+              className="btn btn-secondary text-xs"
+            >
+              選択部分を抜き出す
+            </button>
 
             <button
               type="button"
@@ -1226,6 +1327,7 @@ export function TranscriptTruth() {
             繰り返しなので、間に操作を挟まない
           */}
           <textarea
+            ref={textRef}
             key={selected}
             value={selectedSegment.text}
             onChange={(e) => {
