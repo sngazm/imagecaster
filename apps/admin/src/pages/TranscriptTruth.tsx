@@ -27,7 +27,10 @@ const DEFAULT_ZOOM = 3;
 const UNASSIGNED = " unassigned";
 
 /** トラックの高さと、話者名の欄の幅 */
-const LANE_HEIGHT = 72;
+const LANE_HEIGHT = 76;
+
+/** 現状の出力を重ねて見せる帯の高さ */
+const OUTPUT_STRIP_HEIGHT = 18;
 const LABEL_WIDTH = 112;
 
 /** 端をつまむ幅 */
@@ -151,7 +154,7 @@ export function TranscriptTruth() {
   const [episode, setEpisode] = useState<EpisodeDetail | null>(null);
   const [segments, setSegments] = useState<TruthSegment[]>([]);
   const [levels, setLevels] = useState<Levels>({});
-  const [source, setSource] = useState<"truth" | "raw" | null>(null);
+  const [source, setSource] = useState<"truth" | "raw" | "published" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -177,6 +180,16 @@ export function TranscriptTruth() {
 
   /** 範囲の端をつまんで動かしている最中の、どちらの端か */
   const [movingEdge, setMovingEdge] = useState<"start" | "end" | null>(null);
+
+  /**
+   * 校正まで通した現状の出力。読むだけで、直せない。
+   *
+   * 正解は生データから作る（後処理の前なので、話者分離の誤りと後処理の誤りを
+   * 切り分けられる）。ただ「いま何が公開されているか」を見ないと、直した結果が
+   * どう効くのか分からない。重ねて見られるようにしておく。
+   */
+  const [output, setOutput] = useState<TruthSegment[]>([]);
+  const [showOutput, setShowOutput] = useState(true);
 
   /**
    * 取り消し用の履歴。
@@ -219,7 +232,11 @@ export function TranscriptTruth() {
           setSource("truth");
           setVerified(truth.ranges ?? []);
         } else if (detail.transcriptRawUrl) {
-          // 正解がまだ無いので、Whisper の生出力から始める
+          // 正解がまだ無いので、Whisper の生出力から始める。
+          //
+          // 後処理は生データから決まるので、正解をこの階層に置くとどの工程で
+          // 間違えたかを切り分けられる。公開後のテキストに置くと、話者分離の
+          // 誤りなのか後処理の誤りなのか区別できない。
           const response = await fetch(detail.transcriptRawUrl);
           if (!response.ok) throw new Error(`生データを読めません（HTTP ${response.status}）`);
 
@@ -230,6 +247,23 @@ export function TranscriptTruth() {
           setSource("raw");
         } else {
           setError("生データがありません。文字起こしを先に走らせてください");
+        }
+
+        // 校正まで通した現状の出力。重ねて見るだけなので、失敗しても進む
+        if (detail.transcriptRawUrl) {
+          try {
+            const url = detail.transcriptRawUrl.replace(
+              /transcript\.raw\.json$/,
+              "transcript.json"
+            );
+            const response = await fetch(url);
+            if (response.ok) {
+              const data = (await response.json()) as { segments?: RawSegment[] };
+              if (alive) setOutput(toTruth(data.segments ?? []));
+            }
+          } catch {
+            // 重ねて見られないだけ
+          }
         }
 
         // 波形。無くても編集はできるので、失敗しても黙って進む
@@ -723,7 +757,8 @@ export function TranscriptTruth() {
 
           <span className="text-xs text-[var(--color-text-muted)]">
             {segments.length} 発言 / {lanes.length - 1} 人
-            {source === "raw" && "・生データから開始"}
+            {source === "raw" && "・生データ"}
+            {source === "published" && "・公開データ"}
             {verifiedSec > 0 &&
               `・確かめ済み ${Math.round(verifiedSec / 60)}分（${Math.round(
                 (verifiedSec / duration) * 100
@@ -756,6 +791,14 @@ export function TranscriptTruth() {
             >
               ＋
             </button>
+            <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
+              <input
+                type="checkbox"
+                checked={showOutput}
+                onChange={(e) => setShowOutput(e.target.checked)}
+              />
+              現状の出力
+            </label>
             <button
               type="button"
               onClick={download}
@@ -880,6 +923,9 @@ export function TranscriptTruth() {
           クリックで再生位置を置く / <kbd>Space</kbd> 再生 / <kbd>Enter</kbd> 選んだ発言だけ聞く
           / <kbd>↑↓</kbd> 話者を変える / <kbd>S</kbd> 再生位置で分割 / <kbd>←→</kbd> 0.1 秒（Shift で 1 秒）
           / <kbd>⌘Z</kbd> 取り消し / 発言の端をつまんで伸び縮み / 本文は下の欄にそのまま書ける
+          <br />
+          上段が正解（編集できる）、下の薄い帯が校正まで通した現状の出力（読むだけ）。
+          本文の誤りは校正が直す担当なので、ここでは<b>誰がいつ喋ったか</b>だけ直せば足ります。
         </p>
       </header>
 
@@ -968,6 +1014,31 @@ export function TranscriptTruth() {
                   />
                 )}
 
+                {/*
+                  校正まで通した現状の出力。読むだけ。正解と見比べて、どこが
+                  食い違っているかをその場で確かめられるようにしている
+                */}
+                {showOutput &&
+                  output.map((segment, index) => {
+                    if ((segment.speaker ?? UNASSIGNED) !== lane) return null;
+
+                    return (
+                      <div
+                        key={`out-${index}`}
+                        title={segment.text}
+                        className="pointer-events-none absolute overflow-hidden whitespace-nowrap rounded-sm border border-[var(--color-text-muted)]/40 bg-[var(--color-text-muted)]/15 px-1 text-[9px] leading-[16px] text-[var(--color-text-muted)]"
+                        style={{
+                          left: segment.start * pxPerSec,
+                          width: Math.max(3, (segment.end - segment.start) * pxPerSec),
+                          bottom: 2,
+                          height: OUTPUT_STRIP_HEIGHT,
+                        }}
+                      >
+                        {segment.text}
+                      </div>
+                    );
+                  })}
+
                 {segments.map((segment, index) => {
                   if ((segment.speaker ?? UNASSIGNED) !== lane) return null;
 
@@ -996,7 +1067,7 @@ export function TranscriptTruth() {
                       style={{
                         left: segment.start * pxPerSec,
                         width,
-                        height: LANE_HEIGHT - 10,
+                        height: LANE_HEIGHT - OUTPUT_STRIP_HEIGHT - 8,
                       }}
                     >
                       {/* 端をつまんで伸び縮みさせる */}
