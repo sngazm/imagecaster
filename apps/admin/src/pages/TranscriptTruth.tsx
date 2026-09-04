@@ -336,10 +336,12 @@ export function TranscriptTruth() {
 
     for (const segment of segments) {
       if (segment.start > playhead) break;
-      if (segment.end >= playhead || !found) found = segment;
+      found = segment;
     }
 
-    return found;
+    // 終わっている発言は出さない。`!found` のときに拾い続けていたため、
+    // まだ何も始まっていない冒頭で 1 件目がずっと表示されていた
+    return found && found.end >= playhead ? found : null;
   }, [segments, playhead]);
 
   /** 確かめ済みの合計。どこまで進んだかを出すのに使う */
