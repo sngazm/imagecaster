@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import type {
   EpisodeDetail,
   RawSegment,
+  TruthBase,
   TruthRange,
   TruthSegment,
 } from "../lib/api";
@@ -154,7 +155,18 @@ export function TranscriptTruth() {
   const [episode, setEpisode] = useState<EpisodeDetail | null>(null);
   const [segments, setSegments] = useState<TruthSegment[]>([]);
   const [levels, setLevels] = useState<Levels>({});
-  const [source, setSource] = useState<"truth" | "raw" | "published" | null>(null);
+  /**
+   * どちらを元に正解を作っているか。
+   *
+   * 既定は公開データ。生データは 2201 セグメントあって単語の途中で切れており、
+   * 句読点も無いので、人が読んで直せる形になっていない。公開データは 411 で
+   * 統合も句読点も済んでいる。編集の手間が 5 分の 1 になる。
+   *
+   * どちらで作ったかは保存しておく。採点が比べる先をこれで決める。生データ
+   * 基準の正解を公開データと比べると、統合のぶん境界が systematically ずれて
+   * 数字が意味を失う。
+   */
+  const [base, setBase] = useState<TruthBase>("published");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -232,36 +244,35 @@ export function TranscriptTruth() {
         const truth = await api.getTruth(id);
         if (!alive) return;
 
+        const rawUrl = detail.transcriptRawUrl;
+        const publishedUrl = rawUrl?.replace(
+          /transcript\.raw\.json$/,
+          "transcript.json"
+        );
+
         if (truth.exists && truth.segments.length > 0) {
           setSegments(toTruth(truth.segments));
-          setSource("truth");
           setVerified(truth.ranges ?? []);
-        } else if (detail.transcriptRawUrl) {
-          // 正解がまだ無いので、Whisper の生出力から始める。
-          //
-          // 後処理は生データから決まるので、正解をこの階層に置くとどの工程で
-          // 間違えたかを切り分けられる。公開後のテキストに置くと、話者分離の
-          // 誤りなのか後処理の誤りなのか区別できない。
-          const response = await fetch(detail.transcriptRawUrl);
-          if (!response.ok) throw new Error(`生データを読めません（HTTP ${response.status}）`);
+          setBase(truth.base);
+        } else if (publishedUrl) {
+          // 正解がまだ無いので、公開されているものから始める
+          const response = await fetch(publishedUrl);
+          if (!response.ok) throw new Error(`公開データを読めません（HTTP ${response.status}）`);
 
-          const raw = (await response.json()) as { segments?: RawSegment[] };
+          const data = (await response.json()) as { segments?: RawSegment[] };
           if (!alive) return;
 
-          setSegments(toTruth(raw.segments ?? []));
-          setSource("raw");
+          setSegments(toTruth(data.segments ?? []));
+          setBase("published");
         } else {
-          setError("生データがありません。文字起こしを先に走らせてください");
+          setError("文字起こしがありません。先に走らせてください");
         }
 
-        // 校正まで通した現状の出力。重ねて見るだけなので、失敗しても進む
-        if (detail.transcriptRawUrl) {
+        // 重ねて見せる側。生データを出す。後処理が何をしたかが見えると、
+        // 話者の誤りが分離の段か後処理の段かを目で切り分けられる
+        if (rawUrl) {
           try {
-            const url = detail.transcriptRawUrl.replace(
-              /transcript\.raw\.json$/,
-              "transcript.json"
-            );
-            const response = await fetch(url);
+            const response = await fetch(rawUrl);
             if (response.ok) {
               const data = (await response.json()) as { segments?: RawSegment[] };
               if (alive) setOutput(toTruth(data.segments ?? []));
@@ -577,17 +588,16 @@ export function TranscriptTruth() {
     try {
       // いま見ていた範囲を確かめ済みに加える
       const next = range ? [...verified, range] : verified;
-      const result = await api.saveTruth(id, segments, next);
+      const result = await api.saveTruth(id, segments, next, base);
 
       setVerified(result.ranges);
-      setSource("truth");
       setDirty(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "保存に失敗しました");
     } finally {
       setSaving(false);
     }
-  }, [id, segments, range, verified]);
+  }, [id, segments, range, verified, base]);
 
   /**
    * いまの内容をファイルとして落とす。
@@ -817,8 +827,7 @@ export function TranscriptTruth() {
 
           <span className="text-xs text-[var(--color-text-muted)]">
             {segments.length} 発言 / {lanes.length - 1} 人
-            {source === "raw" && "・生データ"}
-            {source === "published" && "・公開データ"}
+            {base === "published" ? "・公開データを直す" : "・生データを直す"}
             {verifiedSec > 0 &&
               `・確かめ済み ${Math.round(verifiedSec / 60)}分（${Math.round(
                 (verifiedSec / duration) * 100
@@ -857,7 +866,7 @@ export function TranscriptTruth() {
                 checked={showOutput}
                 onChange={(e) => setShowOutput(e.target.checked)}
               />
-              現状の出力
+              生データ
             </label>
             <button
               type="button"
@@ -994,7 +1003,7 @@ export function TranscriptTruth() {
           / <kbd>↑↓</kbd> 話者を変える / <kbd>S</kbd> 再生位置で分割 / <kbd>←→</kbd> 0.1 秒（Shift で 1 秒）
           / <kbd>⌘Z</kbd> 取り消し / 発言の端をつまんで伸び縮み / 本文を選んで「抜き出す」
           <br />
-          上段が正解（編集できる）、下の薄い帯が校正まで通した現状の出力（読むだけ）。
+          上段が正解（編集できる）、下の薄い帯が Whisper の生出力（読むだけ）。
           本文の誤りは校正が直す担当なので、ここでは<b>誰がいつ喋ったか</b>だけ直せば足ります。
         </p>
       </header>
@@ -1071,8 +1080,8 @@ export function TranscriptTruth() {
                 )}
 
                 {/*
-                  校正まで通した現状の出力。読むだけ。正解と見比べて、どこが
-                  食い違っているかをその場で確かめられるようにしている
+                  Whisper の生出力。読むだけ。後処理が何をしたかが見えるので、
+                  話者の誤りが分離の段か後処理の段かを目で切り分けられる
                 */}
                 {showOutput &&
                   output.map((segment, index) => {
@@ -1260,7 +1269,7 @@ export function TranscriptTruth() {
         {pickedOutput !== null && output[pickedOutput] && (
           <div className="mt-1 flex items-baseline gap-3 border-t border-[var(--color-border)] pt-1">
             <span className="shrink-0 text-[10px] text-[var(--color-info)]">
-              現状 {output[pickedOutput].speaker ?? "未割当"}
+              生 {output[pickedOutput].speaker ?? "未割当"}
             </span>
             <p className="flex-1 select-text text-xs leading-relaxed text-[var(--color-text-secondary)]">
               {output[pickedOutput].text}

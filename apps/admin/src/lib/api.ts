@@ -483,15 +483,21 @@ export const api = {
   getTruth: (id: string) =>
     request<TruthResponse>(`/api/episodes/${id}/transcript/truth`),
 
-  saveTruth: (id: string, segments: TruthSegment[], ranges: TruthRange[]) =>
+  saveTruth: (
+    id: string,
+    segments: TruthSegment[],
+    ranges: TruthRange[],
+    base: TruthBase
+  ) =>
     request<{
       success: boolean;
       segments: number;
       ranges: TruthRange[];
+      base: TruthBase;
       updatedAt: string;
     }>(`/api/episodes/${id}/transcript/truth`, {
       method: "PUT",
-      body: JSON.stringify({ segments, ranges }),
+      body: JSON.stringify({ segments, ranges, base }),
     }),
 
   saveSpeakerIcons: (id: string, speakerIcons: SpeakerIcon[] | null) =>
@@ -877,10 +883,14 @@ export interface TruthRange {
   end: number;
 }
 
+/** 正解を作るときに元にしたもの。採点が比べる先をこれで決める */
+export type TruthBase = "raw" | "published";
+
 export interface TruthResponse {
   exists: boolean;
   segments: TruthSegment[];
   ranges: TruthRange[];
+  base: TruthBase;
   updatedAt: string | null;
 }
 

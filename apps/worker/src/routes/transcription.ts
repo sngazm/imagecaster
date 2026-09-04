@@ -783,12 +783,19 @@ transcriptionEpisodes.get("/:id/transcript/truth", async (c) => {
     const obj = await c.env.R2_BUCKET.get(keys.truth);
 
     if (!obj) {
-      return c.json({ exists: false, segments: [], ranges: [], updatedAt: null });
+      return c.json({
+        exists: false,
+        segments: [],
+        ranges: [],
+        base: "published",
+        updatedAt: null,
+      });
     }
 
     const data = JSON.parse(await obj.text()) as {
       segments?: unknown;
       ranges?: unknown;
+      base?: unknown;
       updatedAt?: string;
     };
 
@@ -796,6 +803,9 @@ transcriptionEpisodes.get("/:id/transcript/truth", async (c) => {
       exists: true,
       segments: Array.isArray(data.segments) ? data.segments : [],
       ranges: Array.isArray(data.ranges) ? data.ranges : [],
+      // どちらを元に作ったか。採点がこれに合わせて比べる先を決める。
+      // 記録が無いものは生データから作っていた頃のもの
+      base: data.base === "published" ? "published" : "raw",
       updatedAt: data.updatedAt ?? null,
     });
   } catch (err) {
@@ -814,7 +824,11 @@ transcriptionEpisodes.put("/:id/transcript/truth", async (c) => {
   const id = c.req.param("id");
 
   try {
-    const body = await c.req.json<{ segments?: unknown; ranges?: unknown }>();
+    const body = await c.req.json<{
+      segments?: unknown;
+      ranges?: unknown;
+      base?: unknown;
+    }>();
 
     if (!Array.isArray(body.segments)) {
       return c.json({ error: "segments must be an array" }, 400);
@@ -851,9 +865,11 @@ transcriptionEpisodes.put("/:id/transcript/truth", async (c) => {
     const keys = transcriptKeys(meta.storageKey);
     const updatedAt = new Date().toISOString();
 
+    const base = body.base === "raw" ? "raw" : "published";
+
     await c.env.R2_BUCKET.put(
       keys.truth,
-      JSON.stringify({ updatedAt, ranges, segments }),
+      JSON.stringify({ updatedAt, base, ranges, segments }),
       { httpMetadata: { contentType: "application/json" } }
     );
 
@@ -861,6 +877,7 @@ transcriptionEpisodes.put("/:id/transcript/truth", async (c) => {
       success: true,
       segments: segments.length,
       ranges,
+      base,
       updatedAt,
     });
   } catch (err) {
