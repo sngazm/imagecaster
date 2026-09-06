@@ -73,42 +73,6 @@ export interface PostProcessOptions {
 export const SPURIOUS_SWITCH_MAX_GAP_SEC = 0.05;
 
 /**
- * 判定のぶれとみなす断片の長さと間
- *
- * 句読点で終わらない短い断片は、前後が同じ話者なら判定のぶれ。実データでは
- * 4 文字以下の島 107 件のうち、本物の相槌（「はい。」「うん。」）はすべて
- * 句点で終わっていて、誤判定（「だ」「いわ」「感じで」）は終わっていなかった。
- */
-const STRAY_FRAGMENT_MAX_CHARS = 4;
-const STRAY_FRAGMENT_MAX_GAP_SEC = 0.3;
-
-/** 句読点で終わっているか。読点も文の切れ目として数える */
-const ANY_PUNCTUATION_END = /[。．、，,！？!?」』）)\]…]\s*$/;
-
-/**
- * 節として切れる形で終わっているか
- *
- * 「大変なんだみたいな」「こうして」のように意味が切れていれば、次の行は
- * 相手の別の発話でありうる。「多いかもし」「で、そう」のように語の途中なら、
- * 音量判定のぶれで割れただけ。
- *
- * 見分けるのは**終止形・連体形・接続助詞**。これで終わっていれば節が閉じている。
- */
-const ENDS_A_CLAUSE = new RegExp(
-  "(?:" +
-    [
-      // 助動詞・終止形
-      "です", "ます", "ました", "でした", "ません", "ない", "たい", "らしい",
-      // 連体形・比況
-      "みたいな", "ような", "そうな", "という", "っていう",
-      // 接続助詞
-      "から", "ので", "んで", "けど", "けれど", "のに", "たら", "れば",
-      "ながら", "つつ", "して", "くて", "とか",
-    ].join("|") +
-    ")\\s*$"
-);
-
-/**
  * 言いよどみの既定
  *
  * 音で聞くと自然でも、文字で読むと目に付く。「AIが、その、効率化するってことを、
@@ -550,143 +514,6 @@ export function findHallucinationCandidates(
   return candidates.sort((a, b) => b.count - a.count).slice(0, 20);
 }
 
-/** 語尾の残りとみなす長さ。これを超えるなら語の続きではない */
-const WORD_TAIL_MAX_CHARS = 4;
-
-/** 文が閉じる印。読点は含めない（読点では文は閉じない） */
-const CLOSES_A_SENTENCE = /[。．！？!?]/;
-
-/**
- * 前の話者の語尾の**あとに**、別の発話が続いているか
- *
- * Whisper のセグメント境界は語の途中に落ちるので、次のセグメントの頭に前の
- * 話者の語尾だけが残る。それだけなら塊にまとめてよい。
- *
- * ところが #281 では 藤原「…ゆっくり大きな声でやれば絶対ウケ」のあとが
- * あずま「る。 えー、おもろ。」だった。「る。」は藤原の語尾だが、そのあとの
- * 「えー、おもろ。」はあずまの発話で、まとめて藤原に寄せるとあずまの発言が
- * 消える。実際に消えていた。
- *
- * 見分けるのは**最初の句点の位置**。語尾は短く、そこで文が閉じる。閉じたあとに
- * まだ本文が続くなら、それは語尾ではなくもう一人の発話が入っている。
- */
-function carriesANewUtterance(segment: TranscriptSegment): boolean {
-  const text = segment.text.trim();
-  const at = text.search(CLOSES_A_SENTENCE);
-
-  // 句点が無い、または短い語尾で終わっているだけ
-  if (at < 0 || at > WORD_TAIL_MAX_CHARS) return false;
-
-  return text.slice(at + 1).trim().length > 0;
-}
-
-/**
- * 音量判定のぶれで文の途中に落ちた話者の境界を直す
- *
- * 話者は各トラックの音量で決めるため、1 語だけ相手のトラックが勝つと、そこで
- * 話者が入れ替わったことになる。すると「多いかもし」「れないけど、そ」「こが〜」の
- * ように、1 つの発話が単語の途中で切られて別々の人に割り振られる。
- *
- * 本物の交代と見分ける手がかりは**間**だった。#285 の生データで話者交代 624 件を
- * 調べたところ、はっきり分かれた。
- *
- * | 直前の終わり方 | 件数 | 間の中央値 |
- * |---|---|---|
- * | 句読点で終わる | 562 | 0.40 秒 |
- * | 文の途中 | 62 | **0.00 秒（62件すべて）** |
- *
- * 人が交代するには必ず間が空く。文の途中で、しかも間も無く入れ替わるのは、
- * 同じ人が喋り続けているのを切ってしまった場合しかない。
- *
- * 寄せる先は**その塊で最も長く喋っている話者**にする。直前に合わせると、
- * 判定をしくじった短い断片が正しい発話を引っ張ってしまう。
- */
-export function repairSpeakerBoundaries(
-  segments: TranscriptSegment[],
-  maxGapSec: number = SPURIOUS_SWITCH_MAX_GAP_SEC
-): { segments: TranscriptSegment[]; repaired: number } {
-  const result = segments.map((segment) => ({ ...segment }));
-  let repaired = 0;
-
-  // 途切れずに続いている塊を集める。塊の中の話者の食い違いは、
-  // 音量判定のぶれでしかない
-  let start = 0;
-  while (start < result.length) {
-    let end = start;
-    while (end + 1 < result.length) {
-      const previous = result[end];
-      const next = result[end + 1];
-
-      const continues =
-        !ANY_PUNCTUATION_END.test(previous.text) &&
-        next.start - previous.end <= maxGapSec;
-
-      // 語の途中で切れているか。
-      //
-      // 音量判定のぶれで割れた場合、前の行は語の途中で終わる（「多いかもし」
-      // 「で、そう」「投」）。一方、相手が言葉を挟んだ場合は意味の切れる形で
-      // 終わる（「大変なんだみたいな」「そうやって、なんか、こうして」）。
-      //
-      // 前者だけを繋ぐ。後者まで繋ぐと、長い発話の中に挟まった相手の一言が
-      // 巻き込まれて、発言者が入れ替わる。
-      const splitsAWord = !ENDS_A_CLAUSE.test(previous.text.trimEnd());
-
-      // 句読点で終わらない短い断片は、前後が同じ話者なら判定のぶれ。
-      // 「文句言い続けて、」「だ」「いぶ周りに…」の「だ」がこれで、
-      // 前後 0.1 秒の間があるだけで塊が切れ、語が割れていた。
-      // 本物の相槌は「はい。」「うん。」のように句点で終わる
-      const isStrayFragment =
-        !ANY_PUNCTUATION_END.test(next.text) &&
-        next.text.trim().length <= STRAY_FRAGMENT_MAX_CHARS &&
-        next.start - previous.end <= STRAY_FRAGMENT_MAX_GAP_SEC;
-
-      if (!(continues && splitsAWord && !carriesANewUtterance(next)) && !isStrayFragment)
-        break;
-      end += 1;
-    }
-
-    if (end > start) {
-      const winner = dominantSpeaker(result.slice(start, end + 1));
-
-      if (winner) {
-        for (let i = start; i <= end; i++) {
-          if (result[i].speaker && result[i].speaker !== winner) {
-            result[i] = { ...result[i], speaker: winner };
-            repaired += 1;
-          }
-        }
-      }
-    }
-
-    start = end + 1;
-  }
-
-  return { segments: result, repaired };
-}
-
-/**
- * 塊の中で最も長く喋っている話者
- *
- * 短いほうに合わせると、判定をしくじった断片が正しい発話を引っ張る。実際に
- * 0.88 秒の「で、そう」（鉄塔）が 16.9 秒の「すると、向こうが提案してきたのが…」
- * （あずま）を巻き込み、あずまの発言が丸ごと鉄塔のものになっていた。
- */
-function dominantSpeaker(block: TranscriptSegment[]): string | null {
-  const totals = new Map<string, number>();
-
-  for (const segment of block) {
-    if (!segment.speaker) continue;
-    const duration = Math.max(0, segment.end - segment.start);
-    totals.set(segment.speaker, (totals.get(segment.speaker) ?? 0) + duration);
-  }
-
-  if (totals.size <= 1) {
-    return totals.size === 1 ? [...totals.keys()][0] : null;
-  }
-
-  return [...totals.entries()].sort((a, b) => b[1] - a[1])[0][0];
-}
-
 /**
  * 読点の手前が、次の語に直接つながる形か
  *
@@ -1027,10 +854,15 @@ export function postProcess(
   const { segments: tidied } = normalizeBackchannels(deflated, backchannel);
   const { segments: withoutFillers } = dropStandaloneBackchannels(tidied, backchannel);
 
-  // 統合の前に直す。話者が違うままだと統合されず、単語の途中で切れた断片が残る
-  const { segments: repaired } = repairSpeakerBoundaries(withoutFillers);
-
-  const merged = mergeSegments(repaired, options.merge);
+  // 以前はここで話者の境界を直していた（repairSpeakerBoundaries）。音量判定の
+  // ぶれで語の途中に落ちた境界を、塊の中で最も長く喋っている話者に寄せる処理で、
+  // 音量だけで話者を決めていた頃には要った。
+  //
+  // いまは文字起こし側が単語の割れを繋ぎ、怪しい区間は聞き分けてから送ってくる。
+  // その生データにこれを当てると、相手の短い発言（「お、ようこそ」「単純に愛を
+  // そこに」）を長い側に吸わせるだけになる。#281 の正解データで測ると、話者の
+  // 一致（重なり許容）が 97.4% から 92.2% に落ち、本文は変わらなかった。外した。
+  const merged = mergeSegments(withoutFillers, options.merge);
 
   // 統合してからもう一度落とす。「そう」と「そうそう」が繋がって
   // 「そうそうそう」が生まれることがある。判定は読者が見る最終形に対して行う。

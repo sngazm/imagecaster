@@ -4,7 +4,6 @@ import {
   applyCorrections,
   removeHallucinations,
   dropStandaloneBackchannels,
-  repairSpeakerBoundaries,
   removeFillers,
   removeEmbeddedBackchannels,
   DEFAULT_FILLER_SETTINGS,
@@ -573,106 +572,6 @@ describe("dropStandaloneBackchannels の返事の扱い", () => {
 });
 
 
-describe("repairSpeakerBoundaries", () => {
-  it("文の途中で間も無く話者が変わったら、長く喋っている話者に寄せる", () => {
-    // 音量判定のぶれで「多いかもし」「れないけど」が別々の人に割り振られていた
-    const result = repairSpeakerBoundaries([
-      seg(0, 3, "チームだったら多いかもし", "鉄塔"),
-      seg(3, 5, "れないけど、そ", "あずま"),
-      seg(5, 8, "こが結構自分で回している。", "鉄塔"),
-    ]);
-
-    expect(result.segments.map((s) => s.speaker)).toEqual(["鉄塔", "鉄塔", "鉄塔"]);
-    expect(result.repaired).toBe(1);
-  });
-
-  it("短い断片が長い発話を引っ張らない", () => {
-    // 0.88秒の「で、そう」が16.9秒の発話を巻き込み、あずまの発言が
-    // 丸ごと鉄塔のものになっていた
-    const result = repairSpeakerBoundaries([
-      seg(933.86, 934.74, "で、そう", "鉄塔"),
-      seg(934.74, 951.66, "すると、向こうが提案してきたのが、確認の時間は必要で。", "あずま"),
-    ]);
-
-    expect(result.segments.map((s) => s.speaker)).toEqual(["あずま", "あずま"]);
-  });
-
-  it("句点で終わっていれば本物の交代として残す", () => {
-    const result = repairSpeakerBoundaries([
-      seg(0, 3, "どう思います。", "あずま"),
-      seg(3, 5, "いいと思いますよ。", "鉄塔"),
-    ]);
-
-    expect(result.segments.map((s) => s.speaker)).toEqual(["あずま", "鉄塔"]);
-    expect(result.repaired).toBe(0);
-  });
-
-  it("読点で終わっていても本物の交代として残す", () => {
-    // 読点は文の切れ目。ここでの交代は割り込みでありうる
-    const result = repairSpeakerBoundaries([
-      seg(0, 3, "それでですね、", "あずま"),
-      seg(3, 5, "ちょっといいですか。", "鉄塔"),
-    ]);
-
-    expect(result.repaired).toBe(0);
-  });
-
-  it("間が空いていれば本物の交代として残す", () => {
-    // 人が交代するには間が空く。文の途中でも、間があるなら割り込み
-    const result = repairSpeakerBoundaries([
-      seg(0, 3, "それでこう思ってて", "あずま"),
-      seg(4, 6, "分かります。", "鉄塔"),
-    ]);
-
-    expect(result.repaired).toBe(0);
-  });
-
-  it("話者が分かっていないものには触らない", () => {
-    const result = repairSpeakerBoundaries([
-      seg(0, 3, "話者なし"),
-      seg(3, 5, "これも話者なし"),
-    ]);
-
-    expect(result.repaired).toBe(0);
-  });
-
-  it("寄せた話者を基準に、続きも同じ話者へ寄せる", () => {
-    const result = repairSpeakerBoundaries([
-      seg(0, 2, "あの", "あずま"),
-      seg(2, 4, "とき", "鉄塔"),
-      seg(4, 6, "の話です。", "あずま"),
-    ]);
-
-    expect(result.segments.map((s) => s.speaker)).toEqual(["あずま", "あずま", "あずま"]);
-  });
-
-  it("テキストと時刻はそのまま", () => {
-    const result = repairSpeakerBoundaries([
-      seg(0, 3, "続く", "あずま"),
-      seg(3, 5, "文です。", "鉄塔"),
-    ]);
-
-    expect(result.segments[1]).toMatchObject({ start: 3, end: 5, text: "文です。" });
-  });
-});
-
-describe("postProcess で話者境界が直ってから統合されること", () => {
-  it("単語の途中で切れた断片が1つにまとまる", () => {
-    // 直す前に統合すると、話者が違うので別々のまま残ってしまう
-    const result = postProcess({
-      language: "ja",
-      segments: [
-        seg(0, 3, "今のところそういう感じのスクリーン", "あずま"),
-        seg(3, 6, "になっています。", "鉄塔"),
-      ],
-    });
-
-    expect(result.segments).toHaveLength(1);
-    expect(result.segments[0].text).toBe("今のところそういう感じのスクリーンになっています。");
-    expect(result.segments[0].speaker).toBe("あずま");
-  });
-});
-
 describe("applyCorrections の適用順", () => {
   it("長い規則から先に当てる", () => {
     // 短い規則が先に当たると「バントウ」が「番頭ウ」になり、
@@ -1011,45 +910,6 @@ describe("行頭の疑問符の誤付与", () => {
   });
 });
 
-describe("句読点で終わらない断片の扱い", () => {
-  it("わずかな間があっても、断片は塊に含める", () => {
-    // 「だ」が別話者と判定され、前後0.1秒の間があるだけで塊が切れ、
-    // 「だんだん良くなってきて、だ」「いぶ周りに…」と語が割れていた
-    const result = repairSpeakerBoundaries([
-      seg(594.98, 596.04, "だんだん良くなってきて、", "あずま"),
-      seg(596.14, 597.9, "だ", "鉄塔"),
-      seg(597.9, 601.78, "いぶ周りにお勧めできる感じの。", "あずま"),
-    ]);
-
-    expect(result.segments.map((s) => s.speaker)).toEqual([
-      "あずま",
-      "あずま",
-      "あずま",
-    ]);
-  });
-
-  it("句点で終わる相槌は本物として残す", () => {
-    // 実データの107件のうち、本物の相槌はすべて句点で終わっていた
-    const result = repairSpeakerBoundaries([
-      seg(116.4, 116.98, "そうなんですよ。", "あずま"),
-      seg(116.98, 117.26, "はい。", "鉄塔"),
-      seg(118.4, 120.0, "それでですね。", "あずま"),
-    ]);
-
-    expect(result.segments[1].speaker).toBe("鉄塔");
-  });
-
-  it("間が空いた断片は別の発話として残す", () => {
-    const result = repairSpeakerBoundaries([
-      seg(0, 2, "そうなんですよ", "あずま"),
-      seg(3, 4, "うん", "鉄塔"),
-      seg(5, 7, "それで。", "あずま"),
-    ]);
-
-    expect(result.segments[1].speaker).toBe("鉄塔");
-  });
-});
-
 describe("統合の上限と文の切れ目", () => {
   it("上限に達していても、文の途中なら繋ぐ", () => {
     // 上限をそのまま切れ目にすると語の途中で割れる
@@ -1073,61 +933,6 @@ describe("統合の上限と文の切れ目", () => {
     const result = mergeSegments(segments);
 
     expect(result).toHaveLength(2);
-  });
-});
-
-describe("長い発話に挟まった相手の一言", () => {
-  it("節が切れていれば、別の発話として分ける", () => {
-    // あずまの長い話の途中に鉄塔が言葉を挟むことがある。巻き込むと
-    // 発言者が入れ替わる
-    const result = repairSpeakerBoundaries([
-      seg(0, 5, "AIがこんなに発達したのになんで仕事がこんなに大変なんだみたいな", "あずま"),
-      seg(5, 7, "話はしてましたけどもね。", "鉄塔"),
-      seg(7, 12, "まあ、どうして自分の仕事が今大変なのか。", "あずま"),
-    ]);
-
-    expect(result.segments.map((s) => s.speaker)).toEqual([
-      "あずま",
-      "鉄塔",
-      "あずま",
-    ]);
-  });
-
-  it("語の途中で切れていれば繋ぐ", () => {
-    // 音量判定のぶれで割れただけ
-    const result = repairSpeakerBoundaries([
-      seg(0, 3, "チームだったら多いかもし", "鉄塔"),
-      seg(3, 5, "れないけど、そ", "あずま"),
-      seg(5, 8, "こが結構自分で回している。", "鉄塔"),
-    ]);
-
-    expect(new Set(result.segments.map((s) => s.speaker)).size).toBe(1);
-  });
-
-  it("「〜して」で終わっていれば分ける", () => {
-    const result = repairSpeakerBoundaries([
-      seg(0, 4, "そうやって、なんか、こうして", "鉄塔"),
-      seg(4, 8, "大量のスパムメールがインターネットを覆っていくんですね。", "あずま"),
-    ]);
-
-    expect(result.segments.map((s) => s.speaker)).toEqual(["鉄塔", "あずま"]);
-  });
-
-  it("助詞や活用の途中なら繋ぐ", () => {
-    const cases: Array<[string, string]> = [
-      ["事できているぞ、という気持ち", "に慣れている"],
-      ["みたいな感じで、投", "げてくるとか、"],
-      ["で、そう", "すると、向こうが提案してきた。"],
-    ];
-
-    for (const [before, after] of cases) {
-      const result = repairSpeakerBoundaries([
-        seg(0, 3, before, "あずま"),
-        seg(3, 6, after, "鉄塔"),
-      ]);
-
-      expect(new Set(result.segments.map((s) => s.speaker)).size).toBe(1);
-    }
   });
 });
 
@@ -1249,59 +1054,6 @@ describe("相槌が連なった行", () => {
 
     expect(result.segments).toHaveLength(1);
     expect(result.segments[0].text).toContain("面白い");
-  });
-});
-
-describe("repairSpeakerBoundaries: 語尾のあとに別の発話が続く場合", () => {
-  it("語尾の後ろに続く別人の発話を巻き込まない", () => {
-    // #281 で実際に起きた。藤原の「…絶対ウケ」のあとが
-    // あずま「る。 えー、おもろ。」で、「る。」だけが藤原の語尾。
-    // 塊にまとめて長いほう（藤原）に寄せると、あずまの発言が消えていた
-    const result = repairSpeakerBoundaries([
-      {
-        start: 1.5,
-        end: 10.1,
-        text: "同じ台本でも、ゆっくり大きな声でやれば絶対ウケ",
-        speaker: "藤原麻里菜",
-      },
-      { start: 10.1, end: 12.1, text: "る。 えー、おもろ。", speaker: "あずま" },
-    ]);
-
-    expect(result.segments[1].speaker).toBe("あずま");
-  });
-
-  it("語尾だけなら今まで通り繋ぐ", () => {
-    // 「多いかもし」「れないけど、そこが〜」は同じ人が喋り続けている
-    const result = repairSpeakerBoundaries([
-      { start: 0, end: 5, text: "そういうことは多いかもし", speaker: "あずま" },
-      {
-        start: 5,
-        end: 6,
-        text: "れないけど、そこが難しいところですね。",
-        speaker: "鉄塔",
-      },
-    ]);
-
-    expect(result.segments[1].speaker).toBe("あずま");
-  });
-
-  it("句点が無ければ語の続きとして繋ぐ", () => {
-    const result = repairSpeakerBoundaries([
-      { start: 0, end: 5, text: "それは投", speaker: "あずま" },
-      { start: 5, end: 6, text: "げやりすぎるでしょう", speaker: "鉄塔" },
-    ]);
-
-    expect(result.segments[1].speaker).toBe("あずま");
-  });
-
-  it("語尾が長ければ語の続きではないので繋ぐ", () => {
-    // 5 文字以上あってから句点が来るのは、語尾ではなく普通の短い発話
-    const result = repairSpeakerBoundaries([
-      { start: 0, end: 5, text: "それで結局どうなったのか", speaker: "あずま" },
-      { start: 5, end: 6, text: "ということなんですよ。", speaker: "鉄塔" },
-    ]);
-
-    expect(result.segments[1].speaker).toBe("あずま");
   });
 });
 
