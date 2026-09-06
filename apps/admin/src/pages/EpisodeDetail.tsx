@@ -73,6 +73,9 @@ export default function EpisodeDetail() {
   const [templates, setTemplates] = useState<DescriptionTemplate[]>([]);
   const [showTemplates, setShowTemplates] = useState(false);
 
+  // 音声プレイヤーの要素。文字起こしの行をクリックしたところから再生するために貸す
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+
   // Audio upload
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -540,7 +543,7 @@ export default function EpisodeDetail() {
           {/* 音声プレイヤー */}
           {audioUrl ? (
             <div className="card p-4">
-              <audio src={audioUrl} controls className="w-full" />
+              <audio ref={setAudioElement} src={audioUrl} controls className="w-full" />
               {episode.sourceAudioUrl && !episode.audioUrl && (
                 <p className="text-xs text-[var(--color-text-muted)] mt-2">外部音声ファイルを参照しています</p>
               )}
@@ -985,6 +988,7 @@ export default function EpisodeDetail() {
                     segments={transcriptSegments}
                     sourceUrl={episode.transcriptUrl}
                     rawUrl={episode.transcriptRawUrl}
+                    audio={audioElement}
                   />
                 )}
 
@@ -1060,6 +1064,7 @@ export default function EpisodeDetail() {
                     segments={transcriptSegments}
                     sourceUrl={episode.transcriptUrl}
                     rawUrl={episode.transcriptRawUrl}
+                    audio={audioElement}
                   />
                 ) : episode.transcriptUrl ? (
                   <p className="text-[var(--color-text-muted)] text-sm">文字起こしを読み込み中...</p>

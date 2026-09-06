@@ -156,7 +156,7 @@ const ogImageUrl = getEpisodeOgImageUrl(episode.artworkUrl, podcastArtworkUrl);
     <!-- オーディオプレイヤー -->
     {/* audioUrlがあればそれを使い、なければsourceAudioUrl（RSSインポート時の外部URL）を使用 */}
     <div class="mb-6 rounded-lg border border-border bg-bg-elevated p-4 dark:border-border-dark dark:bg-bg-elevated-dark">
-      <audio id="audio-player" controls class="mb-3 w-full" preload="metadata">
+      <audio id="audio-player" controls class="mb-3 w-full" preload="metadata" data-duration={episode.duration}>
         <source src={episode.audioUrl || episode.sourceAudioUrl || ""} type="audio/mpeg" />
         お使いのブラウザはオーディオ再生に対応していません。
       </audio>
@@ -318,29 +318,56 @@ const ogImageUrl = getEpisodeOgImageUrl(episode.artworkUrl, podcastArtworkUrl);
     return 0;
   }
 
+  // 0:15:33 / 1:13:45 のように、時間の桁を常に出す。1 時間を超える回があるので、
+  // 途中で桁が増えると読みづらい
+  function formatClock(seconds: number): string {
+    const total = Math.max(0, Math.floor(Number.isFinite(seconds) ? seconds : 0));
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+
   const audio = document.getElementById('audio-player') as HTMLAudioElement | null;
+  const playback = document.getElementById('transcript-playback');
   const stopButton = document.getElementById('stop-button') as HTMLButtonElement | null;
+  const clock = document.getElementById('transcript-clock');
   const transcriptSegments = document.querySelectorAll('.transcript-segment');
 
-  if (audio && stopButton) {
-    // 再生中は停止ボタンを表示
+  if (audio && playback && stopButton) {
+    // 再生中は、止めるボタンと現在位置を出す。文字起こしを読みながら聞くときに、
+    // プレイヤーまで目を戻さずに済むように
+    const show = () => {
+      playback.classList.remove('hidden');
+      playback.classList.add('flex');
+    };
+    const hide = () => {
+      playback.classList.add('hidden');
+      playback.classList.remove('flex');
+    };
+
+    // 長さはメタデータが来るまで取れないので、それまでは meta の値で埋める
+    const totalSeconds = () =>
+      Number.isFinite(audio.duration) && audio.duration > 0
+        ? audio.duration
+        : Number(audio.dataset.duration) || 0;
+
+    const tick = () => {
+      if (clock) {
+        clock.textContent = `${formatClock(audio.currentTime)} / ${formatClock(totalSeconds())}`;
+      }
+    };
+
     audio.addEventListener('play', () => {
-      stopButton.classList.remove('hidden');
-      stopButton.classList.add('inline-flex');
+      show();
+      tick();
     });
+    audio.addEventListener('pause', hide);
+    audio.addEventListener('ended', hide);
+    audio.addEventListener('timeupdate', tick);
+    audio.addEventListener('durationchange', tick);
 
-    // 停止・一時停止で非表示
-    audio.addEventListener('pause', () => {
-      stopButton.classList.add('hidden');
-      stopButton.classList.remove('inline-flex');
-    });
-
-    audio.addEventListener('ended', () => {
-      stopButton.classList.add('hidden');
-      stopButton.classList.remove('inline-flex');
-    });
-
-    // 停止ボタンのクリックで再生停止＆先頭に戻す
+    // 止めるボタンで再生を止め、先頭に戻す
     stopButton.addEventListener('click', () => {
       audio.pause();
       audio.currentTime = 0;

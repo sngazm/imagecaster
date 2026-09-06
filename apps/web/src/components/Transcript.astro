@@ -73,16 +73,27 @@ function speakerClass(speaker: string): string {
     文字起こし
   </summary>
 
-  <button
-    id="stop-button"
-    type="button"
-    class="mt-2 hidden items-center gap-1.5 rounded-full border border-border bg-bg-elevated px-3 py-1 text-xs text-text-secondary transition-colors hover:border-accent hover:text-accent dark:border-border-dark dark:bg-bg-elevated-dark dark:text-text-secondary-dark"
+  <!--
+    再生中だけ出る操作列。止めるボタンと、いまどこを聞いているか。
+    文字起こしを読みながら聞くときに、プレイヤーまで目を戻さずに残りが分かる
+  -->
+  <div
+    id="transcript-playback"
+    class="mt-2 hidden items-center gap-2 text-xs text-text-secondary dark:text-text-secondary-dark"
   >
-    <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="7" y="7" width="10" height="10" rx="1.5" />
-    </svg>
-    再生を止める
-  </button>
+    <button
+      id="stop-button"
+      type="button"
+      aria-label="再生を止める"
+      title="再生を止める"
+      class="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border bg-bg-elevated transition-colors hover:border-accent hover:text-accent dark:border-border-dark dark:bg-bg-elevated-dark"
+    >
+      <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="7" y="7" width="10" height="10" rx="1.5" />
+      </svg>
+    </button>
+    <span id="transcript-clock" class="font-mono tabular-nums">0:00:00 / 0:00:00</span>
+  </div>
 
   <div
     id="transcript-container"
