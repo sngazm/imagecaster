@@ -191,11 +191,10 @@ PYTHONPATH=/tmp/exp281c/base/src uv run python scripts/eval/split_only.py ...
 
 ## 今回の変更の状態
 
-2026-09-06 昼までの分は両リポジトリの `main` へコミット・push 済み（imagecaster 9f28cbb〜1b0dee3、
-transcriber 990a047〜af7dca3）。**同日夕方の節単位の話者分離（`speaker.py`・`arbitrate.py`・
-テスト・`scripts/eval/prepare.py`・`split_only.py`・README、このリポジトリの `docs/TRANSCRIBER.md`・
-`speaker-separation.md`・このメモ）は未コミット。** ワーカーはその作業ツリーで再起動済み。
-Worker（imagecaster）側の変更は無い。
+両リポジトリの `main` へコミット・push 済み。昼までの分は imagecaster 9f28cbb〜1b0dee3、
+transcriber 990a047〜af7dca3。夕方以降の節単位の話者分離・崩れた出力の判定・実験の道具は
+transcriber 33d947e〜bfab84b、正解エディタ・監査・ドキュメントは imagecaster 44c606e〜9389997。
+ワーカーは transcriber の最新で稼働中。Worker（imagecaster の API）側のコード変更は無い。
 試作の残り（hybrid3.py、resplit.py、classify_recovered.py、mix.py、pertrack2.py）と、transcriber の
 ルートにあった一回きりの調査スクリプトは消した。
 
