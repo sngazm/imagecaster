@@ -119,7 +119,10 @@ d. 音イベント分類器（YAMNet、laughter-detection）で笑い声を事�
 
 ## 今回の変更の状態
 
-すべて **未コミット**。ワーカーは最新のコードで稼働中、Worker はデプロイ済み。
+2026-09-06 に両リポジトリの `main` へコミット・push 済み（imagecaster 9f28cbb〜1b0dee3、
+transcriber 990a047〜af7dca3）。ワーカーは最新のコードで稼働中、Worker はデプロイ済み。
+試作の残り（hybrid3.py、resplit.py、classify_recovered.py、mix.py、pertrack2.py）と、transcriber の
+ルートにあった一回きりの調査スクリプトは消した。
 
 - `imagecaster`（このリポジトリ）: Worker の `repairSpeakerBoundaries` 削除（デプロイ済み）、
   `scripts/audit-site.mjs` の 3 検査（外国語の文字、句読点の薄い区間、閉じていない行）、
