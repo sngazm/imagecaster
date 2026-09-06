@@ -18,6 +18,13 @@ import type {
  *
  * 見た目は DAW に寄せている。横が時間、縦が話者。誰がいつ喋ったかは音声を
  * 聞きながら直すものなので、行が縦に並ぶ形だと見比べられない。
+ *
+ * 正解データ＝「人が確かめ済みの区間」。それ以外の行は正解ではないので、保存
+ * しないし、読み込みもしない。編集の土台はいつも最新の公開データで、確かめ済みの
+ * 区間だけを正解データの本文で置き換えて見せる。以前はタイムライン全体を保存して
+ * いたため、取り直しても確かめていない部分が 9/4 時点の粒度で凍ったままだった。
+ * 継ぎ目で確かめ済みの区間に半分以上かかる公開データの行は落とし、少しかかるだけの
+ * 行は時刻を境界まで詰めて残す。
  */
 
 /** 拡大率の段。1 秒を何ピクセルで描くか */
@@ -67,6 +74,63 @@ function toTruth(segments: RawSegment[]): TruthSegment[] {
       speaker: s.speaker ?? null,
     }))
     .sort((a, b) => a.start - b.start);
+}
+
+/** その行が、確かめ済みの区間のどれかにかかっているか */
+function touches(segment: TruthSegment, ranges: TruthRange[]): boolean {
+  return ranges.some((r) => segment.end > r.start && segment.start < r.end);
+}
+
+/** 確かめ済みの区間にかかる行だけ。正解として保存するのはこれだけ */
+function onlyVerified(segments: TruthSegment[], ranges: TruthRange[]): TruthSegment[] {
+  return segments.filter((s) => touches(s, ranges));
+}
+
+/** 確かめ済みの区間にこれ以上かかる公開データの行は、土台から落とす */
+const SEAM_DROP_RATIO = 0.5;
+
+/**
+ * 公開データの行を、確かめ済みの区間の外に詰める。
+ *
+ * 公開データには単語の時刻が無いので、区間の境界で文を割れない。半分以上が区間の
+ * 中なら落とす（本文の大半は正解の側にある）。少しかかるだけなら時刻を境界まで
+ * 詰めて残す。0.1 秒かかっただけで 12 秒の行を落とすのは土台として損が大きい。
+ * 詰めた行の本文は境界の内側と数語重なるが、土台なので次に直すときに整えばよい。
+ */
+function clipOutside(segment: TruthSegment, ranges: TruthRange[]): TruthSegment | null {
+  let { start, end } = segment;
+  const length = end - start;
+  if (length <= 0) return null;
+
+  let covered = 0;
+  for (const r of ranges) {
+    const lo = Math.max(start, r.start);
+    const hi = Math.min(end, r.end);
+    if (hi <= lo) continue;
+    covered += hi - lo;
+    // 境界にかかっている側を詰める。両側から挟まれていたら中身は正解の側にある
+    if (r.start <= start) start = Math.max(start, r.end);
+    else if (r.end >= end) end = Math.min(end, r.start);
+    else return null;
+  }
+
+  if (covered / length >= SEAM_DROP_RATIO || end - start <= 0) return null;
+  return { ...segment, start, end };
+}
+
+/**
+ * 最新の公開データを土台に、確かめ済みの区間だけ正解データの本文を置く。
+ */
+function overlayTruth(
+  published: TruthSegment[],
+  truth: TruthSegment[],
+  ranges: TruthRange[]
+): TruthSegment[] {
+  const base = published
+    .map((s) => clipOutside(s, ranges))
+    .filter((s): s is TruthSegment => s !== null);
+
+  return [...onlyVerified(truth, ranges), ...base].sort((a, b) => a.start - b.start);
 }
 
 /** 話者名 → 0〜255 に丸めた音量の並び */
@@ -250,19 +314,27 @@ export function TranscriptTruth() {
           "transcript.json"
         );
 
-        if (truth.exists && truth.segments.length > 0) {
-          setSegments(toTruth(truth.segments));
-          setVerified(truth.ranges ?? []);
-          setBase(truth.base);
-        } else if (publishedUrl) {
-          // 正解がまだ無いので、公開されているものから始める
+        // 土台はいつも最新の公開データ。正解データは確かめ済みの区間の本文だけを
+        // 持ち、それ以外は正解ではない
+        let published: TruthSegment[] | null = null;
+        if (publishedUrl) {
           const response = await fetch(publishedUrl);
-          if (!response.ok) throw new Error(`公開データを読めません（HTTP ${response.status}）`);
-
-          const data = (await response.json()) as { segments?: RawSegment[] };
+          if (response.ok) {
+            const data = (await response.json()) as { segments?: RawSegment[] };
+            published = toTruth(data.segments ?? []);
+          }
           if (!alive) return;
+        }
 
-          setSegments(toTruth(data.segments ?? []));
+        if (truth.exists && truth.segments.length > 0) {
+          const ranges = truth.ranges ?? [];
+          // 公開データが読めなければ、確かめ済みの区間だけで開く
+          setSegments(overlayTruth(published ?? [], toTruth(truth.segments), ranges));
+          setVerified(ranges);
+          setBase(truth.base);
+        } else if (published) {
+          // 正解がまだ無いので、公開されているものから始める
+          setSegments(published);
           setBase("published");
         } else {
           setError("文字起こしがありません。先に走らせてください");
@@ -586,9 +658,10 @@ export function TranscriptTruth() {
     setError(null);
 
     try {
-      // いま見ていた範囲を確かめ済みに加える
+      // いま見ていた範囲を確かめ済みに加える。保存するのは確かめ済みの区間に
+      // かかる行だけ。それ以外は正解ではない
       const next = range ? [...verified, range] : verified;
-      const result = await api.saveTruth(id, segments, next, base);
+      const result = await api.saveTruth(id, onlyVerified(segments, next), next, base);
 
       setVerified(result.ranges);
       setDirty(false);
@@ -606,11 +679,12 @@ export function TranscriptTruth() {
    * 落とせるようにしておく。採点や別の道具に渡すときに使う。
    */
   const download = useCallback(() => {
+    const ranges = range ? [...verified, range] : verified;
     const payload = {
       episode: episode?.id ?? id,
       title: episode?.title ?? null,
-      ranges: range ? [...verified, range] : verified,
-      segments,
+      ranges,
+      segments: onlyVerified(segments, ranges),
     };
 
     const url = URL.createObjectURL(
@@ -871,6 +945,7 @@ export function TranscriptTruth() {
           <span className="text-xs text-[var(--color-text-muted)]">
             {segments.length} 発言 / {lanes.length - 1} 人
             {base === "published" ? "・公開データを直す" : "・生データを直す"}
+            ・保存は確かめ済みの区間だけ
             {verifiedSec > 0 &&
               `・確かめ済み ${Math.round(verifiedSec / 60)}分（${Math.round(
                 (verifiedSec / duration) * 100
