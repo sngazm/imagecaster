@@ -52,6 +52,16 @@ const CAMEL_CASE_NAMES = [
  *
  * 日本語の中に英単語が助詞と直結して現れるのは、その兆候になる。
  */
+/**
+ * 日本語の文字起こしに混じるはずのない文字
+ *
+ * アラビア文字・キリル文字・ギリシャ文字・ウムラウト付きラテン文字。Whisper が
+ * 無音や被りに対して吐く多言語のハルシネーション。#281 で「قطになitorメダ」
+ * がそのまま公開されていた。文字起こし側で出た時点で捨てるようにしたが、
+ * 経路の取りこぼしに備えてここでも見る
+ */
+const FOREIGN_SCRIPT = /[\u00c0-\u024f\u0370-\u03ff\u0400-\u04ff\u0590-\u06ff]/;
+
 const OVER_REPLACED = [
   { pattern: /[ぁ-んァ-ヴ一-龥]mail/, kind: "「メール」が置換されている" },
   // 「Claude Code」のような正しい用例は除く。単独の Code が助詞に付くのが兆候
@@ -141,6 +151,11 @@ async function auditEpisode(id) {
       findings.push({ kind: "VTTタグの露出", speakers, text });
     }
 
+    // 日本語の文字起こしに混じるはずのない文字（Whisper の多言語ハルシネーション）
+    if (FOREIGN_SCRIPT.test(text)) {
+      findings.push({ kind: "外国語の文字が混じる行", speakers, text });
+    }
+
     // 同じ字が並ぶだけの行（「笑 笑 笑 笑」「ふんふんふん。」）
     //
     // 「はい、はい。」「どんどん、」のような普通の言葉と分けるため、
@@ -163,6 +178,45 @@ async function auditEpisode(id) {
   }
 
   const hasSpeakers = segments.some((s) => s.speakers.length > 0);
+
+  // 文として閉じていない行
+  //
+  // 読み物としての文体が揃っていれば、行の終わりには「。」「！」「？」が来る。
+  // 来ていない行は、文の途中で切れているか、句点が落ちているかのどちらか。
+  // 割合で見るより、行ごとに白黒がつくこちらのほうが直す場所が分かる。
+  // 1 割を超えたら挙げる（元の公開データでも 38% あり、まず減らすのが先）
+  const unclosed = segments.filter(
+    (s) => s.text.trim() !== "" && !/[。．！？!?」』）)…]\s*$/.test(s.text.trim())
+  );
+  if (segments.length > 0 && unclosed.length / segments.length > 0.1) {
+    const examples = unclosed.slice(0, 3).map((s) => s.text.slice(-30)).join(" / ");
+    findings.push({
+      kind: "文として閉じていない行",
+      speakers: [],
+      text: `${unclosed.length} 行 / ${segments.length} 行 (${Math.round((100 * unclosed.length) / segments.length)}%)。例: ${examples}`,
+    });
+  }
+
+  // 句読点の薄い区間
+  //
+  // hotwords を入れたあと、30〜45 分の読点がほぼ消えたのに気づかなかった。CER も
+  // 話者一致も既知の形の検査も、読点の欠落には反応しない。8 文字以上の行を 30 行ずつ
+  // まとめ、句読点のある行が 6 割を下回る塊を挙げる。
+  const longLines = segments
+    .map((s, index) => ({ index, text: s.text }))
+    .filter((s) => s.text.replace(/\s/g, "").length >= 8);
+  for (let from = 0; from < longLines.length; from += 30) {
+    const block = longLines.slice(from, from + 30);
+    if (block.length < 15) break;
+    const punctuated = block.filter((s) => /[、。]/.test(s.text)).length;
+    if (punctuated / block.length < 0.6) {
+      findings.push({
+        kind: "句読点の薄い区間",
+        speakers: [],
+        text: `${block[0].index + 1}〜${block[block.length - 1].index + 1} 行目: 8 文字以上の ${block.length} 行のうち句読点あり ${punctuated} 行`,
+      });
+    }
+  }
   return { id, count: segments.length, hasSpeakers, findings };
 }
 
