@@ -10,13 +10,10 @@
 | `score_any.py truth.json ours1.json ours2.json …` | 話者の一致を、厳密（先に始まった人）と重なり許容（その時刻に喋っている誰かと一致）の両方で並べる |
 | `pp_runner.ts raw.json index.json meta.json out.json [global\|full]` | Worker の後処理をローカルで同じ引数で呼ぶ。公開データと一致することを確認済み。esbuild で bundle して node で実行 |
 | `pp_stages.ts raw.json index.json meta.json prefix` | 後処理を 1 段ずつ書き出す。`SKIP_REPAIR=1` で repairSpeakerBoundaries を飛ばす |
-| `resplit.py in.json out.json` | vad_filter で伸びた Whisper セグメントを単語の時刻で切り直す |
-| `hybrid3.py raw.json pertrack.json levels.json out.json [--report]` | トラック別文字起こしで話者を照合し、ミックスで落ちた発話を補う試作 |
 | `fetch.sh storageKey out_dir` | 公開データ一式（meta / raw / json / truth / levels / index）を R2 から取る |
 | `punct_check.py transcript.json …` | 5 分ごとの句読点の割合と、文として閉じていない行の数 |
 | `cuts_check.py raw.json …` | 話者交代のうち文の途中で切れているものの数と例 |
 | `names_holes.py raw.json …` | 固有名詞の出現数と、3 秒以上の穴 |
-| `classify_recovered.py raw.json mix_from_log.json levels.json` | ミックス単体の本文（ワーカーのログから復元）に無い発話を列挙し、トラック補完の中身を判定する |
 
 実行例:
 
