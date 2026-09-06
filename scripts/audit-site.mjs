@@ -60,7 +60,28 @@ const CAMEL_CASE_NAMES = [
  * がそのまま公開されていた。文字起こし側で出た時点で捨てるようにしたが、
  * 経路の取りこぼしに備えてここでも見る
  */
-const FOREIGN_SCRIPT = /[\u00c0-\u024f\u0370-\u03ff\u0400-\u04ff\u0590-\u06ff]/;
+const FOREIGN_SCRIPT =
+  /[\u00c0-\u024f\u0370-\u03ff\u0400-\u04ff\u0590-\u06ff\u1100-\u11ff\u3130-\u318f\uac00-\ud7af\u2460-\u24ff\ufffd]/;
+
+// 番組の会話に出てよい英単語。これ以外の英単語が 1 行に 3 つ以上並ぶのは、Whisper が
+// 脱線した出力（#281 の取り直しで「wanting to choose」「Geme Auch initial Mach」が
+// 公開まで通った）。全部大文字の短い語（AI、NSC、BPM）は略語として除く
+const KNOWN_LATIN = new Set(
+  [
+    "Image", "Cast", "Club", "Claude", "Code", "Opus", "Sonnet", "Haiku", "Asana", "Slack",
+    "Gmail", "Google", "Workspace", "tmux", "Ghostty", "iTerm", "Codex", "Hugging", "Face",
+    "VS", "YouTube", "Discord", "AdGuard", "Twitter", "TikTok", "Instagram", "iPhone",
+    "iPad", "Mac", "Windows", "Linux", "Apple", "Spotify", "Podcast", "ChatGPT", "OpenAI",
+    "GitHub", "Zoom", "Web", "Notion", "Figma", "Blender", "Unity", "Arduino", "Raspberry",
+    "Pi", "Kickstarter", "Amazon", "Netflix", "Nintendo", "Switch", "PlayStation", "Xbox",
+  ].map((w) => w.toLowerCase())
+);
+const LATIN_WORD = /[A-Za-z]{2,}/g;
+function unknownLatinWords(text) {
+  return (text.match(LATIN_WORD) ?? []).filter(
+    (w) => !KNOWN_LATIN.has(w.toLowerCase()) && !(w === w.toUpperCase() && w.length <= 4)
+  );
+}
 
 const OVER_REPLACED = [
   { pattern: /[ぁ-んァ-ヴ一-龥]mail/, kind: "「メール」が置換されている" },
@@ -154,6 +175,11 @@ async function auditEpisode(id) {
     // 日本語の文字起こしに混じるはずのない文字（Whisper の多言語ハルシネーション）
     if (FOREIGN_SCRIPT.test(text)) {
       findings.push({ kind: "外国語の文字が混じる行", speakers, text });
+    }
+
+    // 語彙に無い英単語が並ぶ行（Whisper の脱線）
+    if (unknownLatinWords(text).length >= 3) {
+      findings.push({ kind: "英単語の断片が並ぶ行", speakers, text });
     }
 
     // 同じ字が並ぶだけの行（「笑 笑 笑 笑」「ふんふんふん。」）
