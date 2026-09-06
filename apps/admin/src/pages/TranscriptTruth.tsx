@@ -641,6 +641,49 @@ export function TranscriptTruth() {
     else audio.pause();
   }, [audio]);
 
+  // ---- 確かめ済みの区間 ----
+
+  /**
+   * 確かめ済みの区間を、作業範囲として開き直す。
+   *
+   * 登録した正解にも誤りは残る（「MageCast!」、二人の区間が重なって記録された
+   * 箇所）。直すにはその区間をもう一度聞きながら見る必要がある。「ここから」
+   * 「ここまで」で手で合わせ直すのは面倒なので、一覧と緑の帯から一手で開ける
+   * ようにしておく。保存すれば同じ区間に上書きされる。範囲は足し算で持つので
+   * 二重には増えない。
+   */
+  const reopen = useCallback(
+    (target: TruthRange) => {
+      setRange({ start: target.start, end: target.end });
+      setSelected(null);
+      seek(target.start);
+
+      // 開いた区間の頭が見えるところまで横に送る
+      const box = scrollRef.current;
+      if (box) box.scrollLeft = Math.max(0, target.start * pxPerSec - 40);
+    },
+    [seek, pxPerSec]
+  );
+
+  /**
+   * 確かめ済みから外す。保存するまでは確定しない。
+   *
+   * 間違って広く登録した区間や、作り直したい区間を、いったん未確認に戻す。
+   * 発言はそのまま残る。採点の対象から外れるだけ。
+   */
+  const unverify = useCallback((index: number) => {
+    setVerified((current) => current.filter((_, i) => i !== index));
+    setDirty(true);
+  }, []);
+
+  /** いま開いている範囲が、すでに確かめ済みの中に収まっているか */
+  const rangeIsVerified = useMemo(() => {
+    if (!range) return false;
+    return verified.some(
+      (done) => done.start <= range.start + 0.05 && done.end >= range.end - 0.05
+    );
+  }, [range, verified]);
+
   /** 選んでいる発言だけを聞く。誰が喋っているかを確かめる基本の操作 */
   const playSelected = useCallback(() => {
     if (selected === null) return;
@@ -891,7 +934,15 @@ export function TranscriptTruth() {
               disabled={saving || (!dirty && !range)}
               className="btn btn-primary text-xs"
             >
-              {saving ? "保存中..." : range ? "この範囲を正解にする" : dirty ? "正解を保存" : "保存済み"}
+              {saving
+                ? "保存中..."
+                : range
+                  ? rangeIsVerified
+                    ? "この範囲を上書きする"
+                    : "この範囲を正解にする"
+                  : dirty
+                    ? "正解を保存"
+                    : "保存済み"}
             </button>
           </div>
         </div>
@@ -915,7 +966,7 @@ export function TranscriptTruth() {
                     start: Math.max(0, Math.min(Number(e.target.value), range.end - 0.5)),
                   })
                 }
-                className="input w-24 font-mono text-xs tabular-nums"
+                className="input w-24! font-mono text-xs tabular-nums"
               />
               <span className="text-[var(--color-text-muted)]">–</span>
               <input
@@ -933,7 +984,7 @@ export function TranscriptTruth() {
                     ),
                   })
                 }
-                className="input w-24 font-mono text-xs tabular-nums"
+                className="input w-24! font-mono text-xs tabular-nums"
               />
               <span className="text-[var(--color-text-muted)]">
                 秒（{formatTime(range.start)}–{formatTime(range.end)}・
@@ -994,6 +1045,39 @@ export function TranscriptTruth() {
           >
             ここまで
           </button>
+
+          {/*
+            確かめ済みの一覧。押すとその区間を開き直せる。登録した正解を
+            あとから直すための入口。✕ で確かめ済みから外す
+          */}
+          {verified.length > 0 && (
+            <>
+              <span className="ml-2 text-[var(--color-text-muted)]">確かめ済み</span>
+              {verified.map((done, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-stretch overflow-hidden rounded border border-[var(--color-success)]/50 bg-[var(--color-success)]/10"
+                >
+                  <button
+                    type="button"
+                    onClick={() => reopen(done)}
+                    title="この区間を開き直して直す。保存すると上書きされる"
+                    className="px-1.5 py-0.5 font-mono tabular-nums hover:bg-[var(--color-success)]/25"
+                  >
+                    {formatTime(done.start)}–{formatTime(done.end)}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => unverify(i)}
+                    title="確かめ済みから外す（保存で確定）"
+                    className="border-l border-[var(--color-success)]/50 px-1 text-[var(--color-text-muted)] hover:bg-[var(--color-error)]/15 hover:text-[var(--color-error)]"
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </>
+          )}
         </div>
 
         {error && <p className="mt-2 text-xs text-[var(--color-error)]">{error}</p>}
@@ -1002,6 +1086,7 @@ export function TranscriptTruth() {
           クリックで再生位置を置く / <kbd>Space</kbd> 再生 / <kbd>Enter</kbd> 選んだ発言だけ聞く
           / <kbd>↑↓</kbd> 話者を変える / <kbd>S</kbd> 再生位置で分割 / <kbd>←→</kbd> 0.1 秒（Shift で 1 秒）
           / <kbd>⌘Z</kbd> 取り消し / 発言の端をつまんで伸び縮み / 本文を選んで「抜き出す」
+          / 目盛りの緑の帯か「確かめ済み」の一覧で、登録した区間を開き直す
           <br />
           上段が正解（編集できる）、下の薄い帯が Whisper の生出力（読むだけ）。
           本文の誤りは校正が直す担当なので、ここでは<b>誰がいつ喋ったか</b>だけ直せば足ります。
@@ -1035,6 +1120,23 @@ export function TranscriptTruth() {
                 >
                   {formatTime(i * tick)}
                 </span>
+              ))}
+
+              {/* 確かめ済みの区間。つまむと作業範囲として開き直せる */}
+              {verified.map((done, i) => (
+                <div
+                  key={`done-${i}`}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    reopen(done);
+                  }}
+                  title={`確かめ済み ${formatTime(done.start)}–${formatTime(done.end)} を開き直す`}
+                  className="absolute bottom-0 z-10 h-1.5 cursor-pointer bg-[var(--color-success)]/60 hover:bg-[var(--color-success)]"
+                  style={{
+                    left: done.start * pxPerSec,
+                    width: Math.max(4, (done.end - done.start) * pxPerSec),
+                  }}
+                />
               ))}
             </div>
           </div>
