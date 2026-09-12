@@ -14,6 +14,7 @@
 | `punct_check.py transcript.json …` | 5 分ごとの句読点の割合と、文として閉じていない行の数 |
 | `cuts_check.py raw.json …` | 話者交代のうち文の途中で切れているものの数と例 |
 | `names_holes.py raw.json …` | 固有名詞の出現数と、3 秒以上の穴 |
+| `compare.py truth.json a.json b.json … [--all]` | 正解の行ごとに、各候補が何と言っているか（主な話者と本文）を並べる。数字の上下の中身を見るのに使う。単語の中点で切るので、単語の無い Worker の出力には向かない |
 
 実行例:
 
