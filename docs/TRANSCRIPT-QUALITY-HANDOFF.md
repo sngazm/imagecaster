@@ -297,9 +297,10 @@ BPC、抜いていて→ぬいって言って）。話者の指摘は無し。
 ## 変更の状態（2026-09-12 深夜）
 
 - transcriber: `48883b7` まで push 済み。ワーカーはこのコミットで稼働中（このマシン＝WSL）
-- imagecaster: `20b082f` まで push 済み。**Worker は未デプロイ**（この WSL の wrangler は未ログイン）。
-  デプロイで効くもの: キューの referenceLinks / hallucinationLabels、置換後の相槌削除、
-  行頭ラベルの剥がしと学習の受け口。デプロイ後に #286 を取り直すか `reprocess` する
+- imagecaster: `20b082f` まで push 済み。Worker は 9/13 0:20 に `pnpm run deploy` でデプロイ済み
+  （Version f447212e）。この WSL の wrangler は OAuth でログイン済み（ブラウザのコールバックが
+  届きにくく、`! … wrangler login` を手で打って通った）。#286 は `reprocess` 済み。
+  参考リンクの hotwords（Tyrell）を効かせるには #286 の取り直しがもう 1 回要る
 - 公開中の #286 は 3 回目の取り直し（`d8e539a` 時点）。監査 0 件
 - この WSL に node/pnpm を入れた（`pnpm env use --global lts` → node 24、`~/.local/share/pnpm`）。
   `apps/worker` の `pnpm test`、`audit-site.mjs` / `read-back.mjs` はここで回る
