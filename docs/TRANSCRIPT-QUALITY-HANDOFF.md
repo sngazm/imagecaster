@@ -112,6 +112,10 @@ Whisper の回ごとの本文の差で、話者分離の実装によるもので
   「はいはいはい。」が公開に残った。直し: transcriber が行頭に 3 回以上繰り返す「名前 」を剥がす
   （`transcriber.strip_repeated_labels`、語彙にある語と英字は除く）。Worker は置換のあとにも
   相槌だけの行を落とす
+- ラベルは**自動学習**にした（指示: 「深井」「ヤンヤン」のような学習元の話者名は通常フローで覚えて
+  次から潰す）。transcriber が同じ回で 3 回以上見つけたものを `leadingLabels` で API に登録し、
+  Worker が `hallucination.leadingLabels` に溜めてキューの `hallucinationLabels` で返す。既定は
+  深井・ヤンヤン。置換規則のような承認は挟まない（名前＋空白の行頭だけを剥がすので被害が狭い）
 - `audit-site.mjs` は参考リンクのタイトルの英字（ServersMan）と数字に付く単位（3mm×3mm）を
   指摘しないようにした
 - 残る文体差で目立つもの: 英字表記（Apple Watch／rpm／mm は正解が英字、Whisper はカナに揺れる）、

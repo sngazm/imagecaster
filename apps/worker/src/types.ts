@@ -117,6 +117,12 @@ export interface BackchannelSettings {
 export interface HallucinationSettings {
   /** セグメント全体がこの語と一致したら削除する */
   phrases: string[];
+  /**
+   * 行頭に付く架空の話者ラベル（「深井 」「ヤンヤン 」）。学習元の話者名を Whisper が
+   * 行頭に書く典型的なハルシネーション。文字起こし側が同じ回で繰り返し見つけたものを
+   * 登録してくるので、次の回からは 1 回しか出なくても剥がせる
+   */
+  leadingLabels: string[];
   /** 同じ単位がこの回数を超えて繰り返されたら切り詰める */
   maxRepeat: number;
   /** 同じ文のセグメントがこの回数を超えて続いたら畳む */
@@ -424,6 +430,8 @@ export interface TranscriptionQueueItem {
   // 参考リンク。タイトルにその回の固有名詞（メーカー名・製品名）の正しい綴りが
   // あるので、文字起こし側が語彙（hotwords・校正）に足す
   referenceLinks?: ReferenceLink[];
+  // これまでに学習した、行頭の架空の話者ラベル。文字起こし側が Whisper の出力から剥がす
+  hallucinationLabels?: string[];
   // すでに文字起こしがあるか。取り直しかどうかの判断に使う
   // （取り直しの通知を関係者全員に送ると迷惑なので、宛先を絞る）
   isRetranscribe?: boolean;

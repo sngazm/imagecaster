@@ -24,7 +24,11 @@ import {
 } from "../services/transcript-postprocess";
 import { triggerWebRebuild } from "../services/deploy";
 import { reviewWithLlm } from "../services/transcript-llm";
-import { DEFAULT_POST_PROCESS_SETTINGS } from "../services/transcript-postprocess";
+import {
+  DEFAULT_HALLUCINATION_SETTINGS,
+  DEFAULT_POST_PROCESS_SETTINGS,
+  isLeadingLabel,
+} from "../services/transcript-postprocess";
 import { generateImpression } from "../services/episode-impression";
 import { convertToVtt } from "../services/vtt";
 import { tracksKey } from "./upload";
@@ -123,6 +127,13 @@ transcriptionQueue.get("/queue", async (c) => {
         description: meta.description || "",
         // 参考リンクのタイトルは、その回に出る固有名詞の綴りの根拠になる
         referenceLinks: (meta.referenceLinks || []).filter((link) => link.title?.trim()),
+        // 学習済みの行頭ラベル。文字起こし側が Whisper の出力から剥がす
+        hallucinationLabels: [
+          ...new Set([
+            ...DEFAULT_HALLUCINATION_SETTINGS.leadingLabels,
+            ...(settings?.hallucination?.leadingLabels ?? []),
+          ]),
+        ],
         // すでに文字起こしがあるなら取り直し。通知の宛先を絞るのに使う
         isRetranscribe: Boolean(meta.transcriptUrl),
       };
@@ -423,9 +434,15 @@ transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
         general?: unknown;
         occurrences?: unknown;
       }>;
+      // 文字起こし側がこの回で繰り返し見つけた、行頭の架空の話者ラベル（「深井」）。
+      // 番組の設定に足して、次の回からは 1 回しか出なくても剥がせるようにする
+      leadingLabels?: unknown;
     }>();
 
     const incoming = Array.isArray(body.corrections) ? body.corrections : [];
+    const incomingLabels = Array.isArray(body.leadingLabels)
+      ? body.leadingLabels.filter(isLeadingLabel).map((l) => l.trim())
+      : [];
 
     const rules = incoming
       .filter(
@@ -480,9 +497,33 @@ transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
       added += 1;
     }
 
-    if (added > 0) {
-      index.podcast.transcriptPostProcess = { ...settings, proposals };
+    // 行頭のラベルは審査なしで足す。置換規則と違って本文を書き換えず、
+    // 「名前＋空白」で始まる行の名前だけを剥がすので、被害の範囲が狭い
+    const hallucination = settings.hallucination ?? DEFAULT_HALLUCINATION_SETTINGS;
+    const knownLabels = new Set(hallucination.leadingLabels ?? []);
+    const newLabels = incomingLabels.filter((l) => !knownLabels.has(l));
+
+    if (added > 0 || newLabels.length > 0) {
+      index.podcast.transcriptPostProcess = {
+        ...settings,
+        proposals,
+        hallucination: {
+          ...hallucination,
+          leadingLabels: [...(hallucination.leadingLabels ?? []), ...new Set(newLabels)],
+        },
+      };
       await saveIndex(c.env, index);
+    }
+
+    // ラベルの登録だけなら、後処理のやり直しは要らない（文字起こし側が既に剥がしている）
+    if (rules.length === 0) {
+      return c.json({
+        success: true,
+        proposed: 0,
+        episodeRules: (meta.transcriptCorrections ?? []).length,
+        leadingLabelsAdded: newLabels.length,
+        segments: 0,
+      });
     }
 
     // その回の修正。
@@ -529,6 +570,7 @@ transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
       success: true,
       proposed: added,
       episodeRules: merged.length,
+      leadingLabelsAdded: newLabels.length,
       segments: result?.segments ?? 0,
     });
   } catch (err) {

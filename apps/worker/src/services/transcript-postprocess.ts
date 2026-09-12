@@ -127,6 +127,9 @@ export const DEFAULT_BACKCHANNEL_SETTINGS: BackchannelSettings = {
  * 番組の実データ（公開済み26本・約60万字）を調べて確認できたものを既定に入れている。
  */
 export const DEFAULT_HALLUCINATION_SETTINGS: HallucinationSettings = {
+  // 行頭の架空の話者ラベル。#286 の取り直しで 61 行が「深井 」で始まり、
+  // 以前は「ヤンヤン」が 883 件出た。文字起こし側が見つけたものが登録されて育つ
+  leadingLabels: ["深井", "ヤンヤン"],
   phrases: [
     // 番組の実データで確認したもの
     "ヤンヤン",
@@ -360,6 +363,59 @@ function normalizeForMatch(text: string): string {
  * そこで文頭・文末・単独のいずれでも落とす。ただし文中に埋もれているものは
  * 触らない。本当にその言葉を喋った可能性があり、前後の文を壊す危険があるため。
  */
+/** 行頭のラベルとして受け付ける形。空白を含まず、長すぎない */
+export function isLeadingLabel(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.trim() !== "" &&
+    value.trim().length <= 8 &&
+    !/[\s、。，．,!?！？]/.test(value.trim())
+  );
+}
+
+/**
+ * 行頭の架空の話者ラベルを剥がす
+ *
+ * Whisper は学習元の字幕の話者名（「深井」「ヤンヤン」）を行頭に書くことがある。
+ * 「深井 はいはいはい。」のように、名前・空白・本文の形。名前だけを剥がすと相槌だけの
+ * 行になり、あとの相槌の削除が受け持つ。空白が続くものだけを見る。「深井さんが」の
+ * ような本文の中の語は触らない
+ */
+export function stripLeadingLabels(
+  segments: TranscriptSegment[],
+  labels: string[]
+): { segments: TranscriptSegment[]; stripped: number } {
+  const known = labels.map((l) => l.trim()).filter((l) => l !== "");
+  if (known.length === 0) {
+    return { segments: segments.map((s) => ({ ...s })), stripped: 0 };
+  }
+
+  let stripped = 0;
+  const result: TranscriptSegment[] = [];
+
+  for (const segment of segments) {
+    let text = segment.text.trim();
+    let hit = false;
+
+    for (let pass = 0; pass < 3; pass++) {
+      const before = text;
+      for (const label of known) {
+        if (text.startsWith(label) && /^[\s\u3000]/.test(text.slice(label.length))) {
+          text = text.slice(label.length).replace(/^[\s\u3000]+/, "");
+          hit = true;
+        }
+      }
+      if (text === before) break;
+    }
+
+    if (hit) stripped += 1;
+    if (text === "") continue;
+    result.push(hit ? { ...segment, text } : { ...segment });
+  }
+
+  return { segments: result, stripped };
+}
+
 export function removeHallucinations(
   segments: TranscriptSegment[],
   phrases: string[]
@@ -847,10 +903,11 @@ export function postProcess(
   };
 
   // ノイズを先に落とす。統合してからでは、まとまった文の一部になって取り除けない
-  const { segments: cleaned } = removeHallucinations(
+  const { segments: unlabeled } = stripLeadingLabels(
     data.segments,
-    hallucination.phrases
+    hallucination.leadingLabels ?? []
   );
+  const { segments: cleaned } = removeHallucinations(unlabeled, hallucination.phrases);
   const { segments: collapsed } = collapseRepetitions(cleaned, hallucination);
 
   const backchannel = {
@@ -1023,12 +1080,21 @@ function sanitizeHallucination(input: unknown): HallucinationSettings {
   const entry = input as Record<string, unknown>;
   const rawPhrases = entry.phrases;
 
+  const rawLabels = entry.leadingLabels;
+
   return {
     phrases: Array.isArray(rawPhrases)
       ? rawPhrases
           .filter((p): p is string => typeof p === "string" && p.trim() !== "")
           .map((p) => p.trim())
       : DEFAULT_HALLUCINATION_SETTINGS.phrases,
+    // 既定のラベル（深井・ヤンヤン）は常に残す。保存された設定が既定より古くても効くように
+    leadingLabels: [
+      ...new Set([
+        ...DEFAULT_HALLUCINATION_SETTINGS.leadingLabels,
+        ...(Array.isArray(rawLabels) ? rawLabels.filter(isLeadingLabel).map((l) => l.trim()) : []),
+      ]),
+    ],
     // 低すぎる値は正常な相槌や擬音を壊すので下限を設ける
     maxRepeat: Math.max(
       8,

@@ -8,6 +8,7 @@ import {
   removeEmbeddedBackchannels,
   DEFAULT_FILLER_SETTINGS,
   postProcess,
+  stripLeadingLabels,
   DEFAULT_MERGE_OPTIONS,
   DEFAULT_BACKCHANNEL_SETTINGS,
 } from "../services/transcript-postprocess";
@@ -232,6 +233,46 @@ describe("mergeSegments", () => {
   });
 });
 
+describe("stripLeadingLabels", () => {
+  it("行頭の「名前＋空白」を剥がし、本文の中の同じ語は触らない", () => {
+    // Whisper が学習元の話者名を行頭に書く（#286「深井 はいはいはい。」、以前の「ヤンヤン」）
+    const result = stripLeadingLabels(
+      [
+        seg(0, 1, "深井 はいはいはい。", "鉄塔"),
+        seg(1, 2, "深井　執念ですね。", "鉄塔"),
+        seg(2, 3, "深井さんが来た。", "あずま"),
+        seg(3, 4, "ヤンヤン ヤンヤン そうですね。", "あずま"),
+        seg(4, 5, "深井", "鉄塔"),
+      ],
+      ["深井", "ヤンヤン"]
+    );
+
+    expect(result.segments.map((s) => s.text)).toEqual([
+      "はいはいはい。",
+      "執念ですね。",
+      "深井さんが来た。",
+      "そうですね。",
+      "深井",
+    ]);
+    expect(result.stripped).toBe(3);
+  });
+
+  it("postProcess の先頭で剥がすので、残った相槌だけの行は落ちる", () => {
+    const result = postProcess(
+      {
+        segments: [
+          { start: 0, end: 2, text: "レベルにしたくない。", speaker: "あずま" },
+          { start: 2, end: 3, text: "深井 はいはいはい。", speaker: "鉄塔" },
+          { start: 3, end: 5, text: "深井 っていう感じですね。", speaker: "鉄塔" },
+        ],
+      },
+      {}
+    );
+
+    expect(result.segments.map((s) => s.text)).toEqual(["レベルにしたくない。", "っていう感じですね。"]);
+  });
+});
+
 describe("postProcess は置換のあとにも相槌だけの行を落とす", () => {
   it("行頭の幻覚を置換で剥がしたら相槌だけになる行を落とす", () => {
     // #286 で Whisper が「深井 」という架空の話者ラベルを行頭に付け、校正がそれを
@@ -239,23 +280,19 @@ describe("postProcess は置換のあとにも相槌だけの行を落とす", (
     const result = postProcess(
       {
         segments: [
-          { start: 0, end: 2, text: "文字起こしだからしょうがないかというレベルにしたくない。", speaker: "あずま" },
-          { start: 2, end: 3, text: "深井 はいはいはい。", speaker: "鉄塔" },
-          { start: 3, end: 5, text: "深井 っていう感じですね。", speaker: "あずま" },
+          { start: 2, end: 3, text: "田中 はいはいはい。", speaker: "鉄塔" },
+          { start: 3, end: 5, text: "田中 っていう感じですね。", speaker: "あずま" },
         ],
       },
       {
         episodeCorrections: [
-          { from: "深井 はいはいはい。", to: "はいはいはい。", enabled: true },
-          { from: "深井 っていう感じですね。", to: "っていう感じですね。", enabled: true },
+          { from: "田中 はいはいはい。", to: "はいはいはい。", enabled: true },
+          { from: "田中 っていう感じですね。", to: "っていう感じですね。", enabled: true },
         ],
       }
     );
 
-    expect(result.segments.map((s) => s.text)).toEqual([
-      "文字起こしだからしょうがないかというレベルにしたくない。",
-      "っていう感じですね。",
-    ]);
+    expect(result.segments.map((s) => s.text)).toEqual(["っていう感じですね。"]);
   });
 });
 

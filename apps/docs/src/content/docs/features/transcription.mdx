@@ -72,6 +72,9 @@ interface TranscriptionQueueItem {
   referenceLinks?: Array<{ url: string; title: string }>;
   // すでに文字起こしがあるか（取り直し）。通知の宛先を絞るのに使う
   isRetranscribe?: boolean;
+  // これまでに学習した、行頭の架空の話者ラベル（「深井」「ヤンヤン」）。
+  // 文字起こし側が Whisper の出力から剥がす
+  hallucinationLabels?: string[];
 }
 ```
 
@@ -214,6 +217,10 @@ Whisper の生出力は `transcript.raw.json` として残るため、文字起�
     note?: string;    // なぜ誤認識と判断したか
     general?: boolean; // 番組全体の辞書に入れるか
   }>;
+  // 行頭に繰り返し付いていた架空の話者ラベル（「深井」）。審査なしで番組の設定
+  // hallucination.leadingLabels に足し、次の回からキューの hallucinationLabels で返す。
+  // 空白を含むもの・8 文字を超えるものは捨てる
+  leadingLabels?: string[];
 }
 ```
 
@@ -221,13 +228,15 @@ Whisper の生出力は `transcript.raw.json` として残るため、文字起�
 `false` のものはそのエピソードにだけ保存されます。「ソロスを」→「そろそろ」のような
 文脈に依る修正を辞書に入れると、他の回で誤爆するためです。
 
-登録後、そのエピソードの後処理が自動でやり直されます。
+登録後、そのエピソードの後処理が自動でやり直されます（`corrections` が空で
+`leadingLabels` だけのときはやり直しません。文字起こし側が既に剥がしているためです）。
 
 ```typescript
 {
   success: boolean;
-  dictionaryAdded: number;  // 辞書に足した件数（既にある規則は数えない）
-  episodeRules: number;     // この回かぎりの規則の件数
+  proposed: number;           // 辞書への提案として溜めた件数（既にあるものは数えない）
+  episodeRules: number;       // この回かぎりの規則の件数
+  leadingLabelsAdded: number; // 新しく学習した行頭のラベルの件数
   segments: number;
 }
 ```

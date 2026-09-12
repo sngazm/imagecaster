@@ -126,6 +126,14 @@ Podcast カバーアート用 Presigned URL を発行します。
 
     // 同時発話を検出する範囲（冒頭からの秒数）。null なら検出しない
     simultaneousUntilSec: number | null;
+
+    // Whisper のハルシネーションの除去
+    hallucination?: {
+      phrases: string[];        // セグメント全体がこの語と一致したら削除する
+      leadingLabels: string[];  // 行頭の架空の話者ラベル（「深井」「ヤンヤン」）。文字起こし側が学習して足す
+      maxRepeat: number;        // 同じ単位の繰り返しをこの回数で切り詰める
+      maxConsecutive: number;   // 同じ文のセグメントがこの回数を超えて続いたら畳む
+    };
   };
 }
 ```

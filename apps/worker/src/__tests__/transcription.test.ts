@@ -1328,6 +1328,30 @@ describe("キューが参考リンクを渡すこと", () => {
   });
 });
 
+describe("行頭の架空の話者ラベルを学習すること", () => {
+  it("登録したラベルが設定に入り、次のキューで渡される", async () => {
+    const { id, storageKey } = await createTestEpisode({ title: "ラベル", skipTranscription: false });
+    await setEpisodeToTranscribing(storageKey, id);
+
+    const registered = await SELF.fetch(`http://localhost/api/episodes/${id}/transcript/corrections`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ corrections: [], leadingLabels: ["田中", "深井", "空白 あり", ""] }),
+    });
+    expect(registered.status).toBe(200);
+    const outcome = (await registered.json()) as { leadingLabelsAdded: number };
+    // 深井は既定にあるので新規は田中だけ。空白を含むものと空は捨てる
+    expect(outcome.leadingLabelsAdded).toBe(1);
+
+    const body = (await (
+      await SELF.fetch("http://localhost/api/transcription/queue")
+    ).json()) as { episodes: Array<{ id: string; hallucinationLabels?: string[] }> };
+    const labels = body.episodes.find((e) => e.id === id)?.hallucinationLabels ?? [];
+    expect(labels).toEqual(expect.arrayContaining(["深井", "ヤンヤン", "田中"]));
+    expect(labels).not.toContain("空白 あり");
+  });
+});
+
 describe("キューが取り直しかどうかを伝えること", () => {
   it("文字起こしが無ければ新規", async () => {
     const { id, storageKey } = await createTestEpisode({
