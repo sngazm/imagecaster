@@ -232,6 +232,33 @@ describe("mergeSegments", () => {
   });
 });
 
+describe("postProcess は置換のあとにも相槌だけの行を落とす", () => {
+  it("行頭の幻覚を置換で剥がしたら相槌だけになる行を落とす", () => {
+    // #286 で Whisper が「深井 」という架空の話者ラベルを行頭に付け、校正がそれを
+    // この回かぎりの置換で剥がした。置換は後処理の最後なので「はいはいはい。」が残った
+    const result = postProcess(
+      {
+        segments: [
+          { start: 0, end: 2, text: "文字起こしだからしょうがないかというレベルにしたくない。", speaker: "あずま" },
+          { start: 2, end: 3, text: "深井 はいはいはい。", speaker: "鉄塔" },
+          { start: 3, end: 5, text: "深井 っていう感じですね。", speaker: "あずま" },
+        ],
+      },
+      {
+        episodeCorrections: [
+          { from: "深井 はいはいはい。", to: "はいはいはい。", enabled: true },
+          { from: "深井 っていう感じですね。", to: "っていう感じですね。", enabled: true },
+        ],
+      }
+    );
+
+    expect(result.segments.map((s) => s.text)).toEqual([
+      "文字起こしだからしょうがないかというレベルにしたくない。",
+      "っていう感じですね。",
+    ]);
+  });
+});
+
 describe("postProcess", () => {
   it("language を保ったままセグメントを後処理する", () => {
     const data = {

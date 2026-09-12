@@ -894,7 +894,11 @@ export function postProcess(
   // 番組全体の辞書を当ててから、この回かぎりの修正を当てる。
   // 全体の辞書に入れると誤爆するものを、ここで拾う
   const { segments: corrected } = applyCorrections(settled, options.corrections ?? []);
-  const { segments } = applyCorrections(corrected, options.episodeCorrections ?? []);
+  const { segments: replaced } = applyCorrections(corrected, options.episodeCorrections ?? []);
+  // 置換で行頭の幻覚（「深井 はいはいはい。」の「深井 」）が剥がれると、残るのが
+  // 相槌だけになることがある。#286 でこれが「はいはいはい。」として公開まで通った。
+  // 読者が見る最終形でもう一度落とす
+  const { segments } = dropStandaloneBackchannels(replaced, backchannel);
 
   return {
     ...data,

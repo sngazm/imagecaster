@@ -11,6 +11,7 @@
  */
 
 const SITE = process.env.SITE_URL ?? "https://cast.image.club";
+const BUCKET = process.env.BUCKET_URL ?? "https://cast-bucket.image.club";
 
 /** Whisper の定番ハルシネーションと、番組で確認済みの誤り */
 const BAD_WORDS = [
@@ -79,10 +80,31 @@ const KNOWN_LATIN = new Set(
   ].map((w) => w.toLowerCase())
 );
 const LATIN_WORD = /[A-Za-z]{2,}/g;
-function unknownLatinWords(text) {
-  return (text.match(LATIN_WORD) ?? []).filter(
-    (w) => !KNOWN_LATIN.has(w.toLowerCase()) && !(w === w.toUpperCase() && w.length <= 4)
+// 数字に付く単位（3mm×3mm、16kHz、2000mAh）。英単語ではない
+const UNIT_AFTER_DIGIT = /(?<=[0-9×])[A-Za-z]{1,4}\b/g;
+function unknownLatinWords(text, known = KNOWN_LATIN) {
+  const bare = text.replace(UNIT_AFTER_DIGIT, "");
+  return (bare.match(LATIN_WORD) ?? []).filter(
+    (w) => !known.has(w.toLowerCase()) && !(w === w.toUpperCase() && w.length <= 4)
   );
+}
+
+/**
+ * その回の参考リンクのタイトルに出る英字の綴り（「ServersMan」「Tyrell Bike」）。
+ * 番組の語彙に無くても、その回では正しい綴りなので指摘しない
+ */
+async function episodeVocabulary(id) {
+  try {
+    const index = await (await fetch(`${BUCKET}/index.json?v=${Date.now()}`)).json();
+    const key = index.episodes?.find((e) => String(e.id) === String(id))?.storageKey;
+    if (!key) return { words: new Set(), names: [] };
+    const meta = await (await fetch(`${BUCKET}/episodes/${key}/meta.json?v=${Date.now()}`)).json();
+    const titles = (meta.referenceLinks ?? []).map((l) => l.title ?? "");
+    const names = titles.flatMap((t) => t.match(/[A-Za-z][A-Za-z0-9]+/g) ?? []);
+    return { words: new Set(names.map((w) => w.toLowerCase())), names };
+  } catch {
+    return { words: new Set(), names: [] };
+  }
 }
 
 const OVER_REPLACED = [
@@ -152,6 +174,8 @@ async function auditEpisode(id) {
 
   const segments = parseSegments(await res.text());
   const findings = [];
+  const vocabulary = await episodeVocabulary(id);
+  const known = new Set([...KNOWN_LATIN, ...vocabulary.words]);
 
   for (const { speakers, text } of segments) {
     for (const word of BAD_WORDS) {
@@ -163,7 +187,9 @@ async function auditEpisode(id) {
     // 辞書の規則が行き過ぎていないか
     for (const { pattern, kind, except } of OVER_REPLACED) {
       // 正当な綴りを取り除いてから当てる
-      const target = (except ?? []).reduce((t, w) => t.split(w).join(""), text);
+      // その回の参考リンクにある綴り（ServersMan）も、空白落ちではない
+      const skip = except ? [...except, ...vocabulary.names] : [];
+      const target = skip.reduce((t, w) => t.split(w).join(""), text);
       if (pattern.test(target)) {
         findings.push({ kind, speakers, text });
       }
@@ -180,7 +206,7 @@ async function auditEpisode(id) {
     }
 
     // 語彙に無い英単語が並ぶ行（Whisper の脱線）
-    if (unknownLatinWords(text).length >= 3) {
+    if (unknownLatinWords(text, known).length >= 3) {
       findings.push({ kind: "英単語の断片が並ぶ行", speakers, text });
     }
 
