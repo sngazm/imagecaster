@@ -12,6 +12,7 @@
 | `pp_stages.ts raw.json index.json meta.json prefix` | 後処理を 1 段ずつ書き出す。`SKIP_REPAIR=1` で repairSpeakerBoundaries を飛ばす |
 | `fetch.sh storageKey out_dir` | 公開データ一式（meta / raw / json / truth / levels / index）を R2 から取る |
 | `punct_check.py transcript.json …` | 5 分ごとの句読点の割合と、文として閉じていない行の数 |
+| `punct_diff.py truth.json ours.json [--detail]` | 正解の区切り（。／…／、／行末）ごとに、こちらが何を打っているかを数える。「余分な読点」「句点が読点に」「言いさしが句点に」が見える |
 | `cuts_check.py raw.json …` | 話者交代のうち文の途中で切れているものの数と例 |
 | `names_holes.py raw.json …` | 固有名詞の出現数と、3 秒以上の穴 |
 | `compare.py truth.json a.json b.json … [--all]` | 正解の行ごとに、各候補が何と言っているか（主な話者と本文）を並べる。数字の上下の中身を見るのに使う。単語の中点で切るので、単語の無い Worker の出力には向かない |

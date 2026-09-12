@@ -65,6 +65,13 @@ interface TranscriptionQueueItem {
   }>;
   // 同時発話を検出する範囲（冒頭からの秒数）。null なら検出しない
   simultaneousUntilSec?: number | null;
+  // エピソードの概要（HTML）。冒頭の要約を Whisper の initial_prompt に足す
+  description?: string;
+  // 参考リンク（タイトルのあるものだけ）。その回の固有名詞の綴りの根拠として、
+  // 文字起こし側が hotwords の抽出元と LLM 校正の語彙に足す
+  referenceLinks?: Array<{ url: string; title: string }>;
+  // すでに文字起こしがあるか（取り直し）。通知の宛先を絞るのに使う
+  isRetranscribe?: boolean;
 }
 ```
 

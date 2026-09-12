@@ -121,6 +121,8 @@ transcriptionQueue.get("/queue", async (c) => {
         // 冒頭の要約を initial_prompt に足すのに使う。その回で出てくる語を
         // 渡しておくと固有名詞の精度が上がる
         description: meta.description || "",
+        // 参考リンクのタイトルは、その回に出る固有名詞の綴りの根拠になる
+        referenceLinks: (meta.referenceLinks || []).filter((link) => link.title?.trim()),
         // すでに文字起こしがあるなら取り直し。通知の宛先を絞るのに使う
         isRetranscribe: Boolean(meta.transcriptUrl),
       };

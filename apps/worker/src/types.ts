@@ -421,6 +421,9 @@ export interface TranscriptionQueueItem {
   simultaneousUntilSec?: number | null;
   // エピソードの概要。冒頭の要約を initial_prompt に足すのに使う
   description?: string;
+  // 参考リンク。タイトルにその回の固有名詞（メーカー名・製品名）の正しい綴りが
+  // あるので、文字起こし側が語彙（hotwords・校正）に足す
+  referenceLinks?: ReferenceLink[];
   // すでに文字起こしがあるか。取り直しかどうかの判断に使う
   // （取り直しの通知を関係者全員に送ると迷惑なので、宛先を絞る）
   isRetranscribe?: boolean;

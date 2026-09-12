@@ -12,6 +12,7 @@ async function createTestEpisode(data: {
   publishAt?: string | null;
   skipTranscription?: boolean;
   slug?: string;
+  referenceLinks?: Array<{ url: string; title: string }>;
 }): Promise<{ id: string; slug: string; storageKey: string }> {
   const response = await SELF.fetch("http://localhost/api/episodes", {
     method: "POST",
@@ -1300,6 +1301,30 @@ describe("キューが話者の割り当てを渡すこと", () => {
     const item = body.episodes.find((e) => e.id === id);
 
     expect(item?.speakerTracks).toBeDefined();
+  });
+});
+
+describe("キューが参考リンクを渡すこと", () => {
+  it("タイトルのあるリンクだけを渡す", async () => {
+    // タイトルにその回の固有名詞（メーカー名・製品名）の正しい綴りがある。
+    // #286 では「Tyrell」が概要に無く、リンクのタイトルにだけあった
+    const { id, storageKey } = await createTestEpisode({
+      title: "参考リンク",
+      skipTranscription: false,
+      referenceLinks: [
+        { url: "https://www.tyrellbike.com/products/fx/", title: "FX - 製品情報 - Tyrell Bike" },
+        { url: "https://example.com/", title: "   " },
+      ],
+    });
+    await setEpisodeToTranscribing(storageKey, id);
+
+    const body = (await (
+      await SELF.fetch("http://localhost/api/transcription/queue")
+    ).json()) as { episodes: Array<{ id: string; referenceLinks?: Array<{ title: string }> }> };
+
+    expect(body.episodes.find((e) => e.id === id)?.referenceLinks?.map((l) => l.title)).toEqual([
+      "FX - 製品情報 - Tyrell Bike",
+    ]);
   });
 });
 
