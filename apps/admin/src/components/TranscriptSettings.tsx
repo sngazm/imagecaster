@@ -343,7 +343,10 @@ export function TranscriptSettings({ value, onSaved }: Props) {
           相槌
         </h2>
         <p className="text-xs text-[var(--color-text-muted)] mb-4">
-          実際に言っていても、文字で読むと相槌が並ぶだけになる箇所を整理します。
+          実際に言っていても、文字で読むと相槌が並ぶだけになる箇所を整理します。ここで決めるのは
+          「相槌だけの行を消すか」「繰り返しを何回に抑えるか」だけです。文の中の言いよどみ
+          （なんか・まあ・その・あの・で、）は、文字起こし側の「読み物として整える」工程が
+          発言ごとに取ります。
         </p>
 
         <div className="space-y-3">
