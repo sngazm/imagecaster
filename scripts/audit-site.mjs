@@ -60,8 +60,10 @@ const CAMEL_CASE_NAMES = [
  * がそのまま公開されていた。文字起こし側で出た時点で捨てるようにしたが、
  * 経路の取りこぼしに備えてここでも見る
  */
+// 乗算記号「×」（U+00D7）と「÷」はラテン文字補助の範囲にあるが日本語の本文に普通に出る
+// （#286「3mm×3mm」「15mm×33mm」）ので除く
 const FOREIGN_SCRIPT =
-  /[\u00c0-\u024f\u0370-\u03ff\u0400-\u04ff\u0590-\u06ff\u1100-\u11ff\u3130-\u318f\uac00-\ud7af\u2460-\u24ff\ufffd]/;
+  /[\u00c0-\u00d6\u00d8-\u00f6\u00f8-\u024f\u0370-\u03ff\u0400-\u04ff\u0590-\u06ff\u1100-\u11ff\u3130-\u318f\uac00-\ud7af\u2460-\u24ff\ufffd]/;
 
 // 番組の会話に出てよい英単語。これ以外の英単語が 1 行に 3 つ以上並ぶのは、Whisper が
 // 脱線した出力（#281 の取り直しで「wanting to choose」「Geme Auch initial Mach」が

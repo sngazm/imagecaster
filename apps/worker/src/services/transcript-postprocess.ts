@@ -735,15 +735,30 @@ export function dropStandaloneBackchannels(
       ? new RegExp(`^(?:${alternation})(?:${alternation})+$`)
       : null;
 
+  // 相槌の語だけを数える。「はい、はい、はい、」が 3 語以上の連なりかを見る
+  const unitPattern = units.length > 0 ? new RegExp(alternation, "g") : null;
+
   const kept: TranscriptSegment[] = [];
 
   for (const segment of segments) {
     const text = segment.text.trim();
 
-    // 読点で終わるものは次に続く断片なので触らない
+    // 読点で終わるものは次に続く断片なので触らない。
+    //
+    // ただし「はい、はい、はい、」のように相槌の語が 3 つ以上並ぶだけの行は、次の
+    // 発話の断片ではなく相槌の勢い（同じ人が続けていれば文字起こし側が繋いでいる）。
+    // 読点で終わるというだけで残ると、監査に「同じ字が並ぶだけの行」として残る。
+    // 「そうそう、」（2 語）は「そうそう、それで…」の頭のことがあるので触らない
     if (/[、，,]$/.test(text)) {
-      kept.push(segment);
-      continue;
+      const compactAll = text.replace(/[、，,っッー\s。．！？!?]/g, "");
+      const burst =
+        compactAll.length >= 2 &&
+        (repeated?.test(compactAll) ?? false) &&
+        (compactAll.match(unitPattern!) ?? []).length >= 3;
+      if (!burst) {
+        kept.push(segment);
+        continue;
+      }
     }
 
     // 句点・感嘆符などを外した中身が相槌そのものか

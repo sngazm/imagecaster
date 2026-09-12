@@ -635,6 +635,21 @@ describe("繰り返しの相槌を落とす", () => {
 
     expect(result.segments).toHaveLength(1);
   });
+
+  it("読点で区切った相槌が 3 つ以上並ぶだけの行は落とす", () => {
+    // #286 の公開サイトに「はい、はい、はい、」だけの行が残った。読点で終わるが
+    // 次の発話の断片ではなく、相槌の勢い
+    const result = dropStandaloneBackchannels(
+      [
+        seg(0, 2, "はい、はい、はい、", "あずま"),
+        seg(2, 4, "うん、うん、うん、うん、", "鉄塔"),
+        seg(4, 6, "なんか、", "あずま"),
+      ],
+      DEFAULT_BACKCHANNEL_SETTINGS
+    );
+
+    expect(result.segments.map((s) => s.text)).toEqual(["なんか、"]);
+  });
 });
 
 describe("笑い声を落とす", () => {
