@@ -112,6 +112,10 @@ Whisper の回ごとの本文の差で、話者分離の実装によるもので
   「はいはいはい。」が公開に残った。直し: transcriber が行頭に 3 回以上繰り返す「名前 」を剥がす
   （`transcriber.strip_repeated_labels`、語彙にある語と英字は除く）。Worker は置換のあとにも
   相槌だけの行を落とす
+- 3 回目の取り直し（20:10〜20:38、「意味の切れ目の読点は残す」版）: 読点/100字 3.6（正解 3.1）、
+  正解にある読点が無い 56→42、正解に無い読点 24→35、80 字超の文 4→5、文の最大 107。監査 0 件。
+  読み返し 5 件はすべて校正の取りこぼし。話者一致 97.6/98.5、CER 8.9%（1 回目 98.1/98.9、7.7% は
+  Whisper の回の当たり）。句読点はここで一段落。次に効くのは校正の取りこぼし（毎回 5〜8 件）
 - ラベルは**自動学習**にした（指示: 「深井」「ヤンヤン」のような学習元の話者名は通常フローで覚えて
   次から潰す）。transcriber が同じ回で 3 回以上見つけたものを `leadingLabels` で API に登録し、
   Worker が `hallucination.leadingLabels` に溜めてキューの `hallucinationLabels` で返す。既定は
@@ -290,15 +294,15 @@ node scripts/read-back.mjs 281
 8 件、すべて校正の取りこぼし（基礎→規模、加速度→感覚、荒い→粗い ×2、間なら→まあ、なら、使えたり→直せたり、
 BPC、抜いていて→ぬいって言って）。話者の指摘は無し。
 
-## 変更の状態（2026-09-12 夜）
+## 変更の状態（2026-09-12 深夜）
 
-- transcriber: `b9ee0c6` をコミット、ワーカーはこのコミットで稼働中（このマシン＝WSL）。**push はまだ**
-- imagecaster: `d85dc5c`（docs・compare.py）`507a5e2`（Worker の相槌例外・監査の ×）をコミット。**push・Worker のデプロイはまだ**
-  （この WSL の wrangler は未ログイン）。デプロイ後に `POST /api/episodes/286/transcript/reprocess` で
-  「はい、はい、はい、」の行が消えることを `audit-site.mjs 286` で確かめる
+- transcriber: `48883b7` まで push 済み。ワーカーはこのコミットで稼働中（このマシン＝WSL）
+- imagecaster: `20b082f` まで push 済み。**Worker は未デプロイ**（この WSL の wrangler は未ログイン）。
+  デプロイで効くもの: キューの referenceLinks / hallucinationLabels、置換後の相槌削除、
+  行頭ラベルの剥がしと学習の受け口。デプロイ後に #286 を取り直すか `reprocess` する
+- 公開中の #286 は 3 回目の取り直し（`d8e539a` 時点）。監査 0 件
 - この WSL に node/pnpm を入れた（`pnpm env use --global lts` → node 24、`~/.local/share/pnpm`）。
-  `apps/worker` の `pnpm test` はここで回る（338 件通過）。`audit-site.mjs` / `read-back.mjs` も回る
-
+  `apps/worker` の `pnpm test`、`audit-site.mjs` / `read-back.mjs` はここで回る
 ## 変更の状態（2026-09-12 昼）
 
 - 両リポジトリの `main` へコミット・push 済み。ワーカーは transcriber の最新で稼働中。
