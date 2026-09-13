@@ -896,7 +896,7 @@ describe("話者トラックと整形", () => {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          transcriptPostProcess: {
+          transcriptRefine: {
             speakerDefaults: [],
             merge: { enabled: true, maxGapSec: null, maxDurationSec: 10, maxChars: 200 },
             corrections: [{ from: "テト", to: "鉄塔", enabled: true }],
@@ -1038,7 +1038,7 @@ describe("整形が保存経路でも全段通ること", () => {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        transcriptPostProcess: {
+        transcriptRefine: {
           speakerDefaults: [],
           merge: { enabled: false, maxGapSec: null, maxDurationSec: 10, maxChars: 200 },
           corrections: [],
@@ -1122,17 +1122,17 @@ describe("校正で見つかった修正を登録する", () => {
     const saved = (await (
       await SELF.fetch("http://localhost/api/settings")
     ).json()) as {
-      transcriptPostProcess: {
+      transcriptRefine: {
         corrections: Array<{ from: string }>;
         proposals: Array<{ from: string }>;
       };
     };
 
     // 辞書には入らない。機械の判断で足すと公開中の文章を壊す
-    expect(saved.transcriptPostProcess.corrections.some((r) => r.from === "アサナ")).toBe(
+    expect(saved.transcriptRefine.corrections.some((r) => r.from === "アサナ")).toBe(
       false
     );
-    expect(saved.transcriptPostProcess.proposals.some((p) => p.from === "アサナ")).toBe(
+    expect(saved.transcriptRefine.proposals.some((p) => p.from === "アサナ")).toBe(
       true
     );
   });
@@ -1216,7 +1216,7 @@ describe("校正の提案は人が承認するまで効かない", () => {
     await propose([{ from: "アサナ", to: "Asana", note: "ツール名", general: true }]);
 
     const settings = await read();
-    const post = settings.transcriptPostProcess;
+    const post = settings.transcriptRefine;
 
     expect(post.corrections.some((r: any) => r.from === "アサナ")).toBe(false);
     expect(post.proposals.some((p: any) => p.from === "アサナ")).toBe(true);
@@ -1235,7 +1235,7 @@ describe("校正の提案は人が承認するまで効かない", () => {
     const body = (await response.json()) as { approved: number };
     expect(body.approved).toBe(1);
 
-    const post = (await read()).transcriptPostProcess;
+    const post = (await read()).transcriptRefine;
     expect(post.corrections.some((r: any) => r.from === "アサナ")).toBe(true);
     expect(post.proposals).toHaveLength(0);
   });
@@ -1249,7 +1249,7 @@ describe("校正の提案は人が承認するまで効かない", () => {
       body: JSON.stringify({ reject: [{ from: "メール", to: "mail" }] }),
     });
 
-    const post = (await read()).transcriptPostProcess;
+    const post = (await read()).transcriptRefine;
     expect(post.corrections.some((r: any) => r.from === "メール")).toBe(false);
     expect(post.proposals).toHaveLength(0);
   });
@@ -1258,7 +1258,7 @@ describe("校正の提案は人が承認するまで効かない", () => {
     await propose([{ from: "アサナ", to: "Asana", general: true }]);
     await propose([{ from: "アサナ", to: "Asana", general: true }]);
 
-    const post = (await read()).transcriptPostProcess;
+    const post = (await read()).transcriptRefine;
     expect(post.proposals.filter((p: any) => p.from === "アサナ")).toHaveLength(1);
   });
 
@@ -1266,7 +1266,7 @@ describe("校正の提案は人が承認するまで効かない", () => {
     // 提案にするのは辞書に入れるものだけ。エピソードの修正は承認を待たない
     await propose([{ from: "アサナ", to: "Asana", general: false }]);
 
-    const post = (await read()).transcriptPostProcess;
+    const post = (await read()).transcriptRefine;
     expect(post.proposals ?? []).toHaveLength(0);
   });
 });
@@ -1422,10 +1422,10 @@ describe("提案でもその回には効くこと", () => {
     // 辞書にはまだ入らない
     const settings = (await (
       await SELF.fetch("http://localhost/api/settings")
-    ).json()) as { transcriptPostProcess: { corrections: Array<{ from: string }> } };
+    ).json()) as { transcriptRefine: { corrections: Array<{ from: string }> } };
 
     expect(
-      settings.transcriptPostProcess.corrections.some((r) => r.from === "どんぶり感情")
+      settings.transcriptRefine.corrections.some((r) => r.from === "どんぶり感情")
     ).toBe(false);
   });
 });

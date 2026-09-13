@@ -269,7 +269,7 @@ async function handleTranscriptReprocess(env: Env): Promise<void> {
     const result = await refineAndSave(
       env,
       meta,
-      index.podcast.transcriptPostProcess
+      index.podcast.transcriptRefine
     );
 
     if (result) {

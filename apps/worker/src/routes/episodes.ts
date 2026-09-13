@@ -460,7 +460,7 @@ episodes.post("/:id/transcription-complete", async (c) => {
         c.env,
         meta,
         transcriptData,
-        settingsIndex.podcast.transcriptPostProcess
+        settingsIndex.podcast.transcriptRefine
       );
 
       meta.transcribeStatus = "completed";

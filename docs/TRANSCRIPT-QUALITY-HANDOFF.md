@@ -506,6 +506,26 @@ read-back の指摘は 6 件 → **3 件**に減った（audit は 0 件）。CE
 規則を外す手段が無かったので `DELETE /api/episodes/:id/transcript/corrections` を足した
 （`from` と `to` を指定。`to` を省くとその `from` を全部外す）。外したあとは整形をやり直す。
 
+## 2026-09-13 夕 「後処理」を「整形」に改めた
+
+指摘を受けて改名した。「後処理」はこの工程の**後にも**校正・読み返しが続くので紛らわしく、
+かといって「前処理」でもない（校正の準備ではなく、公開用の本文を組み立てるのが本業で、
+校正が一度も走らなくても要る）。何の前後かではなく何をするかで呼ぶ。
+
+- `postProcess` → `refine`、`transcript-postprocess.ts` → `transcript-refine.ts`、
+  型と既定値も `TranscriptRefineSettings` / `DEFAULT_REFINE_SETTINGS`
+- **設定キーも `transcriptPostProcess` → `transcriptRefine`**。R2 の `index.json` に
+  入っている永続データなので、`getIndex` が読み込み時に移し替える（`migrateIndex`）。
+  次の `saveIndex` で新しい形に書き戻り、旧キーは消える
+- Worker と管理画面は別々にデプロイされるので、移行期間は `GET /api/settings` が
+  **両方の名前で同じ値を返し**、`PUT` は**どちらでも受ける**。管理画面が入れ替わったら
+  旧名の口を閉じてよい（`routes/settings.ts` にその旨のコメントあり）
+- エンドポイント名 `/transcript/reprocess` は据え置き
+
+**相槌だけの行を落とす処理も 4 回 → 2 回にした**（同じ指摘から）。統合の前と、読者が
+見る最終形だけ。真ん中の 2 回は 4 本（#281 #283 #285 #286）で 1 文字も変えていなかった。
+逆に統合前の 1 回を省くと、繋がるはずの行が分かれたまま残る（#283 で 634 → 775 行）。
+
 ## 変更の状態（2026-09-13 朝）
 
 - transcriber `327e192`、imagecaster `fea4920` まで push 済み。ワーカー（この WSL）は

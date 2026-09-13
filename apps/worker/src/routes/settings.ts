@@ -3,8 +3,8 @@ import { AwsClient } from "aws4fetch";
 import type { Env, UpdatePodcastSettingsRequest } from "../types";
 import { getIndex, saveIndex, saveArtwork } from "../services/r2";
 import {
-  DEFAULT_POST_PROCESS_SETTINGS,
-  sanitizePostProcessSettings,
+  DEFAULT_REFINE_SETTINGS,
+  sanitizeRefineSettings,
   withDefaults,
 } from "../services/transcript-refine";
 import { regenerateFeed } from "../services/feed";
@@ -21,11 +21,16 @@ settings.get("/", async (c) => {
   // Spotify API認証情報が設定されているかどうかを追加
   const spotifyConfigured = !!(c.env.SPOTIFY_CLIENT_ID && c.env.SPOTIFY_CLIENT_SECRET);
 
+  const refine = withDefaults(index.podcast.transcriptRefine);
+
   return c.json({
     ...index.podcast,
     // 未設定でも管理画面が扱えるよう、既定値で埋めて返す
     // 保存には既定と違う項目しか入っていないので、既定を補って返す
-    transcriptPostProcess: withDefaults(index.podcast.transcriptPostProcess),
+    transcriptRefine: refine,
+    // 旧名でも返す。Worker と管理画面は別々にデプロイされるので、入れ替わるまでの
+    // 間、古い管理画面がこちらを読む。**管理画面が新しくなったら落としてよい**
+    transcriptPostProcess: refine,
     spotifyConfigured,
   });
 });
@@ -55,11 +60,17 @@ settings.put("/", async (c) => {
   if (body.spotifyUrl !== undefined) index.podcast.spotifyUrl = body.spotifyUrl;
   // 配信アナリティクス
   if (body.analyticsPrefix !== undefined) index.podcast.analyticsPrefix = body.analyticsPrefix || undefined;
-  // 文字起こしの整形設定
-  if (body.transcriptPostProcess !== undefined) {
-    index.podcast.transcriptPostProcess = sanitizePostProcessSettings(
-      body.transcriptPostProcess
-    );
+  // 文字起こしの整形設定。
+  //
+  // 古い管理画面は旧名で送ってくる。入れ替わるまでの間はどちらでも受ける
+  // （**管理画面が新しくなったら旧名の口を閉じてよい**）
+  const incomingRefine =
+    body.transcriptRefine ??
+    (body as { transcriptPostProcess?: typeof body.transcriptRefine })
+      .transcriptPostProcess;
+
+  if (incomingRefine !== undefined) {
+    index.podcast.transcriptRefine = sanitizeRefineSettings(incomingRefine);
   }
 
   await saveIndex(c.env, index);
@@ -145,7 +156,7 @@ settings.post("/proposals", async (c) => {
 
     const index = await getIndex(c.env);
     const current =
-      index.podcast.transcriptPostProcess ?? DEFAULT_POST_PROCESS_SETTINGS;
+      index.podcast.transcriptRefine ?? DEFAULT_REFINE_SETTINGS;
 
     const key = (r: { from?: unknown; to?: unknown }) => `${r.from}\u0000${r.to}`;
     const approving = new Set((body.approve ?? []).map(key));
@@ -174,7 +185,7 @@ settings.post("/proposals", async (c) => {
       (p) => !approving.has(key(p)) && !rejecting.has(key(p))
     );
 
-    index.podcast.transcriptPostProcess = {
+    index.podcast.transcriptRefine = {
       ...current,
       corrections,
       proposals: remaining,

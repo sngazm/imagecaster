@@ -27,7 +27,7 @@ import {
 import { triggerWebRebuild } from "../services/deploy";
 import {
   DEFAULT_HALLUCINATION_SETTINGS,
-  DEFAULT_POST_PROCESS_SETTINGS,
+  DEFAULT_REFINE_SETTINGS,
   isLeadingLabel,
 } from "../services/transcript-refine";
 import { generateImpression } from "../services/episode-impression";
@@ -105,7 +105,7 @@ transcriptionQueue.get("/queue", async (c) => {
   const candidates = await getQueueCandidates(c.env);
   const queueItems: TranscriptionQueueItem[] = [];
   const index = await getIndex(c.env);
-  const settings = index.podcast.transcriptPostProcess;
+  const settings = index.podcast.transcriptRefine;
 
   for (const meta of candidates) {
     if (queueItems.length >= limit) {
@@ -382,7 +382,7 @@ transcriptionEpisodes.post("/:id/transcript/reprocess", async (c) => {
     const result = await refineAndSave(
       c.env,
       meta,
-      index.podcast.transcriptPostProcess
+      index.podcast.transcriptRefine
     );
 
     if (!result) {
@@ -470,7 +470,7 @@ transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
 
     const index = await getIndex(c.env);
     const settings =
-      index.podcast.transcriptPostProcess ?? DEFAULT_POST_PROCESS_SETTINGS;
+      index.podcast.transcriptRefine ?? DEFAULT_REFINE_SETTINGS;
 
     // 番組全体に効きそうなものは**提案として溜める**。自動では辞書に入れない。
     //
@@ -505,7 +505,7 @@ transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
     const newLabels = incomingLabels.filter((l) => !knownLabels.has(l));
 
     if (added > 0 || newLabels.length > 0) {
-      index.podcast.transcriptPostProcess = {
+      index.podcast.transcriptRefine = {
         ...settings,
         proposals,
         hallucination: {
@@ -576,7 +576,7 @@ transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
     const result = await refineAndSave(
       c.env,
       meta,
-      index.podcast.transcriptPostProcess
+      index.podcast.transcriptRefine
     );
 
     await saveEpisodeMeta(c.env, meta);
@@ -661,7 +661,7 @@ transcriptionEpisodes.delete("/:id/transcript/corrections", async (c) => {
     const result = await refineAndSave(
       c.env,
       meta,
-      index.podcast.transcriptPostProcess ?? DEFAULT_POST_PROCESS_SETTINGS
+      index.podcast.transcriptRefine ?? DEFAULT_REFINE_SETTINGS
     );
 
     await saveEpisodeMeta(c.env, meta);

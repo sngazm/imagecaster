@@ -153,7 +153,7 @@ export interface CorrectionProposal {
   proposedAt: string;
 }
 
-export interface TranscriptPostProcessSettings {
+export interface TranscriptRefineSettings {
   speakerDefaults: SpeakerTrackAssignment[];
   /** 話者のアイコン。公開サイトで名前の代わりに出す */
   speakerIcons?: SpeakerIcon[];
@@ -205,7 +205,7 @@ export interface PodcastIndex {
     // 配信アナリティクス
     analyticsPrefix?: string; // オーディオURLに付与するプレフィックス (例: https://op3.dev/e/)
     // 文字起こしの整形設定（話者の既定割り当て・統合条件・誤字辞書）
-    transcriptPostProcess?: TranscriptPostProcessSettings;
+    transcriptRefine?: TranscriptRefineSettings;
   };
   episodes: Array<{
     id: string;
@@ -581,7 +581,7 @@ export interface UpdatePodcastSettingsRequest {
   // 配信アナリティクス
   analyticsPrefix?: string | null;
   // 文字起こしの整形設定（話者の既定割り当て・統合条件・誤字辞書）
-  transcriptPostProcess?: TranscriptPostProcessSettings;
+  transcriptRefine?: TranscriptRefineSettings;
 }
 
 /**

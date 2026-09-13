@@ -178,7 +178,7 @@ export interface CorrectionProposal {
   proposedAt: string;
 }
 
-export interface TranscriptPostProcessSettings {
+export interface TranscriptRefineSettings {
   speakerDefaults: SpeakerTrackAssignment[];
   merge: MergeSettings;
   corrections: CorrectionRule[];
@@ -212,7 +212,7 @@ export interface PodcastSettings {
   // アナリティクス
   analyticsPrefix?: string;
   // 文字起こしの整形設定
-  transcriptPostProcess?: TranscriptPostProcessSettings;
+  transcriptRefine?: TranscriptRefineSettings;
 }
 
 export interface DescriptionTemplate {

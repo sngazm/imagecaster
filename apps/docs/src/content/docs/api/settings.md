@@ -101,9 +101,19 @@ Podcast カバーアート用 Presigned URL を発行します。
 `GET /api/settings` のレスポンスと `PUT /api/settings` のリクエストには、
 文字起こしの整形設定が含まれます。未設定の場合は既定値が返ります。
 
+:::note[旧キーについて]
+このキーは以前 `transcriptPostProcess` という名前でした（「後処理」を「整形」に
+改めたときに変えています）。R2 の `index.json` に旧キーで入っているデータは、
+読み込み時に `transcriptRefine` へ移し替えられ、次の保存で書き戻ります。
+
+Worker と管理画面は別々にデプロイされるので、移行期間は `GET` が**両方の名前で
+同じ値を返し**、`PUT` は**どちらの名前でも受け取り**ます。管理画面が新しくなったら、
+旧名の口は閉じてかまいません。
+:::
+
 ```typescript
 {
-  transcriptPostProcess: {
+  transcriptRefine: {
     // トラック番号への話者名の既定割り当て
     // label が null のトラックは BGM 等の非発話として話者判定から除外される
     speakerDefaults: Array<{ track: number; label: string | null }>;

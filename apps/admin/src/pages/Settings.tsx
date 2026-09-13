@@ -1017,15 +1017,15 @@ export default function Settings() {
       {activeTab === "transcript" && settings && (
         <TranscriptSettings
           value={
-            settings.transcriptPostProcess ?? {
+            settings.transcriptRefine ?? {
               speakerDefaults: [],
               merge: { enabled: true, maxGapSec: null, maxDurationSec: 10, maxChars: 200 },
               corrections: [],
             }
           }
-          onSaved={(transcriptPostProcess) =>
+          onSaved={(transcriptRefine) =>
             setSettings((current) =>
-              current ? { ...current, transcriptPostProcess } : current
+              current ? { ...current, transcriptRefine } : current
             )
           }
         />

@@ -5,12 +5,12 @@ import type {
   CorrectionProposal,
   CorrectionRule,
   SpeakerTrackAssignment,
-  TranscriptPostProcessSettings,
+  TranscriptRefineSettings,
 } from "../lib/api";
 
 interface Props {
-  value: TranscriptPostProcessSettings;
-  onSaved: (settings: TranscriptPostProcessSettings) => void;
+  value: TranscriptRefineSettings;
+  onSaved: (settings: TranscriptRefineSettings) => void;
 }
 
 const DEFAULT_MERGE = {
@@ -34,7 +34,7 @@ const DEFAULT_BACKCHANNEL: BackchannelSettings = {
 };
 
 export function TranscriptSettings({ value, onSaved }: Props) {
-  const [draft, setDraft] = useState<TranscriptPostProcessSettings>({
+  const [draft, setDraft] = useState<TranscriptRefineSettings>({
     speakerDefaults: value.speakerDefaults ?? [],
     merge: { ...DEFAULT_MERGE, ...value.merge },
     corrections: value.corrections ?? [],
@@ -66,10 +66,10 @@ export function TranscriptSettings({ value, onSaved }: Props) {
       // 承認したものは辞書に入るので、画面の一覧も合わせる
       if (approve.length > 0) {
         const settings = await api.getSettings();
-        if (settings.transcriptPostProcess) {
+        if (settings.transcriptRefine) {
           setDraft((d) => ({
             ...d,
-            corrections: settings.transcriptPostProcess!.corrections,
+            corrections: settings.transcriptRefine!.corrections,
           }));
         }
       }
@@ -82,7 +82,7 @@ export function TranscriptSettings({ value, onSaved }: Props) {
 
   const backchannel = draft.backchannel ?? DEFAULT_BACKCHANNEL;
 
-  function update(patch: Partial<TranscriptPostProcessSettings>) {
+  function update(patch: Partial<TranscriptRefineSettings>) {
     setDraft((current) => ({ ...current, ...patch }));
   }
 
@@ -117,10 +117,10 @@ export function TranscriptSettings({ value, onSaved }: Props) {
     setMessage(null);
 
     try {
-      const updated = await api.updateSettings({ transcriptPostProcess: draft });
-      if (updated.transcriptPostProcess) {
-        setDraft(updated.transcriptPostProcess);
-        onSaved(updated.transcriptPostProcess);
+      const updated = await api.updateSettings({ transcriptRefine: draft });
+      if (updated.transcriptRefine) {
+        setDraft(updated.transcriptRefine);
+        onSaved(updated.transcriptRefine);
       }
       setMessage("保存しました");
     } catch (err) {

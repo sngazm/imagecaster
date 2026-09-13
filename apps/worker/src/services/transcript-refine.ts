@@ -19,7 +19,7 @@ import type {
   SpeakerIcon,
   SpeakerTrackAssignment,
   TranscriptData,
-  TranscriptPostProcessSettings,
+  TranscriptRefineSettings,
   TranscriptSegment,
 } from "../types";
 import { convertToVtt, validateTranscriptData } from "./vtt";
@@ -972,7 +972,7 @@ export function refine(
 /**
  * 整形設定の既定値
  */
-export const DEFAULT_POST_PROCESS_SETTINGS: TranscriptPostProcessSettings = {
+export const DEFAULT_REFINE_SETTINGS: TranscriptRefineSettings = {
   speakerDefaults: [],
   merge: DEFAULT_MERGE_OPTIONS,
   corrections: [],
@@ -1188,9 +1188,9 @@ function sanitizeBackchannel(input: unknown): Partial<BackchannelSettings> {
  * 保存には既定と違う項目しか入っていない。画面で編集できるよう、既定を補って返す。
  */
 export function withDefaults(
-  settings: TranscriptPostProcessSettings | undefined | null
-): TranscriptPostProcessSettings {
-  const base = settings ?? DEFAULT_POST_PROCESS_SETTINGS;
+  settings: TranscriptRefineSettings | undefined | null
+): TranscriptRefineSettings {
+  const base = settings ?? DEFAULT_REFINE_SETTINGS;
 
   return {
     ...base,
@@ -1200,7 +1200,7 @@ export function withDefaults(
 }
 
 export function toRefineOptions(
-  settings: TranscriptPostProcessSettings | undefined | null,
+  settings: TranscriptRefineSettings | undefined | null,
   meta?: EpisodeMeta | null
 ): RefineOptions {
   return {
@@ -1212,11 +1212,11 @@ export function toRefineOptions(
   };
 }
 
-export function sanitizePostProcessSettings(
+export function sanitizeRefineSettings(
   input: unknown
-): TranscriptPostProcessSettings {
+): TranscriptRefineSettings {
   if (typeof input !== "object" || input === null) {
-    return { ...DEFAULT_POST_PROCESS_SETTINGS };
+    return { ...DEFAULT_REFINE_SETTINGS };
   }
 
   const entry = input as Record<string, unknown>;
@@ -1314,7 +1314,7 @@ function sanitizeProposals(input: unknown): CorrectionProposal[] {
  */
 export function resolveSpeakerTracks(
   episodeTracks: SpeakerTrackAssignment[] | null | undefined,
-  settings: TranscriptPostProcessSettings | undefined
+  settings: TranscriptRefineSettings | undefined
 ): SpeakerTrackAssignment[] {
   if (episodeTracks && episodeTracks.length > 0) {
     return episodeTracks;
@@ -1399,7 +1399,7 @@ export async function saveRefined(
   env: Env,
   meta: EpisodeMeta,
   raw: TranscriptData,
-  settings: TranscriptPostProcessSettings | undefined
+  settings: TranscriptRefineSettings | undefined
 ): Promise<{ segments: number; applied: AppliedCorrection[] }> {
   const keys = transcriptKeys(meta.storageKey);
 
@@ -1434,7 +1434,7 @@ export async function saveRefined(
 export async function refineAndSave(
   env: Env,
   meta: EpisodeMeta,
-  settings: TranscriptPostProcessSettings | undefined
+  settings: TranscriptRefineSettings | undefined
 ): Promise<{ segments: number; applied: AppliedCorrection[] } | null> {
   const raw = await getRawTranscript(env, meta.storageKey);
 

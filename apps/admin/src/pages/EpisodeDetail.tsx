@@ -146,7 +146,7 @@ export default function EpisodeDetail() {
           } else if (settingsData.websiteUrl) {
             setBaseWebsiteUrl(settingsData.websiteUrl);
           }
-          setSpeakerDefaults(settingsData.transcriptPostProcess?.speakerDefaults ?? []);
+          setSpeakerDefaults(settingsData.transcriptRefine?.speakerDefaults ?? []);
         } catch (err) {
           console.error("設定の取得に失敗しました:", err);
           if (env === "local") {

@@ -278,7 +278,7 @@ describe("文字起こしの整形設定", () => {
   it("未設定でも既定値を返す", async () => {
     const response = await SELF.fetch("http://localhost/api/settings");
     const json = (await response.json()) as {
-      transcriptPostProcess: {
+      transcriptRefine: {
         speakerDefaults: unknown[];
         merge: { enabled: boolean; maxDurationSec: number };
         corrections: unknown[];
@@ -286,12 +286,12 @@ describe("文字起こしの整形設定", () => {
       };
     };
 
-    expect(json.transcriptPostProcess).toBeDefined();
-    expect(json.transcriptPostProcess.merge.enabled).toBe(true);
-    expect(json.transcriptPostProcess.speakerDefaults).toEqual([]);
-    expect(json.transcriptPostProcess.corrections).toEqual([]);
+    expect(json.transcriptRefine).toBeDefined();
+    expect(json.transcriptRefine.merge.enabled).toBe(true);
+    expect(json.transcriptRefine.speakerDefaults).toEqual([]);
+    expect(json.transcriptRefine.corrections).toEqual([]);
     // 既定では同時発話を検出しない
-    expect(json.transcriptPostProcess.simultaneousUntilSec).toBeNull();
+    expect(json.transcriptRefine.simultaneousUntilSec).toBeNull();
   });
 
   it("同時発話の検出範囲を保存する", async () => {
@@ -299,7 +299,7 @@ describe("文字起こしの整形設定", () => {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        transcriptPostProcess: {
+        transcriptRefine: {
           speakerDefaults: [],
           merge: { enabled: true, maxGapSec: null, maxDurationSec: 10, maxChars: 200 },
           corrections: [],
@@ -310,10 +310,10 @@ describe("文字起こしの整形設定", () => {
 
     const response = await SELF.fetch("http://localhost/api/settings");
     const json = (await response.json()) as {
-      transcriptPostProcess: { simultaneousUntilSec: number | null };
+      transcriptRefine: { simultaneousUntilSec: number | null };
     };
 
-    expect(json.transcriptPostProcess.simultaneousUntilSec).toBe(30);
+    expect(json.transcriptRefine.simultaneousUntilSec).toBe(30);
   });
 
   it("0 以下の検出範囲は「検出しない」として保存する", async () => {
@@ -321,7 +321,7 @@ describe("文字起こしの整形設定", () => {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        transcriptPostProcess: {
+        transcriptRefine: {
           speakerDefaults: [],
           merge: { enabled: true, maxGapSec: null, maxDurationSec: 10, maxChars: 200 },
           corrections: [],
@@ -332,10 +332,10 @@ describe("文字起こしの整形設定", () => {
 
     const response = await SELF.fetch("http://localhost/api/settings");
     const json = (await response.json()) as {
-      transcriptPostProcess: { simultaneousUntilSec: number | null };
+      transcriptRefine: { simultaneousUntilSec: number | null };
     };
 
-    expect(json.transcriptPostProcess.simultaneousUntilSec).toBeNull();
+    expect(json.transcriptRefine.simultaneousUntilSec).toBeNull();
   });
 
   it("話者の既定割り当てと辞書を保存する", async () => {
@@ -343,7 +343,7 @@ describe("文字起こしの整形設定", () => {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        transcriptPostProcess: {
+        transcriptRefine: {
           speakerDefaults: [
             { track: 1, label: "あずま" },
             { track: 2, label: "鉄塔" },
@@ -361,7 +361,7 @@ describe("文字起こしの整形設定", () => {
 
     const getResponse = await SELF.fetch("http://localhost/api/settings");
     const json = (await getResponse.json()) as {
-      transcriptPostProcess: {
+      transcriptRefine: {
         speakerDefaults: Array<{ track: number; label: string | null }>;
         merge: { maxGapSec: number | null };
         corrections: Array<{ from: string; to: string; enabled: boolean; note?: string }>;
@@ -369,14 +369,14 @@ describe("文字起こしの整形設定", () => {
     };
 
     // 空文字のラベルは非発話トラック（null）として保存される
-    expect(json.transcriptPostProcess.speakerDefaults).toEqual([
+    expect(json.transcriptRefine.speakerDefaults).toEqual([
       { track: 1, label: "あずま" },
       { track: 2, label: "鉄塔" },
       { track: 3, label: null },
     ]);
     // null は「間の長さを条件にしない」という意味なので既定値で埋めない
-    expect(json.transcriptPostProcess.merge.maxGapSec).toBeNull();
-    expect(json.transcriptPostProcess.corrections[0]).toEqual({
+    expect(json.transcriptRefine.merge.maxGapSec).toBeNull();
+    expect(json.transcriptRefine.corrections[0]).toEqual({
       from: "テト",
       to: "鉄塔",
       enabled: true,
@@ -389,7 +389,7 @@ describe("文字起こしの整形設定", () => {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        transcriptPostProcess: {
+        transcriptRefine: {
           speakerDefaults: [
             { track: 1, label: "あずま" },
             { track: 0, label: "不正なトラック番号" },
@@ -407,19 +407,19 @@ describe("文字起こしの整形設定", () => {
 
     const response = await SELF.fetch("http://localhost/api/settings");
     const json = (await response.json()) as {
-      transcriptPostProcess: {
+      transcriptRefine: {
         speakerDefaults: Array<{ track: number }>;
         merge: { maxDurationSec: number };
         corrections: Array<{ from: string }>;
       };
     };
 
-    expect(json.transcriptPostProcess.speakerDefaults).toEqual([
+    expect(json.transcriptRefine.speakerDefaults).toEqual([
       { track: 1, label: "あずま" },
     ]);
     // 数値でない値は既定値に戻す
-    expect(json.transcriptPostProcess.merge.maxDurationSec).toBe(10);
-    expect(json.transcriptPostProcess.corrections).toEqual([
+    expect(json.transcriptRefine.merge.maxDurationSec).toBe(10);
+    expect(json.transcriptRefine.corrections).toEqual([
       { from: "有効", to: "置換先", enabled: true },
     ]);
   });
@@ -431,7 +431,7 @@ describe("相槌の設定が保存経路を往復すること", () => {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        transcriptPostProcess: {
+        transcriptRefine: {
           speakerDefaults: [],
           merge: { enabled: false, maxGapSec: null, maxDurationSec: 10, maxChars: 200 },
           corrections: [],
@@ -449,7 +449,7 @@ describe("相槌の設定が保存経路を往復すること", () => {
 
     const read = await SELF.fetch("http://local.test/api/settings");
     const body = (await read.json()) as any;
-    const backchannel = body.transcriptPostProcess.backchannel;
+    const backchannel = body.transcriptRefine.backchannel;
 
     expect(backchannel.dropStandalone).toBe(true);
     expect(backchannel.standalonePhrases).toEqual(["ふむ"]);
@@ -464,7 +464,7 @@ describe("相槌の設定が保存経路を往復すること", () => {
           { start: 2, end: 4, text: "本編です。" },
         ],
       },
-      toRefineOptions(body.transcriptPostProcess)
+      toRefineOptions(body.transcriptRefine)
     );
 
     expect(result.segments.map((s) => s.text)).toEqual(["はい。", "本編です。"]);
@@ -483,12 +483,12 @@ describe("設定を往復させても既定値が焼き付かないこと", () =
     await SELF.fetch("http://local.test/api/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ transcriptPostProcess: current.transcriptPostProcess }),
+      body: JSON.stringify({ transcriptRefine: current.transcriptRefine }),
     });
 
     const stored = await env.R2_BUCKET.get("index.json");
     const index = JSON.parse(await stored!.text());
-    const saved = index.podcast.transcriptPostProcess.backchannel;
+    const saved = index.podcast.transcriptRefine.backchannel;
 
     expect(saved.units).toBeUndefined();
     expect(saved.standalonePhrases).toBeUndefined();
@@ -499,7 +499,7 @@ describe("設定を往復させても既定値が焼き付かないこと", () =
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        transcriptPostProcess: {
+        transcriptRefine: {
           speakerDefaults: [],
           merge: { enabled: true, maxGapSec: null, maxDurationSec: 10, maxChars: 200 },
           corrections: [],
@@ -518,7 +518,7 @@ describe("設定を往復させても既定値が焼き付かないこと", () =
       await SELF.fetch("http://local.test/api/settings")
     ).json()) as any;
 
-    expect(read.transcriptPostProcess.backchannel.units).toEqual(["ふむ"]);
+    expect(read.transcriptRefine.backchannel.units).toEqual(["ふむ"]);
   });
 });
 
@@ -530,7 +530,7 @@ describe("設定の保存で提案が消えないこと", () => {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        transcriptPostProcess: {
+        transcriptRefine: {
           speakerDefaults: [],
           merge: { enabled: true, maxGapSec: null, maxDurationSec: 10, maxChars: 200 },
           corrections: [],
@@ -552,19 +552,106 @@ describe("設定の保存で提案が消えないこと", () => {
       await SELF.fetch("http://local.test/api/settings")
     ).json()) as any;
 
-    expect(current.transcriptPostProcess.proposals).toHaveLength(1);
+    expect(current.transcriptRefine.proposals).toHaveLength(1);
 
     await SELF.fetch("http://local.test/api/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ transcriptPostProcess: current.transcriptPostProcess }),
+      body: JSON.stringify({ transcriptRefine: current.transcriptRefine }),
     });
 
     const after = (await (
       await SELF.fetch("http://local.test/api/settings")
     ).json()) as any;
 
-    expect(after.transcriptPostProcess.proposals).toHaveLength(1);
-    expect(after.transcriptPostProcess.proposals[0].from).toBe("アサナ");
+    expect(after.transcriptRefine.proposals).toHaveLength(1);
+    expect(after.transcriptRefine.proposals[0].from).toBe("アサナ");
+  });
+});
+
+describe("設定キーの移行（transcriptPostProcess → transcriptRefine）", () => {
+  async function writeIndex(podcast: Record<string, unknown>) {
+    await env.R2_BUCKET.put(
+      "index.json",
+      JSON.stringify({ podcast, episodes: [] })
+    );
+  }
+
+  async function readIndex() {
+    const obj = await env.R2_BUCKET.get("index.json");
+    return JSON.parse(await obj!.text()) as {
+      podcast: Record<string, unknown>;
+    };
+  }
+
+  const settings = {
+    merge: { enabled: true, maxGapSec: null, maxDurationSec: 20, maxChars: 200 },
+    corrections: [{ from: "アサナ", to: "Asana", enabled: true }],
+  };
+
+  it("旧キーで入っている設定を読める", async () => {
+    await writeIndex({ title: "旧", transcriptPostProcess: settings });
+
+    const body = (await (
+      await SELF.fetch("http://localhost/api/settings")
+    ).json()) as {
+      transcriptRefine: { corrections: Array<{ from: string }> };
+    };
+
+    expect(body.transcriptRefine.corrections[0].from).toBe("アサナ");
+  });
+
+  it("保存すると新キーに移り、旧キーは消える", async () => {
+    await writeIndex({ title: "旧", transcriptPostProcess: settings });
+
+    await SELF.fetch("http://localhost/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "新しい題" }),
+    });
+
+    const saved = await readIndex();
+    expect(saved.podcast.transcriptPostProcess).toBeUndefined();
+    expect(saved.podcast.transcriptRefine).toBeDefined();
+  });
+
+  it("両方あれば新しいほうを採る", async () => {
+    await writeIndex({
+      title: "両方",
+      transcriptPostProcess: { ...settings, corrections: [{ from: "古", to: "x", enabled: true }] },
+      transcriptRefine: settings,
+    });
+
+    const body = (await (
+      await SELF.fetch("http://localhost/api/settings")
+    ).json()) as {
+      transcriptRefine: { corrections: Array<{ from: string }> };
+    };
+
+    expect(body.transcriptRefine.corrections[0].from).toBe("アサナ");
+  });
+
+  it("古い管理画面のために旧キーでも返す", async () => {
+    await writeIndex({ title: "移行中", transcriptRefine: settings });
+
+    const body = (await (
+      await SELF.fetch("http://localhost/api/settings")
+    ).json()) as Record<string, { corrections: Array<{ from: string }> }>;
+
+    expect(body.transcriptPostProcess.corrections[0].from).toBe("アサナ");
+  });
+
+  it("古い管理画面が旧キーで送ってきても保存する", async () => {
+    await writeIndex({ title: "移行中" });
+
+    await SELF.fetch("http://localhost/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transcriptPostProcess: settings }),
+    });
+
+    const saved = await readIndex();
+    expect(saved.podcast.transcriptRefine).toBeDefined();
+    expect(saved.podcast.transcriptPostProcess).toBeUndefined();
   });
 });

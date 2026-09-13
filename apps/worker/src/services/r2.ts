@@ -77,6 +77,35 @@ function createDefaultIndex(env: Env): PodcastIndex {
 /**
  * index.json を取得（公開用: published エピソードのみ）
  */
+/**
+ * 保存されている index.json を、いまの形に読み替える
+ *
+ * 「後処理」を「整形」に改めたときに、設定キーも `transcriptPostProcess` から
+ * `transcriptRefine` にした。R2 には旧キーで入っているので、読むときに移す。
+ * 次に saveIndex が走った時点で新しい形に書き戻り、旧キーは消える。
+ *
+ * 移し替えるだけで中身は触らない。両方あるときは新しいほうを採る。
+ */
+function migrateIndex(index: PodcastIndex): PodcastIndex {
+  // podcast が入っていない index.json もある（古い回のテストデータなど）
+  if (!index?.podcast) {
+    return index;
+  }
+
+  const podcast = index.podcast as PodcastIndex["podcast"] & {
+    transcriptPostProcess?: PodcastIndex["podcast"]["transcriptRefine"];
+  };
+
+  if (podcast.transcriptPostProcess !== undefined) {
+    if (podcast.transcriptRefine === undefined) {
+      podcast.transcriptRefine = podcast.transcriptPostProcess;
+    }
+    delete podcast.transcriptPostProcess;
+  }
+
+  return index;
+}
+
 export async function getIndex(env: Env): Promise<PodcastIndex> {
   const obj = await env.R2_BUCKET.get("index.json");
 
@@ -85,7 +114,7 @@ export async function getIndex(env: Env): Promise<PodcastIndex> {
   }
 
   const text = await obj.text();
-  return JSON.parse(text) as PodcastIndex;
+  return migrateIndex(JSON.parse(text) as PodcastIndex);
 }
 
 /**
