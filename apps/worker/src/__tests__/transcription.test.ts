@@ -1504,3 +1504,69 @@ describe("PUT /api/episodes/:id/glossary", () => {
     expect(response.status).toBe(404);
   });
 });
+
+describe("逆向きの置換規則", () => {
+  async function episodeWithRule(from: string, to: string) {
+    const { id } = await createTestEpisode({ title: "Reversed Rule" });
+
+    await SELF.fetch(`http://localhost/api/episodes/${id}/transcript/corrections`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ corrections: [{ from, to, general: false }] }),
+    });
+
+    return id;
+  }
+
+  async function rulesOf(id: string) {
+    const episode = (await (
+      await SELF.fetch(`http://localhost/api/episodes/${id}`)
+    ).json()) as { transcriptCorrections?: Array<{ from: string; to: string }> };
+
+    return (episode.transcriptCorrections ?? []).map((r) => `${r.from}→${r.to}`);
+  }
+
+  it("逆向きの古い規則を外す", async () => {
+    // 取り直しで本文が変わると、前回「A → B」と直した箇所が今回「B → A」になる。
+    // 両方残すと後処理の中で打ち消し合い、どちらも効かない
+    const id = await episodeWithRule("経験則", "加速度");
+
+    await SELF.fetch(`http://localhost/api/episodes/${id}/transcript/corrections`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        corrections: [{ from: "加速度", to: "経験則", general: false }],
+      }),
+    });
+
+    expect(await rulesOf(id)).toEqual(["加速度→経験則"]);
+  });
+
+  it("関係のない規則は残す", async () => {
+    const id = await episodeWithRule("アサナ", "Asana");
+
+    await SELF.fetch(`http://localhost/api/episodes/${id}/transcript/corrections`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        corrections: [{ from: "加速度", to: "経験則", general: false }],
+      }),
+    });
+
+    expect(await rulesOf(id)).toEqual(["アサナ→Asana", "加速度→経験則"]);
+  });
+
+  it("同じ規則を送り直しても消えない", async () => {
+    const id = await episodeWithRule("加速度", "経験則");
+
+    await SELF.fetch(`http://localhost/api/episodes/${id}/transcript/corrections`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        corrections: [{ from: "加速度", to: "経験則", general: false }],
+      }),
+    });
+
+    expect(await rulesOf(id)).toEqual(["加速度→経験則"]);
+  });
+});

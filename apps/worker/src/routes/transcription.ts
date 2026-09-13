@@ -541,8 +541,26 @@ transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
       }));
 
     // 既にある規則は残す。校正を回すたびに入れ替わると、手で足したものや
-    // 前回の校正が見つけたものが消える
-    const existing = meta.transcriptCorrections ?? [];
+    // 前回の校正が見つけたものが消える。
+    //
+    // ただし**逆向きの規則は外す**。取り直しで本文が変わると、前回「A → B」と
+    // 直した箇所が今回「B → A」になることがある。両方残すと後処理の中で
+    // 打ち消し合い、どちらも効かない。実際に #286 で「加速度 → 経験則」を
+    // 登録したのに、前から残っていた「経験則 → 加速度」に戻されて公開された。
+    // 新しいほうを採る（校正はいまの本文を見て判断している）
+    const incomingKeys = new Set(
+      episodeRules.map((r) => `${r.from}\u0000${r.to}`)
+    );
+    const reversed = new Set(episodeRules.map((r) => `${r.to}\u0000${r.from}`));
+
+    const existing = (meta.transcriptCorrections ?? []).filter((r) => {
+      const key = `${r.from}\u0000${r.to}`;
+      if (!reversed.has(key) || incomingKeys.has(key)) return true;
+
+      console.log(`[transcript/corrections] 逆向きの規則を外します: ${r.from} → ${r.to}`);
+      return false;
+    });
+
     const seen = new Set(existing.map((r) => `${r.from}\u0000${r.to}`));
     const merged = [...existing];
 
