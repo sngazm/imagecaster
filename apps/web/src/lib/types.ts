@@ -4,7 +4,8 @@ export interface ReferenceLink {
 }
 
 export interface TranscriptSegment {
-  start: string;  // "00:00:05"
+  start: string;  // "00:00:05.590"
+  end: string;    // "00:00:08.950"
   text: string;
   speaker?: string;  // 話者名（音量ベースの話者分離が有効な場合のみ）
 }
@@ -32,6 +33,8 @@ export interface Episode {
   audioUrl: string;
   sourceAudioUrl: string | null; // 外部参照の音声URL（RSSインポート時）
   transcriptUrl: string | null;
+  /** 文字起こしを公開サイトに出さない回。管理画面から立てる */
+  hideTranscription?: boolean;
   artworkUrl: string | null;
   publishStatus: PublishStatus;
   transcribeStatus: TranscribeStatus;

@@ -1,0 +1,55 @@
+---
+import { resolveSpeakerIcons } from "../lib/speakers";
+
+interface Props {
+  /** 話者名 → アイコンのURL。番組の既定にその回のぶんを足したもの */
+  icons?: Record<string, string>;
+}
+
+const { icons = {} } = Astro.props;
+---
+
+{/*
+  プレイヤー直下の字幕。いま喋っているところと、その一つ前を出す。
+
+  中身は再生に合わせて `episodes/[id].astro` のスクリプトが書く。下の文字起こしの
+  DOM から時刻と本文を読むので、ここは器だけ。アイコンの対応表だけ渡しておく。
+
+  文字起こしは下に全文があるので、読み上げには出さない（aria-hidden）。
+*/}
+<div
+  id="captions"
+  class="mb-3 hidden border-t border-border pt-3 dark:border-border-dark"
+  aria-hidden="true"
+  data-icons={JSON.stringify(resolveSpeakerIcons(icons))}
+>
+  <div class="caption-row flex gap-2 opacity-50">
+    <span class="caption-speaker flex max-w-14 shrink-0 gap-1 pt-0.5"></span>
+    <p
+      class="caption-text text-xs leading-relaxed text-text-secondary dark:text-text-secondary-dark"
+    >
+    </p>
+  </div>
+  <div class="caption-row mt-1.5 flex gap-2">
+    <span class="caption-speaker flex max-w-14 shrink-0 gap-1 pt-0.5"></span>
+    <p
+      class="caption-text text-sm font-medium leading-relaxed text-text dark:text-text-dark"
+    >
+    </p>
+  </div>
+</div>
+
+<style>
+  /*
+    2 行ぶんの高さを常に確保する。字幕が入れ替わるたびに下の内容が動くと、
+    読んでいる側も、概要を読んでいる側も落ち着かない。
+    字幕 1 枚は 28 字までに割ってあるので、狭い画面でも 2 行に収まる。
+  */
+  .caption-text {
+    min-height: 3.25em;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+</style>

@@ -20,11 +20,15 @@ function extractVoice(text: string): { speaker?: string; text: string } {
 
 /**
  * VTT形式の文字起こしをパースしてセグメント配列に変換
+ *
+ * 終了時刻と秒未満まで残す。プレイヤー下の字幕が、キューの中のどこを
+ * 喋っているかを文字数で按分するのに要る。
  */
 export function parseVttToSegments(vtt: string): TranscriptSegment[] {
   const lines = vtt.split("\n");
   const segments: TranscriptSegment[] = [];
   let currentStart = "";
+  let currentEnd = "";
   let currentTextLines: string[] = [];
 
   for (const line of lines) {
@@ -35,10 +39,13 @@ export function parseVttToSegments(vtt: string): TranscriptSegment[] {
       continue;
     }
 
-    // タイムスタンプ行からstart時間を抽出
-    const timestampMatch = trimmed.match(/^(\d{2}:\d{2}:\d{2})\.\d{3}\s*-->/);
+    // タイムスタンプ行から開始・終了時刻を抽出
+    const timestampMatch = trimmed.match(
+      /^(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})/
+    );
     if (timestampMatch) {
       currentStart = timestampMatch[1];
+      currentEnd = timestampMatch[2];
       continue;
     }
 
@@ -47,9 +54,11 @@ export function parseVttToSegments(vtt: string): TranscriptSegment[] {
       if (currentStart && currentTextLines.length > 0) {
         segments.push({
           start: currentStart,
+          end: currentEnd,
           ...extractVoice(currentTextLines.join(" ")),
         });
         currentStart = "";
+        currentEnd = "";
         currentTextLines = [];
       }
       continue;
@@ -62,6 +71,7 @@ export function parseVttToSegments(vtt: string): TranscriptSegment[] {
   if (currentStart && currentTextLines.length > 0) {
     segments.push({
       start: currentStart,
+      end: currentEnd,
       ...extractVoice(currentTextLines.join(" ")),
     });
   }
@@ -74,6 +84,17 @@ export function parseVttToSegments(vtt: string): TranscriptSegment[] {
  */
 export function segmentsToText(segments: TranscriptSegment[]): string {
   return segments.map((s) => s.text).join(" ");
+}
+
+/**
+ * 公開サイトに出してよい文字起こしの URL
+ *
+ * hideTranscription が立っている回は、一覧も字幕も検索の索引も出さない。
+ * 出す・出さないの判断はここだけに置く。
+ */
+export function visibleTranscriptUrl(episode: Episode): string | null {
+  if (!episode.transcriptUrl || episode.hideTranscription) return null;
+  return episode.transcriptUrl;
 }
 
 /**
@@ -333,7 +354,7 @@ export function processDescription(
   websiteUrl: string
 ): string {
   const episodePageUrl = `${websiteUrl}/episodes/${episode.slug || episode.id}`;
-  const transcriptPageUrl = episode.transcriptUrl
+  const transcriptPageUrl = visibleTranscriptUrl(episode)
     ? `${episodePageUrl}/transcript`
     : "";
 

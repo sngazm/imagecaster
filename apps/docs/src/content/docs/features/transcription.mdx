@@ -204,6 +204,20 @@ PUT /api/episodes/:id
 }
 ```
 
+公開サイトでは、このフラグが立っている回について次のすべてが出なくなる。出す・出さないの
+判断は `apps/web/src/lib/api.ts` の `visibleTranscriptUrl()` 一箇所にある。
+
+- プレイヤー直下の字幕
+- 概要の下の文字起こし全文
+- サイト内検索（Pagefind）の索引
+- 説明文の `{{TRANSCRIPT_URL}}` の置き換え先（空文字になる）
+
+<Aside type="caution">
+RSS フィードは対象外。`<podcast:transcript>` タグと説明文末尾の「📝 文字起こし」リンクは
+このフラグを見ていないため、フィードからは VTT に辿り着ける。VTT 自体も R2 の公開 URL に
+あるので、このフラグは「サイトに出さない」設定であって、非公開にする仕組みではない。
+</Aside>
+
 <Aside type="note">
 文字起こしサービスの実装例については `docs/TRANSCRIBER.md` を参照してください。
 </Aside>

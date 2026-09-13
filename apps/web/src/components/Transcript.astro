@@ -1,4 +1,5 @@
 ---
+import { resolveSpeakerIcons, SIMULTANEOUS_SEPARATOR } from "../lib/speakers";
 import type { TranscriptSegment } from "../lib/types";
 
 interface Props {
@@ -20,21 +21,7 @@ const SPEAKER_CLASSES = [
   "text-speaker-4 dark:text-speaker-4-dark",
 ];
 
-/** 複数人が同時に喋っている区間は "あずま・鉄塔" のように連結されて届く */
-const SIMULTANEOUS_SEPARATOR = "・";
-
-/**
- * 番組の出演者のアイコン
- *
- * 名前より速く誰の発言か分かる。ゲストのぶんは props で渡ってくるので、
- * ここは毎回出る 2 人だけ。用意が無い話者は名前のまま出す。
- */
-const BUILT_IN_ICONS: Record<string, string> = {
-  あずま: "/speakers/azuma.jpg",
-  鉄塔: "/speakers/tetto.jpg",
-};
-
-const SPEAKER_ICONS: Record<string, string> = { ...BUILT_IN_ICONS, ...icons };
+const SPEAKER_ICONS = resolveSpeakerIcons(icons);
 
 // 色は個々の話者に割り当てる。同時発話のラベルを 1 人分として数えないよう分解しておく
 const speakers = [
@@ -113,6 +100,8 @@ function speakerClass(speaker: string): string {
               isNewSpeaker && index > 0 && "mt-3",
             ]}
             data-time={segment.start}
+            data-end={segment.end}
+            data-speaker={segment.speaker}
           >
             {hasSpeakers && (
               <span class="shrink-0 w-14 pt-0.5 flex gap-1" aria-hidden="true">

@@ -1,7 +1,8 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import { getPublishedEpisodes, getEpisodeBySlug, formatDuration, formatDate, formatFileSize, processDescription, getPodcastIndex, getTranscriptSegments, segmentsToText } from "../../lib/api";
+import { getPublishedEpisodes, getEpisodeBySlug, formatDuration, formatDate, formatFileSize, processDescription, getPodcastIndex, getTranscriptSegments, segmentsToText, visibleTranscriptUrl } from "../../lib/api";
 import { getEpisodeOgImageUrl } from "../../lib/og";
+import Captions from "../../components/Captions.astro";
 import Transcript from "../../components/Transcript.astro";
 import ClaudeImpression from "../../components/ClaudeImpression.astro";
 import type { Episode, TranscriptSegment } from "../../lib/types";
@@ -25,8 +26,9 @@ export async function getStaticPaths() {
 
   return Promise.all(
     episodes.map(async (episode, idx) => {
-      const transcriptSegments = episode.transcriptUrl
-        ? await getTranscriptSegments(episode.transcriptUrl)
+      const transcriptUrl = visibleTranscriptUrl(episode);
+      const transcriptSegments = transcriptUrl
+        ? await getTranscriptSegments(transcriptUrl)
         : [];
       const transcriptText = segmentsToText(transcriptSegments);
 
@@ -94,8 +96,9 @@ if (Astro.props.episode) {
       (icon) => [icon.name, icon.url]
     )
   );
-  transcriptSegments = episode.transcriptUrl
-    ? await getTranscriptSegments(episode.transcriptUrl)
+  const transcriptUrl = visibleTranscriptUrl(episode);
+  transcriptSegments = transcriptUrl
+    ? await getTranscriptSegments(transcriptUrl)
     : [];
   transcriptText = segmentsToText(transcriptSegments);
   // 前後のエピソードを探す
@@ -160,6 +163,8 @@ const ogImageUrl = getEpisodeOgImageUrl(episode.artworkUrl, podcastArtworkUrl);
         <source src={episode.audioUrl || episode.sourceAudioUrl || ""} type="audio/mpeg" />
         お使いのブラウザはオーディオ再生に対応していません。
       </audio>
+
+      {transcriptSegments.length > 0 && <Captions icons={speakerIcons} />}
 
       <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-text-muted dark:text-text-muted-dark">
         <span class="flex items-center gap-1">
@@ -307,7 +312,9 @@ const ogImageUrl = getEpisodeOgImageUrl(episode.artworkUrl, podcastArtworkUrl);
 </Layout>
 
 <script>
-  // タイムスタンプ（HH:MM:SS）を秒数に変換
+  import { toCaptions } from '../../lib/captions';
+
+  // タイムスタンプ（HH:MM:SS.mmm）を秒数に変換
   function timeToSeconds(time: string): number {
     const parts = time.split(':').map(Number);
     if (parts.length === 3) {
@@ -374,29 +381,108 @@ const ogImageUrl = getEpisodeOgImageUrl(episode.artworkUrl, podcastArtworkUrl);
     });
   }
 
-  // 再生中の行に背景を出す
+  // 字幕と、再生中の行のハイライト
   //
-  // どこを喋っているかが目で追える。行の開始時刻しか持っていないので、
-  // 「開始時刻が現在より前で、いちばん後ろの行」を今の行とみなす。
+  // 行の開始時刻しか無いので、「開始時刻が現在より前で、いちばん後ろ」を今とみなす。
+  // 発言をそのまま字幕にすると長すぎるため、割り方は lib/captions.ts に置いてある。
   if (audio && transcriptSegments.length > 0) {
-    const starts = [...transcriptSegments].map((segment) =>
-      timeToSeconds(segment.getAttribute('data-time') ?? '0')
+    const segments = [...transcriptSegments];
+    const captions = toCaptions(
+      segments.map((segment) => ({
+        start: timeToSeconds(segment.getAttribute('data-time') ?? ''),
+        end: timeToSeconds(segment.getAttribute('data-end') ?? ''),
+        text: segment.querySelector('.transcript-text')?.textContent?.trim() ?? '',
+        speaker: segment.getAttribute('data-speaker') ?? '',
+      }))
     );
+    const starts = captions.map((caption) => caption.start);
 
-    let current = -1;
+    // --- 再生中の行に背景を出す ---
+    let currentSegment = -1;
 
     function highlight(index: number): void {
-      if (index === current) return;
+      if (index === currentSegment) return;
 
-      transcriptSegments[current]?.classList.remove('is-playing');
+      transcriptSegments[currentSegment]?.classList.remove('is-playing');
       transcriptSegments[index]?.classList.add('is-playing');
-      current = index;
+      currentSegment = index;
     }
+
+    // --- プレイヤー直下の字幕 ---
+    const strip = document.getElementById('captions');
+    const rows = strip ? [...strip.querySelectorAll<HTMLElement>('.caption-row')] : [];
+    const speakerIcons: Record<string, string> = JSON.parse(strip?.dataset.icons ?? '{}');
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    /** 複数人が同時に喋っている区間は "あずま・鉄塔" のように連結されて届く */
+    const SIMULTANEOUS_SEPARATOR = '・';
+
+    function renderSpeaker(slot: HTMLElement, speaker: string): void {
+      slot.replaceChildren(
+        ...speaker
+          .split(SIMULTANEOUS_SEPARATOR)
+          .filter(Boolean)
+          .map((name) => {
+            const url = speakerIcons[name];
+            if (!url) {
+              const label = document.createElement('span');
+              label.textContent = name;
+              label.className = 'block truncate text-[11px] font-medium leading-tight';
+              return label;
+            }
+
+            const icon = document.createElement('img');
+            icon.src = url;
+            icon.alt = name;
+            icon.title = name;
+            icon.width = 24;
+            icon.height = 24;
+            icon.className = 'h-6 w-6 shrink-0 rounded-full object-cover';
+            return icon;
+          })
+      );
+    }
+
+    /** 1 行ぶんを書き換える。同じ字幕なら何もしない（毎秒 4 回呼ばれる） */
+    function paint(row: HTMLElement, index: number): void {
+      if (row.dataset.caption === String(index)) return;
+      row.dataset.caption = String(index);
+
+      const caption = captions[index];
+      const text = row.querySelector<HTMLElement>('.caption-text');
+      const slot = row.querySelector<HTMLElement>('.caption-speaker');
+      if (!text || !slot) return;
+
+      text.textContent = caption?.text ?? '';
+
+      const speaker = caption?.speaker ?? '';
+      if (slot.dataset.speaker !== speaker) {
+        slot.dataset.speaker = speaker;
+        renderSpeaker(slot, speaker);
+      }
+
+      // 入れ替わりが分かる程度に軽く出す。一つ前の行は薄くしてあるので、
+      // 終わりの不透明度は CSS から取って戻り先を合わせる
+      if (!reducedMotion.matches && typeof row.animate === 'function') {
+        row.animate(
+          [
+            { opacity: 0, transform: 'translateY(3px)' },
+            { opacity: getComputedStyle(row).opacity, transform: 'none' },
+          ],
+          { duration: 180, easing: 'ease-out' }
+        );
+      }
+    }
+
+    // 再生するまでは出さない。読むだけの人に空の枠を見せない
+    audio.addEventListener('play', () => strip?.classList.remove('hidden'), {
+      once: true,
+    });
 
     audio.addEventListener('timeupdate', () => {
       const now = audio.currentTime;
 
-      // 二分探索。行数が数千になるので毎秒なめると重い
+      // 二分探索。字幕は千枚を超えるので毎秒なめると重い
       let low = 0;
       let high = starts.length - 1;
       let found = -1;
@@ -411,7 +497,13 @@ const ogImageUrl = getEpisodeOgImageUrl(episode.artworkUrl, podcastArtworkUrl);
         }
       }
 
-      highlight(found);
+      highlight(found < 0 ? -1 : captions[found].utterance);
+
+      // 上が一つ前、下がいま。止めても消さない（読みかけを消さないため）
+      if (rows.length === 2) {
+        paint(rows[0], found - 1);
+        paint(rows[1], found);
+      }
     });
 
     const clearHighlight = () => highlight(-1);
