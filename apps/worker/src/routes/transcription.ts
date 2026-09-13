@@ -7,6 +7,8 @@ import type {
   TranscriptionQueueItem,
   UploadUrlResponse,
   TranscriptData,
+  GlossaryData,
+  GlossaryTerm,
 } from "../types";
 import {
   listAllEpisodes,
@@ -597,6 +599,96 @@ transcriptionQueue.post("/reprocess-all", async (c) => {
   await saveIndex(c.env, index);
 
   return c.json({ success: true, queued: targets.length });
+});
+
+/**
+ * PUT /api/episodes/:id/glossary - その回の用語集を受け取る
+ *
+ * 校正の前に文字起こしを通して読んで集めたもの。校正に渡すために作るが、
+ * 番組の用語辞典の材料にもなるので残す。
+ *
+ * 本文には触らないので、置換規則のような承認は挟まない。読み物として出すときに
+ * 人が選ぶ（自動生成した説明をそのまま公開しない）。
+ */
+transcriptionEpisodes.put("/:id/glossary", async (c) => {
+  const id = c.req.param("id");
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    const body = await c.req.json<{ terms?: unknown }>();
+    const incoming = Array.isArray(body.terms) ? body.terms : [];
+
+    const terms: GlossaryTerm[] = incoming
+      .filter(
+        (t): t is Record<string, unknown> =>
+          typeof t === "object" && t !== null && typeof (t as { term?: unknown }).term === "string"
+      )
+      .map((t) => {
+        const suspects = Array.isArray(t.suspects) ? t.suspects : [];
+
+        return {
+          term: String(t.term).trim(),
+          kind: typeof t.kind === "string" ? t.kind : undefined,
+          note: typeof t.note === "string" ? t.note : undefined,
+          asWritten: typeof t.asWritten === "string" ? t.asWritten : undefined,
+          notable: t.notable === true,
+          url: typeof t.url === "string" && t.url.startsWith("http") ? t.url : undefined,
+          evidence: typeof t.evidence === "string" ? t.evidence : undefined,
+          suspects: suspects
+            .filter(
+              (spot): spot is Record<string, unknown> =>
+                typeof spot === "object" && spot !== null && typeof spot.index === "number"
+            )
+            .map((spot) => ({
+              index: spot.index as number,
+              text: String(spot.text ?? ""),
+              guess: typeof spot.guess === "string" ? spot.guess : undefined,
+            })),
+        };
+      })
+      .filter((t) => t.term !== "");
+
+    const data: GlossaryData = { terms, collectedAt: new Date().toISOString() };
+
+    await c.env.R2_BUCKET.put(
+      transcriptKeys(meta.storageKey).glossary,
+      JSON.stringify(data),
+      { httpMetadata: { contentType: "application/json" } }
+    );
+
+    return c.json({ success: true, terms: terms.length });
+  } catch (err) {
+    console.error(`[glossary] Error for episode ${id}:`, err);
+    return c.json({ error: "Failed to save the glossary" }, 500);
+  }
+});
+
+/**
+ * GET /api/episodes/:id/glossary - その回の用語集を返す
+ */
+transcriptionEpisodes.get("/:id/glossary", async (c) => {
+  const id = c.req.param("id");
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    const obj = await c.env.R2_BUCKET.get(transcriptKeys(meta.storageKey).glossary);
+    if (!obj) {
+      return c.json({ terms: [], collectedAt: null });
+    }
+
+    return c.json(JSON.parse(await obj.text()) as GlossaryData);
+  } catch (err) {
+    console.error(`[glossary] Error for episode ${id}:`, err);
+    return c.json({ error: "Failed to read the glossary" }, 500);
+  }
 });
 
 /**

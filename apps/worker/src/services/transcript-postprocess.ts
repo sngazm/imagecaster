@@ -1341,6 +1341,14 @@ export function transcriptKeys(storageKey: string) {
      * 同じものが見えているのが早い。0.05 秒刻み・0〜255 に丸めて base64。
      */
     levels: `episodes/${storageKey}/levels.json`,
+    /**
+     * その回の用語集
+     *
+     * 校正の前に文字起こしを通して読んで集めた、この回に出てくる固有名詞。
+     * 校正に渡すために作るものだが、番組の用語辞典の材料にもなるので残す。
+     * 綴りは Web で確かめたものだけが入っている。
+     */
+    glossary: `episodes/${storageKey}/glossary.json`,
   };
 }
 

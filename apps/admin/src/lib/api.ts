@@ -96,6 +96,22 @@ export interface EpisodeDetail {
  *
  * label が null のトラックは BGM などの非発話トラックで、話者判定から除外される。
  */
+/**
+ * その回の用語集の 1 語
+ *
+ * 校正の前に文字起こしを通して読んで集めたもの。綴りは Web で確かめたものだけ。
+ */
+export interface GlossaryTerm {
+  term: string;
+  kind?: string;
+  note?: string;
+  asWritten?: string;
+  notable?: boolean;
+  url?: string;
+  evidence?: string;
+  suspects?: Array<{ index: number; text: string; guess?: string }>;
+}
+
 export interface SpeakerTrackAssignment {
   track: number;
   label: string | null;
@@ -530,6 +546,12 @@ export const api = {
     request<{ success: boolean }>(`/api/episodes/${id}/tracks`, {
       method: "DELETE",
     }),
+
+  // その回の用語集（通読が集めたもの）
+  getGlossary: (id: string) =>
+    request<{ terms: GlossaryTerm[]; collectedAt: string | null }>(
+      `/api/episodes/${id}/glossary`
+    ),
 
   // Claude の感想
   generateImpression: (id: string) =>

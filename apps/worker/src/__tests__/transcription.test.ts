@@ -1429,3 +1429,78 @@ describe("提案でもその回には効くこと", () => {
     ).toBe(false);
   });
 });
+
+describe("PUT /api/episodes/:id/glossary", () => {
+  const terms = [
+    {
+      term: "LISTEN",
+      kind: "サービス名",
+      note: "ポッドキャストの文字起こしサービス",
+      notable: true,
+      url: "https://listen.style/",
+      evidence: "公式サイトで確認",
+      suspects: [{ index: 1, text: "ダトー、リッスン。", guess: "打倒、LISTEN。" }],
+    },
+  ];
+
+  async function send(id: string, body: unknown) {
+    return SELF.fetch(`http://localhost/api/episodes/${id}/glossary`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+
+  it("用語集を保存して読み出せる", async () => {
+    const { id } = await createTestEpisode({ title: "Glossary Save" });
+
+    const response = await send(id, { terms });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ success: true, terms: 1 });
+
+    const saved = (await (
+      await SELF.fetch(`http://localhost/api/episodes/${id}/glossary`)
+    ).json()) as { terms: Array<{ term: string; url?: string; suspects?: unknown[] }> };
+
+    expect(saved.terms[0].term).toBe("LISTEN");
+    expect(saved.terms[0].url).toBe("https://listen.style/");
+    expect(saved.terms[0].suspects).toHaveLength(1);
+  });
+
+  it("URL でないものは URL として受け取らない", async () => {
+    const { id } = await createTestEpisode({ title: "Glossary Bad URL" });
+
+    await send(id, { terms: [{ term: "X", url: "見つからなかった" }] });
+
+    const saved = (await (
+      await SELF.fetch(`http://localhost/api/episodes/${id}/glossary`)
+    ).json()) as { terms: Array<{ url?: string }> };
+
+    expect(saved.terms[0].url).toBeUndefined();
+  });
+
+  it("語の無い項目は捨てる", async () => {
+    const { id } = await createTestEpisode({ title: "Glossary Empty Term" });
+
+    const response = await send(id, {
+      terms: [{ note: "語が無い" }, { term: "  " }, { term: "有効" }],
+    });
+
+    expect(await response.json()).toMatchObject({ terms: 1 });
+  });
+
+  it("集めていない回は空を返す", async () => {
+    const { id } = await createTestEpisode({ title: "Glossary Missing" });
+
+    const response = await SELF.fetch(`http://localhost/api/episodes/${id}/glossary`);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ terms: [], collectedAt: null });
+  });
+
+  it("存在しないエピソードは 404", async () => {
+    const response = await send("nope", { terms });
+
+    expect(response.status).toBe(404);
+  });
+});

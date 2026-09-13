@@ -4,6 +4,7 @@ import { api, EpisodeDetail as EpisodeDetailType, formatDuration, formatFileSize
 import { SpeakerTracksPanel } from "../components/SpeakerTracksPanel";
 import { TranscriptViewer } from "../components/TranscriptViewer";
 import { ClaudeImpressionPanel } from "../components/ClaudeImpressionPanel";
+import { GlossaryPanel } from "../components/GlossaryPanel";
 import { ClipsPanel } from "../components/ClipsPanel";
 import type { DescriptionTemplate, ReferenceLink, TranscriptSegment, PublishStatus, TranscribeStatus, UploadProgress, SpeakerTrackAssignment } from "../lib/api";
 import { UploadProgressBar } from "../components/UploadProgressBar";
@@ -1016,6 +1017,16 @@ export default function EpisodeDetail() {
                       defaults={speakerDefaults}
                       onUpdated={reloadEpisode}
                     />
+                  </div>
+                )}
+
+                {/* この回の用語集（校正が集めたもの） */}
+                {!episode.skipTranscription && (
+                  <div className="border-t border-[var(--color-border)] pt-4">
+                    <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-3">
+                      この回の用語集
+                    </h3>
+                    <GlossaryPanel episodeId={episode.id} />
                   </div>
                 )}
 

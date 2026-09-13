@@ -241,6 +241,36 @@ Whisper の生出力は `transcript.raw.json` として残るため、文字起�
 }
 ```
 
+### PUT /api/episodes/:id/glossary
+
+校正の前に文字起こしを通して読んで集めた、その回の用語集を登録します。
+`episodes/{storageKey}/glossary.json` に保存します。
+
+```typescript
+{
+  terms: Array<{
+    term: string;        // 正しいと確かめた綴り
+    kind?: string;       // サービス名 / 人名 / 専門用語 / 造語 / 店名
+    note?: string;       // 何のことか。本文のどこに出てくるかも書かれている
+    asWritten?: string;  // 本文での書かれ方（正しい綴りと違うことがある）
+    notable?: boolean;   // 参考リンクに載せる価値があるか
+    url?: string;        // 参考リンクの URL（Web で確かめたものだけ）
+    evidence?: string;   // 綴りを確かめた根拠
+    suspects?: Array<{ index: number; text: string; guess?: string }>;
+  }>;
+}
+```
+
+`url` は `http` で始まるものだけを受け取ります。綴りが確かめられなかった語は
+文字起こし側で落としているので、ここに届くのは裏の取れたものだけです。
+
+**本文には触らないので、置換規則のような承認は挟みません。** 番組の用語辞典の
+材料として残すもので、読み物として出すときに人が選びます。
+
+### GET /api/episodes/:id/glossary
+
+その回の用語集を返します。集めていない回は `{ terms: [], collectedAt: null }` です。
+
 ### POST /api/transcription/reprocess-all
 
 公開済みエピソード（`index.json` に載っているもの）をまとめて再処理待ちに積みます。

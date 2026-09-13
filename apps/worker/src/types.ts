@@ -409,6 +409,37 @@ export interface TranscriptData {
 }
 
 /**
+ * その回の用語集（R2 に保存）
+ *
+ * 校正の前に文字起こしを通して読んで集めたもの。校正に渡すために作るが、
+ * 番組の用語辞典の材料にもなるので残す。綴りは Web で確かめたものだけが入る。
+ */
+export interface GlossaryTerm {
+  /** 正しいと確かめた綴り */
+  term: string;
+  /** サービス名・人名・専門用語・造語・店名 */
+  kind?: string;
+  /** 何のことか。本文のどこに出てくるかも書かれている */
+  note?: string;
+  /** 本文での書かれ方。正しい綴りと違うことがある */
+  asWritten?: string;
+  /** 参考リンクに載せる価値があるか（一般名詞ではなく説明が要るもの） */
+  notable?: boolean;
+  /** 参考リンクの URL。Web で確かめたものだけ */
+  url?: string;
+  /** 綴りを確かめた根拠 */
+  evidence?: string;
+  /** その語が誤認識されていそうな箇所 */
+  suspects?: Array<{ index: number; text: string; guess?: string }>;
+}
+
+export interface GlossaryData {
+  terms: GlossaryTerm[];
+  /** いつ集めたか */
+  collectedAt: string;
+}
+
+/**
  * 文字起こしキューのエピソード情報
  */
 export interface TranscriptionQueueItem {

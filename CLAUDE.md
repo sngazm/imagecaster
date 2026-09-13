@@ -162,6 +162,8 @@ await jwtVerify(jwt, JWKS, { audience: ACCESS_AUD });
 | POST | /api/episodes/:id/transcript/reprocess | 後処理のやり直し |
 | POST | /api/episodes/:id/transcript/corrections | 校正で見つかった修正の登録 |
 | POST | /api/episodes/:id/retranscribe | 音声から文字起こしをやり直す |
+| PUT | /api/episodes/:id/glossary | その回の用語集を登録 |
+| GET | /api/episodes/:id/glossary | その回の用語集 |
 | POST | /api/episodes/:id/impression | Claudeの感想を生成 |
 | DELETE | /api/episodes/:id/impression | Claudeの感想を削除 |
 
@@ -245,6 +247,7 @@ podcast-bucket/
 │       ├── transcript.raw.json  # Whisperの生出力（後処理の入力）
 │       ├── transcript.json      # 後処理済み
 │       ├── transcript.vtt       # 後処理済みVTT（公開サイトが読む）
+│       ├── glossary.json        # その回の用語集（通読が集めたもの）
 │       ├── artwork.jpg          # エピソードアートワーク（任意）
 │       └── clips/               # 切り抜き動画（任意）
 │           ├── index.json       # この回の切り抜き一覧
