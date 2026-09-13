@@ -406,6 +406,10 @@ export interface TranscriptSegment {
 export interface TranscriptData {
   segments: TranscriptSegment[];
   language?: string;
+  /** いつ整形したか。この本文がどの時点の設定で作られたかを辿るため */
+  refinedAt?: string;
+  /** 当てた置換規則の数（番組の辞書 / この回かぎり） */
+  appliedRules?: { dictionary: number; episode: number };
 }
 
 /**

@@ -1327,8 +1327,21 @@ export function resolveSpeakerTracks(
  */
 export function transcriptKeys(storageKey: string) {
   return {
-    /** Whisper の生出力（話者判定済み・整形前）。整形をやり直す入力 */
+    /**
+     * 文字起こしマシンが送ってきたもの（整形をやり直す入力）
+     *
+     * 「生」と名乗っているが、Whisper のあとトラック補完・穴埋め・句読点・
+     * 話者分離・聞き分け・読み物として整える、まで通っている
+     */
     raw: `episodes/${storageKey}/transcript.raw.json`,
+    /**
+     * Whisper の直出力（何も足していないもの）
+     *
+     * 話者分離も句読点も当てる前。認識の精度が上がったとき、あるいは工程の
+     * どれかを別のやり方に替えたときに、**音声からやり直さずにここから作り直す**
+     * ために残す。セグメントの統計（自信・無音らしさ・繰り返しの多さ）も入る
+     */
+    whisper: `episodes/${storageKey}/transcript.whisper.json`,
     /** 整形済み JSON */
     json: `episodes/${storageKey}/transcript.json`,
     /** 整形済み VTT（公開サイトが読む） */
@@ -1395,12 +1408,46 @@ export async function getRawTranscript(
  *
  * meta の transcriptUrl / transcriptRawUrl を書き換えるが、保存は呼び出し側で行う。
  */
+/**
+ * 前に公開していた本文と突き合わせて、何行変わったかを数える
+ *
+ * 整形は黙って上書きするので、やり直して何が変わったのか（あるいは何も変わって
+ * いないのか）が分からなかった。実際に、校正が正しく直したはずの行が逆向きの
+ * 置換規則に戻されていたのを、R2 を直接見るまで気づけなかったことがある。
+ */
+async function countChanges(
+  env: Env,
+  key: string,
+  next: TranscriptSegment[]
+): Promise<{ before: number; changed: number } | null> {
+  const obj = await env.R2_BUCKET.get(key);
+  if (!obj) {
+    return null;
+  }
+
+  try {
+    const previous = (JSON.parse(await obj.text()) as TranscriptData).segments;
+    const lines = new Set(previous.map((s) => `${s.speaker ?? ""}\u0000${s.text}`));
+    const changed = next.filter(
+      (s) => !lines.has(`${s.speaker ?? ""}\u0000${s.text}`)
+    ).length;
+
+    return { before: previous.length, changed };
+  } catch {
+    return null;
+  }
+}
+
 export async function saveRefined(
   env: Env,
   meta: EpisodeMeta,
   raw: TranscriptData,
   settings: TranscriptRefineSettings | undefined
-): Promise<{ segments: number; applied: AppliedCorrection[] }> {
+): Promise<{
+  segments: number;
+  applied: AppliedCorrection[];
+  changed: number | null;
+}> {
   const keys = transcriptKeys(meta.storageKey);
 
   // パイプライン全体を通す。ここで mergeSegments と applyCorrections だけを
@@ -1412,18 +1459,42 @@ export async function saveRefined(
   const { applied } = applyCorrections(merged, settings?.corrections ?? []);
   const segments = processed.segments;
 
-  await env.R2_BUCKET.put(keys.json, JSON.stringify(processed), {
+  // 上書きする前に、前の本文と比べる
+  const diff = await countChanges(env, keys.json, segments);
+
+  // いつ整形したか、何件の規則を当てたかを本文と一緒に残す。読む側が
+  // 「この本文がどの設定で作られたか」を後から辿れる
+  const stamped: TranscriptData = {
+    ...processed,
+    refinedAt: new Date().toISOString(),
+    appliedRules: {
+      dictionary: (settings?.corrections ?? []).filter((r) => r.enabled !== false)
+        .length,
+      episode: (meta.transcriptCorrections ?? []).filter(
+        (r) => r.enabled !== false
+      ).length,
+    },
+  };
+
+  await env.R2_BUCKET.put(keys.json, JSON.stringify(stamped), {
     httpMetadata: { contentType: "application/json" },
   });
 
-  await env.R2_BUCKET.put(keys.vtt, convertToVtt(processed), {
+  await env.R2_BUCKET.put(keys.vtt, convertToVtt(stamped), {
     httpMetadata: { contentType: "text/vtt" },
   });
 
   meta.transcriptRawUrl = `${env.R2_PUBLIC_URL}/${keys.raw}`;
   meta.transcriptUrl = `${env.R2_PUBLIC_URL}/${keys.vtt}`;
 
-  return { segments: segments.length, applied };
+  if (diff && diff.changed > 0) {
+    console.log(
+      `[refine] ${meta.id}: ${diff.before} -> ${segments.length} 行、` +
+        `${diff.changed} 行が前と違う`
+    );
+  }
+
+  return { segments: segments.length, applied, changed: diff?.changed ?? null };
 }
 
 /**
@@ -1435,7 +1506,11 @@ export async function refineAndSave(
   env: Env,
   meta: EpisodeMeta,
   settings: TranscriptRefineSettings | undefined
-): Promise<{ segments: number; applied: AppliedCorrection[] } | null> {
+): Promise<{
+  segments: number;
+  applied: AppliedCorrection[];
+  changed: number | null;
+} | null> {
   const raw = await getRawTranscript(env, meta.storageKey);
 
   if (!raw || !validateTranscriptData(raw)) {

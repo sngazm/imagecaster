@@ -133,9 +133,11 @@ export function TranscriptSettings({ value, onSaved }: Props) {
   async function handleReprocessAll() {
     if (
       !confirm(
-        "公開済みの全エピソードの文字起こしを作り直します。\n" +
-          "文字起こし自体はやり直さないので音声の再処理は発生しませんが、" +
-          "件数によっては反映に時間がかかります。よろしいですか?"
+        "公開済みの全エピソードを、いまの設定で整形し直します。\n\n" +
+          "過去の回は文字起こしをしたときの判断で確定しています。" +
+          "いまの辞書を遡って当てると、当時は正しかった箇所が変わることがあります。\n\n" +
+          "バグを直したときなど、過去を作り直す理由があるときだけ実行してください。" +
+          "よろしいですか?"
       )
     ) {
       return;
@@ -280,8 +282,9 @@ export function TranscriptSettings({ value, onSaved }: Props) {
           </h2>
           <p className="text-xs text-[var(--color-text-muted)] mb-4">
             文字起こしを読んだ Claude が見つけた誤りのうち、番組全体に効きそうなものです。
-            <strong>承認するまで辞書には入りません。</strong>
-            辞書は公開済みの全エピソードに効くので、目を通してから入れてください。
+            <strong>承認すると、次に整形する回から効きます。</strong>
+            公開済みの回はそのときの判断のままで、勝手には変わりません
+            （下の「全エピソードを再処理」を押したときだけ遡ります）。
           </p>
 
           <ul className="space-y-2">

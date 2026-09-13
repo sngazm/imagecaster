@@ -1642,3 +1642,69 @@ describe("DELETE /api/episodes/:id/transcript/corrections", () => {
     expect((await remove(id, { to: "Asana" })).status).toBe(400);
   });
 });
+
+describe("整形の記録", () => {
+  it("いつ整形したか・何件の規則を当てたかを本文に残す", async () => {
+    const { id, storageKey } = await createTestEpisode({ title: "Refine Stamp" });
+
+    await env.R2_BUCKET.put(
+      `episodes/${storageKey}/transcript.raw.json`,
+      JSON.stringify({
+        language: "ja",
+        segments: [{ start: 0, end: 3, text: "アサナで管理してます。", speaker: "あずま" }],
+      })
+    );
+
+    await SELF.fetch(`http://localhost/api/episodes/${id}/transcript/corrections`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        corrections: [{ from: "アサナ", to: "Asana", general: false }],
+      }),
+    });
+
+    const obj = await env.R2_BUCKET.get(`episodes/${storageKey}/transcript.json`);
+    const saved = JSON.parse(await obj!.text()) as {
+      refinedAt?: string;
+      appliedRules?: { dictionary: number; episode: number };
+    };
+
+    expect(saved.refinedAt).toBeTruthy();
+    expect(saved.appliedRules?.episode).toBe(1);
+  });
+
+  it("やり直して何行変わったかを返す", async () => {
+    const { id, storageKey } = await createTestEpisode({ title: "Refine Diff" });
+
+    await env.R2_BUCKET.put(
+      `episodes/${storageKey}/transcript.raw.json`,
+      JSON.stringify({
+        language: "ja",
+        segments: [
+          { start: 0, end: 3, text: "アサナで管理してます。", speaker: "あずま" },
+          { start: 4, end: 6, text: "そうなんですね。", speaker: "鉄塔" },
+        ],
+      })
+    );
+
+    // 1 回目（この時点では前の本文が無いので changed は null）
+    await SELF.fetch(`http://localhost/api/episodes/${id}/transcript/reprocess`, {
+      method: "POST",
+    });
+
+    // 規則を足して 2 回目
+    const response = await SELF.fetch(
+      `http://localhost/api/episodes/${id}/transcript/corrections`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          corrections: [{ from: "アサナ", to: "Asana", general: false }],
+        }),
+      }
+    );
+
+    const body = (await response.json()) as { changed: number | null };
+    expect(body.changed).toBe(1);
+  });
+});

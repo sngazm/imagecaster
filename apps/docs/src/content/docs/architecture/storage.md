@@ -21,7 +21,8 @@ podcast-bucket/
         ├── meta.json            # エピソードメタデータ
         ├── audio.mp3            # 音声ファイル
         ├── tracks.zip           # 話者ごとに分かれた音声トラック（任意）
-        ├── transcript.raw.json  # Whisper の生出力（整形の入力）
+        ├── transcript.whisper.json # Whisper の直出力（何も足していない控え）
+        ├── transcript.raw.json  # 文字起こしマシンの出力（整形の入力）
         ├── transcript.json      # 整形済み（統合・誤字修正後）
         ├── transcript.vtt       # 字幕（公開サイトが読む）
         ├── glossary.json        # その回の用語集（通読が集めたもの）
@@ -39,9 +40,22 @@ podcast-bucket/
 
 ### 文字起こしの 3 つのファイル
 
-`transcript.raw.json` は Whisper が出したままのデータで、整形をやり直すための入力として
-残しておきます。統合の条件や誤字の辞書を変えたときに、文字起こしを実行し直さずに
+`transcript.raw.json` は文字起こしマシンが送ってきたデータで、整形をやり直すための入力として
+残しておきます。「生」と名乗っていますが、Whisper のあとトラック補完・穴埋め・句読点・
+話者分離・聞き分け・読み物として整える、まで通った状態です。
+
+`transcript.whisper.json` は**何も足していない Whisper の直出力**です。読む側はいません。
+認識の精度が上がったとき、あるいは話者分離や句読点のやり方を替えたときに、**音声から
+やり直さずにここから作り直す**ために残しています。セグメントごとの統計（自信・無音らしさ・
+繰り返しの多さ）も入っています。統合の条件や誤字の辞書を変えたときに、文字起こしを実行し直さずに
 `transcript.json` と `transcript.vtt` を作り直せるのはこのためです。
+
+`transcript.json` が**完成版**です。整形（統合・相槌・辞書）と校正の置換規則がすべて
+当たった状態で、切り抜き動画もここを読みます。置換規則を自分で当て直す必要はありません。
+
+公開済みの回は、文字起こしをしたときの判断で確定しています。辞書に規則を足しても過去回は
+変わりません（管理画面の「全エピソードを再処理」を押したときだけ遡ります）。整形をやり直すと、
+本文に `refinedAt` と `appliedRules` が記録され、前の本文と何行違うかが API の返り値に載ります。
 
 `tracks.zip` は話者判定にのみ使うので、文字起こしが済んだら削除してかまいません。
 
@@ -117,7 +131,6 @@ interface EpisodeMeta {
   transcriptUrl: string | null;
   artworkUrl: string | null;
   skipTranscription: boolean;
-  hideTranscription?: boolean;
   publishStatus: PublishStatus;
   transcribeStatus: TranscribeStatus;
   createdAt: string;         // ISO 8601

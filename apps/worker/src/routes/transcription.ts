@@ -274,11 +274,17 @@ transcriptionEpisodes.post("/:id/transcript/upload-url", async (c) => {
       return c.json({ error: "Episode is not in pending or transcribing status" }, 400);
     }
 
-    // Whisper の生出力として保存する。統合や誤字修正はこれを入力に Worker 側で行い、
-    // 公開用の transcript.json / transcript.vtt を別に書き出す。
+    // 既定は整形の入力（transcript.raw.json）。統合や誤字修正はこれを入力に
+    // Worker 側で行い、公開用の transcript.json / transcript.vtt を別に書き出す。
+    //
+    // kind=whisper なら Whisper の直出力の置き場を返す。こちらは読まないが、
+    // 認識の精度が上がったときに音声からやり直さずに済むよう残しておく
+    const kind = c.req.query("kind");
+    const keys = transcriptKeys(meta.storageKey);
+
     const signed = await createPresignedUrl(
       c.env,
-      transcriptKeys(meta.storageKey).raw,
+      kind === "whisper" ? keys.whisper : keys.raw,
       { method: "PUT", contentType: "application/json" }
     );
 
@@ -591,6 +597,8 @@ transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
       episodeRules: merged.length,
       leadingLabelsAdded: newLabels.length,
       segments: result?.segments ?? 0,
+      // 前の本文と何行違うか。何も変わらなかったときに分かるように返す
+      changed: result?.changed ?? null,
     });
   } catch (err) {
     console.error(`[transcript/corrections] Error for episode ${id}:`, err);
@@ -675,6 +683,8 @@ transcriptionEpisodes.delete("/:id/transcript/corrections", async (c) => {
       removed: before.length - remaining.length,
       episodeRules: remaining.length,
       segments: result?.segments ?? 0,
+      // 前の本文と何行違うか。何も変わらなかったときに分かるように返す
+      changed: result?.changed ?? null,
     });
   } catch (err) {
     console.error(`[transcript/corrections] Error for episode ${id}:`, err);
