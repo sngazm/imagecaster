@@ -924,6 +924,11 @@ export function postProcess(
   });
 
   const { segments: tidied } = normalizeBackchannels(deflated, backchannel);
+
+  // 統合の**前**に落とす。ここは省けない。統合は「同じ話者の隣り合う行を繋ぐ」
+  // ので、間に相手の相槌が挟まっていると前後が繋がらない。4 本（#281 #283 #285
+  // #286）で測ると、これを省いて最後の 1 回だけにした場合、行が 562→578、
+  // 634→775、372→474、452→533 と増えた（繋がるはずの行が分かれたまま残る）
   const { segments: withoutFillers } = dropStandaloneBackchannels(tidied, backchannel);
 
   // 以前はここで話者の境界を直していた（repairSpeakerBoundaries）。音量判定の
@@ -936,25 +941,26 @@ export function postProcess(
   // 一致（重なり許容）が 97.4% から 92.2% に落ち、本文は変わらなかった。外した。
   const merged = mergeSegments(withoutFillers, options.merge);
 
-  // 統合してからもう一度落とす。「そう」と「そうそう」が繋がって
-  // 「そうそうそう」が生まれることがある。判定は読者が見る最終形に対して行う。
-  const { segments: tidy } = dropStandaloneBackchannels(merged, backchannel);
-
   // 統合してから、文の途中に埋まった相槌を落とす。話者判定が揺れると
   // 相手の相槌が長い発話の中に取り込まれ、行全体としては相槌でなくなる
-  const { segments: cleared } = removeEmbeddedBackchannels(tidy, backchannel);
+  const { segments: cleared } = removeEmbeddedBackchannels(merged, backchannel);
 
-  // 文中の相槌を落とした結果、行全体が相槌になることがある。
-  // 「はい、はい、はい、はい。なるほど。」から「なるほど。」が消えると、
-  // 残るのは相槌だけになる
-  const { segments: settled } = dropStandaloneBackchannels(cleared, backchannel);
+  // ここには以前、相槌だけの行を落とす処理が 2 回あった（統合の直後と、文中の
+  // 相槌を落とした直後）。「そう」＋「そうそう」が繋がって「そうそうそう」に
+  // なる、「はい、はい。なるほど。」から「なるほど。」が消えて相槌だけになる、
+  // という理由で置いていたが、**どちらも最後の 1 回で落ちる**。
+  //
+  // この先に来るのは removeEmbeddedBackchannels と applyCorrections で、
+  // どちらも行ごとの処理。行が残っているかどうかが結果を変えない。4 本で測って
+  // 1 文字も変わらなかったので外した。行をまたぐ処理（統合）の前と、読者が見る
+  // 最終形の 2 回だけにする
   // 番組全体の辞書を当ててから、この回かぎりの修正を当てる。
   // 全体の辞書に入れると誤爆するものを、ここで拾う
-  const { segments: corrected } = applyCorrections(settled, options.corrections ?? []);
+  const { segments: corrected } = applyCorrections(cleared, options.corrections ?? []);
   const { segments: replaced } = applyCorrections(corrected, options.episodeCorrections ?? []);
-  // 置換で行頭の幻覚（「深井 はいはいはい。」の「深井 」）が剥がれると、残るのが
-  // 相槌だけになることがある。#286 でこれが「はいはいはい。」として公開まで通った。
-  // 読者が見る最終形でもう一度落とす
+  // 読者が見る最終形で落とす。ここまでの各段が新しく「相槌だけの行」を生む。
+  // 置換で行頭の幻覚（「深井 はいはいはい。」の「深井 」）が剥がれると残るのが
+  // 相槌だけになり、#286 ではこれが「はいはいはい。」として公開まで通った
   const { segments } = dropStandaloneBackchannels(replaced, backchannel);
 
   return {
