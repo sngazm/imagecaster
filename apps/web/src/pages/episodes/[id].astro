@@ -310,7 +310,7 @@ const ogImageUrl = getEpisodeOgImageUrl(episode.artworkUrl, podcastArtworkUrl);
 </Layout>
 
 <script>
-  import { toCaptions } from '../../lib/captions';
+  import { toCaptions, type Caption } from '../../lib/captions';
 
   // タイムスタンプ（HH:MM:SS.mmm）を秒数に変換
   function timeToSeconds(time: string): number {
@@ -408,68 +408,116 @@ const ogImageUrl = getEpisodeOgImageUrl(episode.artworkUrl, podcastArtworkUrl);
 
     // --- プレイヤー直下の字幕 ---
     const strip = document.getElementById('captions');
-    const rows = strip ? [...strip.querySelectorAll<HTMLElement>('.caption-row')] : [];
+    const track = strip?.querySelector<HTMLElement>('.caption-track') ?? null;
+    const rows = track ? [...track.querySelectorAll<HTMLElement>('.caption-row')] : [];
     const speakerIcons: Record<string, string> = JSON.parse(strip?.dataset.icons ?? '{}');
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    // 上へ抜けていく行の薄さ。動かしている最中は読めないので、先に控えておく
+    const dimOpacity = rows[1] ? getComputedStyle(rows[1]).opacity : '0.45';
 
     /** 複数人が同時に喋っている区間は "あずま・鉄塔" のように連結されて届く */
     const SIMULTANEOUS_SEPARATOR = '・';
 
-    function renderSpeaker(slot: HTMLElement, speaker: string): void {
-      slot.replaceChildren(
-        ...speaker
-          .split(SIMULTANEOUS_SEPARATOR)
-          .filter(Boolean)
-          .map((name) => {
-            const url = speakerIcons[name];
-            if (!url) {
-              const label = document.createElement('span');
-              label.textContent = name;
-              label.className = 'block truncate text-[11px] font-medium leading-tight';
-              return label;
-            }
+    /**
+     * 話者の印を返す
+     *
+     * 一度作ったものを枠ごとに取っておいて使い回す。字幕が進むたびに作り直すと、
+     * 画像が入れ替わる一瞬だけ抜けて見えることがある。付け外しは動かすだけなので、
+     * 読み込みも起きない。
+     */
+    const speakerNodes = new Map<HTMLElement, Map<string, HTMLElement>>();
 
-            const icon = document.createElement('img');
-            icon.src = url;
-            icon.alt = name;
-            icon.title = name;
-            icon.width = 24;
-            icon.height = 24;
-            icon.className = 'h-6 w-6 shrink-0 rounded-full object-cover';
-            return icon;
-          })
-      );
+    function speakerNode(slot: HTMLElement, name: string): HTMLElement {
+      let cache = speakerNodes.get(slot);
+      if (!cache) {
+        cache = new Map();
+        speakerNodes.set(slot, cache);
+      }
+
+      const cached = cache.get(name);
+      if (cached) return cached;
+
+      const url = speakerIcons[name];
+      let node: HTMLElement;
+
+      if (url) {
+        const icon = document.createElement('img');
+        icon.src = url;
+        icon.alt = name;
+        icon.title = name;
+        icon.width = 24;
+        icon.height = 24;
+        icon.className = 'h-6 w-6 shrink-0 rounded-full object-cover';
+        node = icon;
+      } else {
+        const label = document.createElement('span');
+        label.textContent = name;
+        label.className = 'block truncate text-[11px] font-medium leading-tight';
+        node = label;
+      }
+
+      cache.set(name, node);
+      return node;
     }
 
-    /** 1 行ぶんを書き換える。同じ字幕なら何もしない（毎秒 4 回呼ばれる） */
-    function paint(row: HTMLElement, index: number): void {
-      if (row.dataset.caption === String(index)) return;
-      row.dataset.caption = String(index);
-
-      const caption = captions[index];
+    /** 1 行ぶんの中身を入れる */
+    function fill(row: HTMLElement, caption: Caption | undefined): void {
       const text = row.querySelector<HTMLElement>('.caption-text');
       const slot = row.querySelector<HTMLElement>('.caption-speaker');
       if (!text || !slot) return;
 
       text.textContent = caption?.text ?? '';
 
+      // 話者が変わったときだけ並べ直す
       const speaker = caption?.speaker ?? '';
       if (slot.dataset.speaker !== speaker) {
         slot.dataset.speaker = speaker;
-        renderSpeaker(slot, speaker);
-      }
-
-      // 入れ替わりが分かる程度に軽く出す。一つ前の行は薄くしてあるので、
-      // 終わりの不透明度は CSS から取って戻り先を合わせる
-      if (!reducedMotion.matches && typeof row.animate === 'function') {
-        row.animate(
-          [
-            { opacity: 0, transform: 'translateY(3px)' },
-            { opacity: getComputedStyle(row).opacity, transform: 'none' },
-          ],
-          { duration: 180, easing: 'ease-out' }
+        slot.replaceChildren(
+          ...speaker
+            .split(SIMULTANEOUS_SEPARATOR)
+            .filter(Boolean)
+            .map((name) => speakerNode(slot, name))
         );
       }
+    }
+
+    /**
+     * 字幕を進める
+     *
+     * 中身を 1 つずつ上へ詰め替えたあと、詰め替える前の位置から今の位置へ滑らせる。
+     * 消してから出すと毎回そこで白くなるので、動かして見せる。
+     */
+    function render(index: number): void {
+      if (!track || rows.length !== 3) return;
+
+      const previous = Number(track.dataset.caption ?? 'NaN');
+      if (previous === index) return;
+      track.dataset.caption = String(index);
+
+      rows.forEach((row, offset) => fill(row, captions[index - 2 + offset]));
+
+      // 1 枚進んだときだけ滑らせる。シークで飛んだときは差し替えるだけにする
+      if (index !== previous + 1 || reducedMotion.matches) return;
+      if (typeof track.animate !== 'function') return;
+
+      // 隠れている間は測れない。滑らせようがないので中身の差し替えだけで済ませる
+      const step = rows[1].offsetTop - rows[0].offsetTop;
+      if (step <= 0) return;
+
+      // 短い字幕が続くと前の動きが終わらないうちに次が来る。積み上げずに捨てる
+      track.getAnimations?.().forEach((animation) => animation.cancel());
+      rows[1].getAnimations?.().forEach((animation) => animation.cancel());
+
+      const timing = { duration: 260, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' };
+
+      // CSS では 1 行ぶん上にずらしてある。詰め替える前の位置はその 1 行ぶん下
+      track.animate(
+        [{ transform: 'translateY(0px)' }, { transform: `translateY(${-step}px)` }],
+        timing
+      );
+      // 上がっていく行は、動きに合わせて薄くする
+      rows[1].animate([{ opacity: '1' }, { opacity: dimOpacity }], timing);
     }
 
     // 再生するまでは出さない。読むだけの人に空の枠を見せない
@@ -497,11 +545,8 @@ const ogImageUrl = getEpisodeOgImageUrl(episode.artworkUrl, podcastArtworkUrl);
 
       highlight(found < 0 ? -1 : captions[found].utterance);
 
-      // 上が一つ前、下がいま。止めても消さない（読みかけを消さないため）
-      if (rows.length === 2) {
-        paint(rows[0], found - 1);
-        paint(rows[1], found);
-      }
+      // 止めても消さない。読みかけを消さないため
+      render(found);
     });
 
     const clearHighlight = () => highlight(-1);
