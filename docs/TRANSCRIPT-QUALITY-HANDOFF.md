@@ -458,8 +458,8 @@ BPC、抜いていて→ぬいって言って）。話者の指摘は無し。
 
 ## 変更の状態（2026-09-13 朝）
 
-- transcriber `be0a75d`、imagecaster `4c4eb3d` まで push 済み。ワーカー（この WSL）は
-  `be0a75d` で稼働中（`scripts/restart-worker.sh` で入れ替え済み）
+- transcriber `92dd64d`、imagecaster `4b016cc` まで push 済み。ワーカー（この WSL）は
+  `92dd64d` で稼働中（`scripts/restart-worker.sh` で入れ替え済み）
 - Worker（Cloudflare）は**未デプロイ**。校正エンドポイントの削除を反映するには
   `pnpm run deploy` が要る。管理画面は push を Pages が拾う
 - #286 は通読つきの校正で公開済み
