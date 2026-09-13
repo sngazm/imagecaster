@@ -1,4 +1,4 @@
-import { postProcess, toPostProcessOptions } from "../services/transcript-postprocess";
+import { refine, toRefineOptions } from "../services/transcript-refine";
 import { describe, it, expect } from "vitest";
 import { SELF, env } from "cloudflare:test";
 
@@ -274,7 +274,7 @@ describe("Settings API", () => {
   });
 });
 
-describe("文字起こしの後処理設定", () => {
+describe("文字起こしの整形設定", () => {
   it("未設定でも既定値を返す", async () => {
     const response = await SELF.fetch("http://localhost/api/settings");
     const json = (await response.json()) as {
@@ -426,7 +426,7 @@ describe("文字起こしの後処理設定", () => {
 });
 
 describe("相槌の設定が保存経路を往復すること", () => {
-  it("PUT した相槌設定が GET で戻り、後処理にも効く", async () => {
+  it("PUT した相槌設定が GET で戻り、整形にも効く", async () => {
     const saved = await SELF.fetch("http://local.test/api/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -455,7 +455,7 @@ describe("相槌の設定が保存経路を往復すること", () => {
     expect(backchannel.standalonePhrases).toEqual(["ふむ"]);
 
     // 既定の「はい」ではなく、保存した「ふむ」だけが落ちる
-    const result = postProcess(
+    const result = refine(
       {
         language: "ja",
         segments: [
@@ -464,7 +464,7 @@ describe("相槌の設定が保存経路を往復すること", () => {
           { start: 2, end: 4, text: "本編です。" },
         ],
       },
-      toPostProcessOptions(body.transcriptPostProcess)
+      toRefineOptions(body.transcriptPostProcess)
     );
 
     expect(result.segments.map((s) => s.text)).toEqual(["はい。", "本編です。"]);

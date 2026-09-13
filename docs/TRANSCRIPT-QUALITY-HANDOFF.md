@@ -2,7 +2,7 @@
 
 2026-09-05〜07 に #281（あずま・鉄塔・ゲスト藤原麻里菜、76 分）を題材に文字起こしの品質を
 直した。その到達点、残っている問題、次にやること、実験の回し方をまとめる。仕組みの説明は
-`docs/TRANSCRIBER.md`（構成）、`apps/docs/.../features/speaker-separation.md`（話者分離と後処理）、
+`docs/TRANSCRIBER.md`（構成）、`apps/docs/.../features/speaker-separation.md`（話者分離と整形）、
 transcriber の README（Whisper の設定、補完、実験の道具）にある。ここには、コードや git から
 読めないこと（数字・判断・罠）だけを残す。
 
@@ -108,7 +108,7 @@ Whisper の回ごとの本文の差で、話者分離の実装によるもので
   話者一致は 98.1→97.6、CER 7.7→8.8% と少し悪化。Whisper の回の差（下記の「深井」）が大きい
 - **Whisper が架空の話者ラベルを行頭に付ける回がある。** 2 回目の取り直しで 61 行が「深井 …」で
   始まった（前 2 回は 0）。校正が 1 行ずつ episode 固有の置換で剥がしていた（82 件適用の大半）が、
-  置換は Worker の後処理の最後なので「深井 はいはいはい。」が相槌削除を素通りして
+  置換は Worker の整形の最後なので「深井 はいはいはい。」が相槌削除を素通りして
   「はいはいはい。」が公開に残った。直し: transcriber が行頭に 3 回以上繰り返す「名前 」を剥がす
   （`transcriber.strip_repeated_labels`、語彙にある語と英字は除く）。Worker は置換のあとにも
   相槌だけの行を落とす
@@ -263,7 +263,7 @@ Whisper の回ごとの本文の差で、話者分離の実装によるもので
   （句読点を除いた一致率 0.9 以上のとき。`punctuate._salvage`）。公開ではまだ確かめていない。
 - **正解エディタ**は「正解データ＝人が確かめ済みの区間だけ」。土台はいつも最新の公開データで、
   確かめ済みの区間だけ正解の本文を重ねて見せ、保存も確かめ済みの区間にかかる行だけ。
-- 手元で Worker の後処理を再現できる（`scripts/transcript-eval/pp_runner.ts`。公開データと一致する）ので、
+- 手元で Worker の整形を再現できる（`scripts/transcript-eval/pp_runner.ts`。公開データと一致する）ので、
   公開前に閉じていない行の割合まで測れる。
 
 ## 残っている問題と次の手
@@ -361,7 +361,7 @@ python3 cer.py /tmp/281/transcript.truth.json /tmp/281/transcript.json --strip-f
 python3 cuts_check.py /tmp/281/transcript.raw.json /tmp/281/transcript.json
 python3 punct_check.py /tmp/281/transcript.json
 python3 names_holes.py /tmp/281/transcript.raw.json
-# ローカル: Worker の後処理を手元で再現して、公開前に閉じていない行まで測る
+# ローカル: Worker の整形を手元で再現して、公開前に閉じていない行まで測る
 apps/worker/node_modules/.bin/esbuild pp_runner.ts --bundle --platform=node --format=esm --outfile=pp_runner.mjs
 node pp_runner.mjs raw.json index.json meta.json out.json full
 # ローカル: サイトを読む（リポジトリのルートから。read-back はローカルの claude のログインが要る）
@@ -492,7 +492,7 @@ read-back の指摘は 6 件 → **3 件**に減った（audit は 0 件）。CE
 
 **踏んだ罠 1: 逆向きの置換規則が新しい修正を打ち消す。** 校正は「加速度 → 経験則」を
 正しく登録したのに、公開サイトには「加速度」のまま出た。meta を見ると前から
-**「経験則 → 加速度」**が残っていて、後処理の中で打ち消し合っていた。ログには
+**「経験則 → 加速度」**が残っていて、整形の中で打ち消し合っていた。ログには
 `Applied` と出るので、**R2 を見ないと気づけない**。直し: `/transcript/corrections` で
 新しい規則と逆向きの古い規則を外す（校正はいまの本文を見て判断しているので新しいほうを採る）。
 
@@ -504,7 +504,7 @@ read-back の指摘は 6 件 → **3 件**に減った（audit は 0 件）。CE
 行全体の置換で、それだけで足りていた。
 
 規則を外す手段が無かったので `DELETE /api/episodes/:id/transcript/corrections` を足した
-（`from` と `to` を指定。`to` を省くとその `from` を全部外す）。外したあとは後処理をやり直す。
+（`from` と `to` を指定。`to` を省くとその `from` を全部外す）。外したあとは整形をやり直す。
 
 ## 変更の状態（2026-09-13 朝）
 

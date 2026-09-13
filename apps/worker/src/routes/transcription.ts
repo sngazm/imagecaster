@@ -20,16 +20,16 @@ import {
   syncPublishedIndex,
 } from "../services/r2";
 import {
-  applyPostProcessAndSave,
+  refineAndSave,
   resolveSpeakerTracks,
   transcriptKeys,
-} from "../services/transcript-postprocess";
+} from "../services/transcript-refine";
 import { triggerWebRebuild } from "../services/deploy";
 import {
   DEFAULT_HALLUCINATION_SETTINGS,
   DEFAULT_POST_PROCESS_SETTINGS,
   isLeadingLabel,
-} from "../services/transcript-postprocess";
+} from "../services/transcript-refine";
 import { generateImpression } from "../services/episode-impression";
 import { convertToVtt } from "../services/vtt";
 import { tracksKey } from "./upload";
@@ -364,7 +364,7 @@ transcriptionEpisodes.delete("/:id/transcription-lock", async (c) => {
 });
 
 /**
- * POST /api/episodes/:id/transcript/reprocess - 後処理をやり直す
+ * POST /api/episodes/:id/transcript/reprocess - 整形をやり直す
  *
  * Whisper の生出力から統合と誤字修正をかけ直す。文字起こし自体は再実行しないので、
  * 辞書や統合条件を変えたときに即座に反映できる。
@@ -379,7 +379,7 @@ transcriptionEpisodes.post("/:id/transcript/reprocess", async (c) => {
     }
 
     const index = await getIndex(c.env);
-    const result = await applyPostProcessAndSave(
+    const result = await refineAndSave(
       c.env,
       meta,
       index.podcast.transcriptPostProcess
@@ -415,7 +415,7 @@ transcriptionEpisodes.post("/:id/transcript/reprocess", async (c) => {
  * （`general`）は**提案として溜め**、この回かぎりのものはエピソードに保存する。
  * 辞書には自動で入れない。人が管理画面で承認したものだけが効く。
  *
- * こうしておくと、後処理をやり直しても修正が残る。辞書は次回以降の文字起こしにも
+ * こうしておくと、整形をやり直しても修正が残る。辞書は次回以降の文字起こしにも
  * 自動で効くので、同じ誤りを毎回直さずに済む。
  */
 transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
@@ -516,7 +516,7 @@ transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
       await saveIndex(c.env, index);
     }
 
-    // ラベルの登録だけなら、後処理のやり直しは要らない（文字起こし側が既に剥がしている）
+    // ラベルの登録だけなら、整形のやり直しは要らない（文字起こし側が既に剥がしている）
     if (rules.length === 0) {
       return c.json({
         success: true,
@@ -544,7 +544,7 @@ transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
     // 前回の校正が見つけたものが消える。
     //
     // ただし**逆向きの規則は外す**。取り直しで本文が変わると、前回「A → B」と
-    // 直した箇所が今回「B → A」になることがある。両方残すと後処理の中で
+    // 直した箇所が今回「B → A」になることがある。両方残すと整形の中で
     // 打ち消し合い、どちらも効かない。実際に #286 で「加速度 → 経験則」を
     // 登録したのに、前から残っていた「経験則 → 加速度」に戻されて公開された。
     // 新しいほうを採る（校正はいまの本文を見て判断している）
@@ -573,7 +573,7 @@ transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
 
     meta.transcriptCorrections = merged.length > 0 ? merged : null;
 
-    const result = await applyPostProcessAndSave(
+    const result = await refineAndSave(
       c.env,
       meta,
       index.podcast.transcriptPostProcess
@@ -599,7 +599,7 @@ transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
 });
 
 /**
- * POST /api/transcription/reprocess-all - 全エピソードの後処理をやり直す
+ * POST /api/transcription/reprocess-all - 全エピソードの整形をやり直す
  *
  * 辞書を育てたときに過去のエピソードへ一括で反映するために使う。エピソード数が
  * 多いとリソース制限に当たるため、対象を index.json に積んで Cron に少しずつ
@@ -626,7 +626,7 @@ transcriptionQueue.post("/reprocess-all", async (c) => {
  * 「加速度 → 経験則」という短い規則を手で送ってしまい、本文の正しい
  * 「加速度センサー」まで「経験則センサー」になった。
  *
- * 外したあとは後処理をやり直す。
+ * 外したあとは整形をやり直す。
  */
 transcriptionEpisodes.delete("/:id/transcript/corrections", async (c) => {
   const id = c.req.param("id");
@@ -658,7 +658,7 @@ transcriptionEpisodes.delete("/:id/transcript/corrections", async (c) => {
     meta.transcriptCorrections = remaining.length > 0 ? remaining : null;
 
     const index = await getIndex(c.env);
-    const result = await applyPostProcessAndSave(
+    const result = await refineAndSave(
       c.env,
       meta,
       index.podcast.transcriptPostProcess ?? DEFAULT_POST_PROCESS_SETTINGS

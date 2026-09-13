@@ -532,7 +532,7 @@ export function SpeakerTracksPanel({ episode, defaults, onUpdated }: Props) {
               disabled={reprocessing}
               className="btn btn-secondary"
             >
-              {reprocessing ? "処理中..." : "後処理だけやり直す"}
+              {reprocessing ? "処理中..." : "整形だけやり直す"}
             </button>
             <p className="text-xs text-[var(--color-text-muted)] mt-2">
               文字起こしはそのままに、統合の条件と誤字の辞書だけを適用し直します。すぐ終わります。

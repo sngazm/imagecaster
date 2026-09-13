@@ -1,8 +1,8 @@
 /**
- * 文字起こしの後処理パイプライン
+ * 文字起こしの整形パイプライン
  *
  * Whisper の生出力（transcript.raw.json）を入力に、公開用の transcript.json を
- * 組み立てる。後処理を文字起こしから切り離してここに置くことで、Whisper を
+ * 組み立てる。整形を文字起こしから切り離してここに置くことで、Whisper を
  * 再実行せずに何度でも適用し直せる。修正ルールを育てたときに過去のエピソードへ
  * 一括で反映できるのはこの分離のため。
  */
@@ -49,7 +49,7 @@ export interface CorrectionResult {
   applied: AppliedCorrection[];
 }
 
-export interface PostProcessOptions {
+export interface RefineOptions {
   merge?: Partial<MergeSettings>;
   corrections?: CorrectionRule[];
   hallucination?: Partial<HallucinationSettings>;
@@ -888,14 +888,14 @@ export function normalizeBackchannels(
 }
 
 /**
- * 後処理パイプラインを適用する
+ * 整形パイプラインを適用する
  *
  * 統合してから置換する。セグメントをまたいで分断されていた誤字も、
  * 統合後なら 1 つの文字列として拾える。
  */
-export function postProcess(
+export function refine(
   data: TranscriptData,
-  options: PostProcessOptions = {}
+  options: RefineOptions = {}
 ): TranscriptData {
   const hallucination = {
     ...DEFAULT_HALLUCINATION_SETTINGS,
@@ -970,7 +970,7 @@ export function postProcess(
 }
 
 /**
- * 後処理設定の既定値
+ * 整形設定の既定値
  */
 export const DEFAULT_POST_PROCESS_SETTINGS: TranscriptPostProcessSettings = {
   speakerDefaults: [],
@@ -1174,10 +1174,10 @@ function sanitizeBackchannel(input: unknown): Partial<BackchannelSettings> {
 }
 
 /**
- * 管理画面から届いた後処理設定を、保存できる形に正規化する
+ * 管理画面から届いた整形設定を、保存できる形に正規化する
  */
 /**
- * 保存されている設定を後処理のオプションに変換する
+ * 保存されている設定を整形のオプションに変換する
  *
  * 呼び出し側で項目を書き写していると、設定を足したときに写し忘れた経路だけ
  * 既定値で動く。実際に backchannel を足したときこれが起きたので関数にまとめた。
@@ -1199,10 +1199,10 @@ export function withDefaults(
   };
 }
 
-export function toPostProcessOptions(
+export function toRefineOptions(
   settings: TranscriptPostProcessSettings | undefined | null,
   meta?: EpisodeMeta | null
-): PostProcessOptions {
+): RefineOptions {
   return {
     merge: settings?.merge,
     corrections: settings?.corrections,
@@ -1327,16 +1327,16 @@ export function resolveSpeakerTracks(
  */
 export function transcriptKeys(storageKey: string) {
   return {
-    /** Whisper の生出力（話者判定済み・後処理前）。後処理をやり直す入力 */
+    /** Whisper の生出力（話者判定済み・整形前）。整形をやり直す入力 */
     raw: `episodes/${storageKey}/transcript.raw.json`,
-    /** 後処理済み JSON */
+    /** 整形済み JSON */
     json: `episodes/${storageKey}/transcript.json`,
-    /** 後処理済み VTT（公開サイトが読む） */
+    /** 整形済み VTT（公開サイトが読む） */
     vtt: `episodes/${storageKey}/transcript.vtt`,
     /**
      * 人が直した正解（教師データ）
      *
-     * 話者分離と後処理を評価するための答え合わせ用。公開には使わない。
+     * 話者分離と整形を評価するための答え合わせ用。公開には使わない。
      * 推測でロジックを積み上げるのをやめ、正解との差で測るために置く。
      */
     truth: `episodes/${storageKey}/transcript.truth.json`,
@@ -1359,11 +1359,11 @@ export function transcriptKeys(storageKey: string) {
 }
 
 /**
- * 後処理の入力になる生データを取得する
+ * 整形の入力になる生データを取得する
  *
- * 話者分離の導入前に作られたエピソードは、後処理前のデータが transcript.json に
+ * 話者分離の導入前に作られたエピソードは、整形前のデータが transcript.json に
  * 入っている。その場合は一度だけ raw として複製し、以後の入力をそちらに寄せる。
- * こうしないと、後処理済みの transcript.json を入力に再処理してしまい、
+ * こうしないと、整形済みの transcript.json を入力に再処理してしまい、
  * 統合や置換が二重にかかる。
  */
 export async function getRawTranscript(
@@ -1391,11 +1391,11 @@ export async function getRawTranscript(
 }
 
 /**
- * 生データに後処理をかけ、公開用の JSON と VTT を書き出す
+ * 生データに整形をかけ、公開用の JSON と VTT を書き出す
  *
  * meta の transcriptUrl / transcriptRawUrl を書き換えるが、保存は呼び出し側で行う。
  */
-export async function savePostProcessed(
+export async function saveRefined(
   env: Env,
   meta: EpisodeMeta,
   raw: TranscriptData,
@@ -1405,7 +1405,7 @@ export async function savePostProcessed(
 
   // パイプライン全体を通す。ここで mergeSegments と applyCorrections だけを
   // 直接呼んでいたため、ハルシネーション除去と相槌の整形が効いていなかった。
-  const processed = postProcess(raw, toPostProcessOptions(settings, meta));
+  const processed = refine(raw, toRefineOptions(settings, meta));
 
   // どの置換が何回効いたかは呼び出し側に返す（統合後のテキストに対して数える）
   const merged = mergeSegments(raw.segments, settings?.merge);
@@ -1427,11 +1427,11 @@ export async function savePostProcessed(
 }
 
 /**
- * 生データを読み直して後処理をかける
+ * 生データを読み直して整形をかける
  *
  * 辞書や統合条件を変えたあとに、文字起こしをやり直さずに適用し直すために使う。
  */
-export async function applyPostProcessAndSave(
+export async function refineAndSave(
   env: Env,
   meta: EpisodeMeta,
   settings: TranscriptPostProcessSettings | undefined
@@ -1442,5 +1442,5 @@ export async function applyPostProcessAndSave(
     return null;
   }
 
-  return savePostProcessed(env, meta, raw, settings);
+  return saveRefined(env, meta, raw, settings);
 }

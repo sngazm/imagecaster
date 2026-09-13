@@ -1013,7 +1013,7 @@ export default function Settings() {
         </form>
       )}
 
-      {/* 文字起こしの後処理 */}
+      {/* 文字起こしの整形 */}
       {activeTab === "transcript" && settings && (
         <TranscriptSettings
           value={

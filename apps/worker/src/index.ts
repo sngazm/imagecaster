@@ -18,7 +18,7 @@ import { getIndex, saveIndex, findEpisodeBySlug, saveEpisodeMeta, syncPublishedI
 import { regenerateFeed } from "./services/feed";
 import { postEpisodeToBluesky } from "./services/bluesky";
 import { triggerWebRebuild } from "./services/deploy";
-import { applyPostProcessAndSave } from "./services/transcript-postprocess";
+import { refineAndSave } from "./services/transcript-refine";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -236,7 +236,7 @@ app.onError((err, c) => {
 });
 
 /**
- * Cron 処理: 文字起こしの後処理やり直しを少しずつ進める
+ * Cron 処理: 文字起こしの整形やり直しを少しずつ進める
  *
  * 辞書や統合条件を変えたあと、過去のエピソードへ一括で再適用するために使う。
  * 全件を 1 回のリクエストで回すと Worker のリソース制限（Error 1102）に当たるため、
@@ -266,7 +266,7 @@ async function handleTranscriptReprocess(env: Env): Promise<void> {
       continue;
     }
 
-    const result = await applyPostProcessAndSave(
+    const result = await refineAndSave(
       env,
       meta,
       index.podcast.transcriptPostProcess
@@ -398,7 +398,7 @@ export default {
     } catch (err) {
       console.error("[Cron] Feed regeneration error:", err);
     }
-    // 文字起こしの後処理やり直しも独立して試みる
+    // 文字起こしの整形やり直しも独立して試みる
     try {
       await handleTranscriptReprocess(env);
     } catch (err) {

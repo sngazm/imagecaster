@@ -7,11 +7,11 @@ import {
   removeFillers,
   removeEmbeddedBackchannels,
   DEFAULT_FILLER_SETTINGS,
-  postProcess,
+  refine,
   stripLeadingLabels,
   DEFAULT_MERGE_OPTIONS,
   DEFAULT_BACKCHANNEL_SETTINGS,
-} from "../services/transcript-postprocess";
+} from "../services/transcript-refine";
 import type { TranscriptSegment } from "../types";
 
 /**
@@ -257,8 +257,8 @@ describe("stripLeadingLabels", () => {
     expect(result.stripped).toBe(3);
   });
 
-  it("postProcess の先頭で剥がすので、残った相槌だけの行は落ちる", () => {
-    const result = postProcess(
+  it("refine の先頭で剥がすので、残った相槌だけの行は落ちる", () => {
+    const result = refine(
       {
         segments: [
           { start: 0, end: 2, text: "レベルにしたくない。", speaker: "あずま" },
@@ -273,11 +273,11 @@ describe("stripLeadingLabels", () => {
   });
 });
 
-describe("postProcess は置換のあとにも相槌だけの行を落とす", () => {
+describe("refine は置換のあとにも相槌だけの行を落とす", () => {
   it("行頭の幻覚を置換で剥がしたら相槌だけになる行を落とす", () => {
     // #286 で Whisper が「深井 」という架空の話者ラベルを行頭に付け、校正がそれを
-    // この回かぎりの置換で剥がした。置換は後処理の最後なので「はいはいはい。」が残った
-    const result = postProcess(
+    // この回かぎりの置換で剥がした。置換は整形の最後なので「はいはいはい。」が残った
+    const result = refine(
       {
         segments: [
           { start: 2, end: 3, text: "田中 はいはいはい。", speaker: "鉄塔" },
@@ -296,8 +296,8 @@ describe("postProcess は置換のあとにも相槌だけの行を落とす", (
   });
 });
 
-describe("postProcess", () => {
-  it("language を保ったままセグメントを後処理する", () => {
+describe("refine", () => {
+  it("language を保ったままセグメントを整形する", () => {
     const data = {
       language: "ja",
       segments: [
@@ -306,7 +306,7 @@ describe("postProcess", () => {
       ],
     };
 
-    const result = postProcess(data);
+    const result = refine(data);
 
     expect(result.language).toBe("ja");
     expect(result.segments).toHaveLength(1);
@@ -321,7 +321,7 @@ describe("postProcess", () => {
       ],
     };
 
-    const result = postProcess(data, { merge: { enabled: false } });
+    const result = refine(data, { merge: { enabled: false } });
 
     expect(result.segments).toHaveLength(2);
   });
@@ -421,7 +421,7 @@ describe("applyCorrections", () => {
   });
 });
 
-describe("postProcess with corrections", () => {
+describe("refine with corrections", () => {
   it("統合してから置換する", () => {
     // セグメントをまたいで分断された誤字も、統合後なら 1 つの文字列として拾える
     const data = {
@@ -429,7 +429,7 @@ describe("postProcess with corrections", () => {
       segments: [seg(0, 2, "テッ", "鉄塔"), seg(2, 4, "トです", "鉄塔")],
     };
 
-    const result = postProcess(data, {
+    const result = refine(data, {
       corrections: [{ from: "テット", to: "鉄塔", enabled: true }],
     });
 
@@ -586,7 +586,7 @@ describe("dropStandaloneBackchannels", () => {
   });
 });
 
-describe("postProcess で相槌が整理されること", () => {
+describe("refine で相槌が整理されること", () => {
   it("繰り返しを抑えてから相槌だけの行を落とす", () => {
     // 順序が逆だと「うんうんうんうんうん」が対象語に一致せず残る
     const data = {
@@ -597,7 +597,7 @@ describe("postProcess で相槌が整理されること", () => {
       ],
     };
 
-    const result = postProcess(data, { merge: { enabled: false } });
+    const result = refine(data, { merge: { enabled: false } });
 
     expect(result.segments).toHaveLength(1);
     expect(result.segments[0].text).toBe("それでですね。");
@@ -803,7 +803,7 @@ describe("区切りを挟んだ相槌も落とす", () => {
 describe("統合で生まれた相槌も落とす", () => {
   it("「そう」と「そうそう」が繋がったものを落とす", () => {
     // 統合の前だけで判定すると、繋がって生まれたものが残る
-    const result = postProcess({
+    const result = refine({
       language: "ja",
       segments: [
         seg(0, 1, "そう", "あずま"),
@@ -816,7 +816,7 @@ describe("統合で生まれた相槌も落とす", () => {
   });
 
   it("統合で本文になったものは残す", () => {
-    const result = postProcess({
+    const result = refine({
       language: "ja",
       segments: [
         seg(0, 1, "そう", "あずま"),
@@ -1110,7 +1110,7 @@ describe("相槌が連なった行", () => {
   it("文中の相槌を落として全部が相槌になったら、行ごと落とす", () => {
     // 「はい、はい、はい、はい。なるほど。」から「なるほど。」が消えると、
     // 残るのは相槌だけになる
-    const result = postProcess({
+    const result = refine({
       language: "ja",
       segments: [
         seg(0, 3, "本編の話です。", "あずま"),
@@ -1126,7 +1126,7 @@ describe("相槌が連なった行", () => {
   });
 
   it("本文が残るなら行は残す", () => {
-    const result = postProcess({
+    const result = refine({
       language: "ja",
       segments: [seg(0, 5, "はい。それは面白いですね。", "鉄塔")],
     });

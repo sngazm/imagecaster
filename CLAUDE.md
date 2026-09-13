@@ -103,7 +103,7 @@ pnpm test
 | デプロイ手順の変更 | `deployment/guide.md` |
 | 開発コマンドの変更 | `development/local.md` |
 | テストファイルの追加 | `development/testing.md` |
-| 話者分離・後処理の変更 | `features/speaker-separation.md` |
+| 話者分離・整形の変更 | `features/speaker-separation.md` |
 
 ## 技術スタック
 
@@ -159,7 +159,7 @@ await jwtVerify(jwt, JWKS, { audience: ACCESS_AUD });
 | POST | /api/episodes/:id/tracks/upload-url | 話者トラックzipのURL発行 |
 | POST | /api/episodes/:id/tracks/upload-complete | 話者トラック完了通知 |
 | DELETE | /api/episodes/:id/tracks | 話者トラック削除 |
-| POST | /api/episodes/:id/transcript/reprocess | 後処理のやり直し |
+| POST | /api/episodes/:id/transcript/reprocess | 整形のやり直し |
 | POST | /api/episodes/:id/transcript/corrections | 校正で見つかった修正の登録 |
 | DELETE | /api/episodes/:id/transcript/corrections | この回の置換規則を外す |
 | POST | /api/episodes/:id/retranscribe | 音声から文字起こしをやり直す |
@@ -205,7 +205,7 @@ await jwtVerify(jwt, JWKS, { audience: ACCESS_AUD });
 |--------|------|------|
 | POST | /api/import/rss | RSSインポート |
 | POST | /api/import/rss/preview | RSSプレビュー |
-| POST | /api/transcription/reprocess-all | 全エピソードの後処理やり直し |
+| POST | /api/transcription/reprocess-all | 全エピソードの整形やり直し |
 | GET | /api/deployments | デプロイ状況 |
 | GET | /api/health | ヘルスチェック（認証不要） |
 
@@ -245,9 +245,9 @@ podcast-bucket/
 │       ├── meta.json            # メタデータ
 │       ├── audio.mp3            # 音声
 │       ├── tracks.zip           # 話者トラック（任意・処理後は削除可）
-│       ├── transcript.raw.json  # Whisperの生出力（後処理の入力）
-│       ├── transcript.json      # 後処理済み
-│       ├── transcript.vtt       # 後処理済みVTT（公開サイトが読む）
+│       ├── transcript.raw.json  # Whisperの生出力（整形の入力）
+│       ├── transcript.json      # 整形済み
+│       ├── transcript.vtt       # 整形済みVTT（公開サイトが読む）
 │       ├── glossary.json        # その回の用語集（通読が集めたもの）
 │       ├── artwork.jpg          # エピソードアートワーク（任意）
 │       └── clips/               # 切り抜き動画（任意）

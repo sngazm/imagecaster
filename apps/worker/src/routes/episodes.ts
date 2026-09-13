@@ -29,9 +29,9 @@ import { postEpisodeToBluesky } from "../services/bluesky";
 import { triggerWebRebuild } from "../services/deploy";
 import { validateTranscriptData } from "../services/vtt";
 import {
-  savePostProcessed,
+  saveRefined,
   transcriptKeys,
-} from "../services/transcript-postprocess";
+} from "../services/transcript-refine";
 import { generateImpression } from "../services/episode-impression";
 
 const episodes = new Hono<{ Bindings: Env }>();
@@ -396,7 +396,7 @@ episodes.delete("/:id", async (c) => {
  *
  * 完了時の処理:
  * 1. R2から transcript.raw.json（Whisperの生出力）を読み込み
- * 2. 後処理（セグメント統合・誤字修正）をかけて transcript.json / transcript.vtt を保存
+ * 2. 整形（セグメント統合・誤字修正）をかけて transcript.json / transcript.vtt を保存
  * 3. メタデータ更新（transcriptUrl, ステータス変更）
  * 4. ロック解除
  */
@@ -454,9 +454,9 @@ episodes.post("/:id/transcription-complete", async (c) => {
         return c.json({ error: errorMsg }, 400);
       }
 
-      // 後処理（セグメント統合・誤字修正）をかけて公開用の JSON と VTT を書き出す
+      // 整形（セグメント統合・誤字修正）をかけて公開用の JSON と VTT を書き出す
       const settingsIndex = await getIndex(c.env);
-      await savePostProcessed(
+      await saveRefined(
         c.env,
         meta,
         transcriptData,

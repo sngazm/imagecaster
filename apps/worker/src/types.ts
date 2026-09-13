@@ -130,7 +130,7 @@ export interface HallucinationSettings {
 }
 
 /**
- * 文字起こし後処理の設定
+ * 文字起こし整形の設定
  *
  * 番組全体の既定値。エピソードごとの話者割り当ては EpisodeMeta.speakerTracks で上書きする。
  */
@@ -204,7 +204,7 @@ export interface PodcastIndex {
     spotifyUrl?: string;
     // 配信アナリティクス
     analyticsPrefix?: string; // オーディオURLに付与するプレフィックス (例: https://op3.dev/e/)
-    // 文字起こしの後処理設定（話者の既定割り当て・統合条件・誤字辞書）
+    // 文字起こしの整形設定（話者の既定割り当て・統合条件・誤字辞書）
     transcriptPostProcess?: TranscriptPostProcessSettings;
   };
   episodes: Array<{
@@ -216,7 +216,7 @@ export interface PodcastIndex {
   // 文字起こし待ち/処理中エピソードのID一覧（キュー取得の全件走査を避けるため）
   // undefined の場合は未構築を意味し、次回のキュー取得時に全件走査で初期化される
   transcriptionQueueIds?: string[];
-  // 後処理のやり直し待ちエピソードのID一覧（Cronが少しずつ処理する）
+  // 整形のやり直し待ちエピソードのID一覧（Cronが少しずつ処理する）
   // 辞書や統合条件を変えたときに全エピソードへ再適用するために使う
   transcriptReprocessIds?: string[];
   // 未処理の指示がある切り抜きの一覧（"エピソードID/切り抜きID" の形）
@@ -312,7 +312,7 @@ export interface EpisodeMeta {
   tracksUploadedAt?: string | null;
   // エピソード固有の話者割り当て。null / undefined なら番組の既定値を使う
   speakerTracks?: SpeakerTrackAssignment[] | null;
-  // Whisper の生出力（話者判定済み・後処理前）の URL
+  // Whisper の生出力（話者判定済み・整形前）の URL
   transcriptRawUrl?: string | null;
   /**
    * この回だけの話者アイコン
@@ -580,7 +580,7 @@ export interface UpdatePodcastSettingsRequest {
   spotifyUrl?: string;
   // 配信アナリティクス
   analyticsPrefix?: string | null;
-  // 文字起こしの後処理設定（話者の既定割り当て・統合条件・誤字辞書）
+  // 文字起こしの整形設定（話者の既定割り当て・統合条件・誤字辞書）
   transcriptPostProcess?: TranscriptPostProcessSettings;
 }
 

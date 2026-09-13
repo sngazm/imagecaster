@@ -7,7 +7,7 @@ interface Props {
   segments: TranscriptSegment[];
   /** 元ファイルへのリンクも出すか（VTTをそのまま欲しいとき用） */
   sourceUrl?: string | null;
-  /** Whisper の生出力。後処理で何が変わったかを見るのに使う */
+  /** Whisper の生出力。整形で何が変わったかを見るのに使う */
   rawUrl?: string | null;
   /**
    * 行をクリックしたところから再生するための音声要素。無ければ読むだけ。
@@ -134,7 +134,7 @@ export function TranscriptViewer({ segments, sourceUrl, rawUrl, audio }: Props) 
   /**
    * Whisper の生出力を読み込む。
    *
-   * 後処理で何が消えたか・誰の発言になったかを確かめるのに使う。
+   * 整形で何が消えたか・誰の発言になったかを確かめるのに使う。
    * 「そうですね。」が相槌として消えているのか、そもそも文字起こしされて
    * いないのかは、生と比べないと分からない。
    */
@@ -173,7 +173,7 @@ export function TranscriptViewer({ segments, sourceUrl, rawUrl, audio }: Props) 
 
       const matched: RawSegment[] = [];
 
-      // 公開行より前に終わる生の行は、後処理で消えたもの
+      // 公開行より前に終わる生の行は、整形で消えたもの
       while (cursor < raw.length && raw[cursor].end <= from) {
         rows.push({ published: null, raw: [raw[cursor]] });
         cursor += 1;
@@ -285,7 +285,7 @@ export function TranscriptViewer({ segments, sourceUrl, rawUrl, audio }: Props) 
         <div className="mt-3 max-h-96 overflow-y-auto overflow-x-hidden pr-2">
           <p className="mb-2 text-xs text-[var(--color-text-muted)]">
             左が Whisper の生出力、右が公開されているもの。
-            <span className="text-[var(--color-danger)]">赤</span>は後処理で消えた行、
+            <span className="text-[var(--color-danger)]">赤</span>は整形で消えた行、
             <span className="text-[var(--color-accent)]">青</span>は話者が変わった行。
           </p>
 

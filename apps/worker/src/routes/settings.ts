@@ -6,7 +6,7 @@ import {
   DEFAULT_POST_PROCESS_SETTINGS,
   sanitizePostProcessSettings,
   withDefaults,
-} from "../services/transcript-postprocess";
+} from "../services/transcript-refine";
 import { regenerateFeed } from "../services/feed";
 import { triggerWebRebuild } from "../services/deploy";
 
@@ -55,7 +55,7 @@ settings.put("/", async (c) => {
   if (body.spotifyUrl !== undefined) index.podcast.spotifyUrl = body.spotifyUrl;
   // 配信アナリティクス
   if (body.analyticsPrefix !== undefined) index.podcast.analyticsPrefix = body.analyticsPrefix || undefined;
-  // 文字起こしの後処理設定
+  // 文字起こしの整形設定
   if (body.transcriptPostProcess !== undefined) {
     index.podcast.transcriptPostProcess = sanitizePostProcessSettings(
       body.transcriptPostProcess

@@ -211,7 +211,7 @@ export interface PodcastSettings {
   spotifyUrl?: string;
   // アナリティクス
   analyticsPrefix?: string;
-  // 文字起こしの後処理設定
+  // 文字起こしの整形設定
   transcriptPostProcess?: TranscriptPostProcessSettings;
 }
 
@@ -572,7 +572,7 @@ export const api = {
       { method: "POST" }
     ),
 
-  // 文字起こしの後処理
+  // 文字起こしの整形
   reprocessTranscript: (id: string) =>
     request<{
       success: boolean;
@@ -874,7 +874,7 @@ export interface TranscriptSegment {
 /**
  * Whisper の生出力のセグメント
  *
- * 公開用の VTT と違い、時刻は秒。後処理で何が変わったかを見るのに使う。
+ * 公開用の VTT と違い、時刻は秒。整形で何が変わったかを見るのに使う。
  */
 export interface RawSegment {
   start: number;
@@ -883,7 +883,7 @@ export interface RawSegment {
   speaker?: string | null;
 }
 
-/** 人が直した正解。話者分離と後処理を評価するための答え合わせに使う */
+/** 人が直した正解。話者分離と整形を評価するための答え合わせに使う */
 export interface TruthSegment {
   start: number;
   end: number;

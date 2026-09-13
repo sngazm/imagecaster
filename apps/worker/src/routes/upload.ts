@@ -17,7 +17,7 @@ import {
   createPresignedUrl,
 } from "../services/r2";
 import {
-  sanitizeSpeakerIcons, sanitizeSpeakerTracks } from "../services/transcript-postprocess";
+  sanitizeSpeakerIcons, sanitizeSpeakerTracks } from "../services/transcript-refine";
 import { regenerateFeed } from "../services/feed";
 import { postEpisodeToBluesky } from "../services/bluesky";
 import { triggerWebRebuild } from "../services/deploy";

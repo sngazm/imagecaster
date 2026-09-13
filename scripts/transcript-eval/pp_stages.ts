@@ -1,6 +1,6 @@
-// 後処理を 1 段ずつ適用して途中結果を書き出す。どの段が話者や本文を壊すかを突き止める
+// 整形を 1 段ずつ適用して途中結果を書き出す。どの段が話者や本文を壊すかを突き止める
 import fs from "node:fs";
-import * as pp from "../../apps/worker/src/services/transcript-postprocess";
+import * as pp from "../../apps/worker/src/services/transcript-refine";
 
 const [rawPath, indexPath, metaPath, outPrefix] = process.argv.slice(2);
 const raw = JSON.parse(fs.readFileSync(rawPath, "utf8"));

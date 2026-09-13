@@ -21,8 +21,8 @@ podcast-bucket/
         ├── meta.json            # エピソードメタデータ
         ├── audio.mp3            # 音声ファイル
         ├── tracks.zip           # 話者ごとに分かれた音声トラック（任意）
-        ├── transcript.raw.json  # Whisper の生出力（後処理の入力）
-        ├── transcript.json      # 後処理済み（統合・誤字修正後）
+        ├── transcript.raw.json  # Whisper の生出力（整形の入力）
+        ├── transcript.json      # 整形済み（統合・誤字修正後）
         ├── transcript.vtt       # 字幕（公開サイトが読む）
         ├── glossary.json        # その回の用語集（通読が集めたもの）
         ├── artwork.jpg          # エピソード固有のアートワーク（任意）
@@ -39,7 +39,7 @@ podcast-bucket/
 
 ### 文字起こしの 3 つのファイル
 
-`transcript.raw.json` は Whisper が出したままのデータで、後処理をやり直すための入力として
+`transcript.raw.json` は Whisper が出したままのデータで、整形をやり直すための入力として
 残しておきます。統合の条件や誤字の辞書を変えたときに、文字起こしを実行し直さずに
 `transcript.json` と `transcript.vtt` を作り直せるのはこのためです。
 

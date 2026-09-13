@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getRawTranscript } from "../services/transcript-postprocess";
+import { getRawTranscript } from "../services/transcript-refine";
 import type { Env, TranscriptData } from "../types";
 
 /**
@@ -52,7 +52,7 @@ describe("getRawTranscript", () => {
   });
 
   it("話者分離の導入前のエピソードは transcript.json を生データとして複製する", async () => {
-    // 複製しておかないと、次回は後処理済みの transcript.json を入力にしてしまい
+    // 複製しておかないと、次回は整形済みの transcript.json を入力にしてしまい
     // 統合や置換が二重にかかる
     const { env, puts } = envWith({
       "episodes/legacy/transcript.json": transcript("むかしの文字起こし"),
@@ -72,8 +72,8 @@ describe("getRawTranscript", () => {
 
     await getRawTranscript(env, "legacy");
 
-    // 1 回目の複製後に後処理済みで上書きされても、2 回目は複製した生データを読む
-    objects["episodes/legacy/transcript.json"] = transcript("後処理済み");
+    // 1 回目の複製後に整形済みで上書きされても、2 回目は複製した生データを読む
+    objects["episodes/legacy/transcript.json"] = transcript("整形済み");
     const second = await getRawTranscript(env, "legacy");
 
     expect(second?.segments[0].text).toBe("元データ");

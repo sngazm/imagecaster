@@ -780,7 +780,7 @@ describe("Transcription Complete with JSON", () => {
   });
 });
 
-describe("話者トラックと後処理", () => {
+describe("話者トラックと整形", () => {
   describe("GET /api/transcription/queue", () => {
     it("話者トラックがあれば zip の URL と話者の割り当てを返す", async () => {
       const { id, storageKey } = await createTestEpisode({
@@ -1016,9 +1016,9 @@ describe("Claude の感想", () => {
   });
 });
 
-describe("後処理が保存経路でも全段通ること", () => {
+describe("整形が保存経路でも全段通ること", () => {
   it("reprocess でハルシネーションが取り除かれる", async () => {
-    // savePostProcessed が mergeSegments と applyCorrections だけを直接呼んでいて、
+    // saveRefined が mergeSegments と applyCorrections だけを直接呼んでいて、
     // ハルシネーション除去と相槌の整形が効いていなかったことがある
     const { id, storageKey } = await createTestEpisode({ title: "Pipeline Coverage" });
 
@@ -1528,7 +1528,7 @@ describe("逆向きの置換規則", () => {
 
   it("逆向きの古い規則を外す", async () => {
     // 取り直しで本文が変わると、前回「A → B」と直した箇所が今回「B → A」になる。
-    // 両方残すと後処理の中で打ち消し合い、どちらも効かない
+    // 両方残すと整形の中で打ち消し合い、どちらも効かない
     const id = await episodeWithRule("経験則", "加速度");
 
     await SELF.fetch(`http://localhost/api/episodes/${id}/transcript/corrections`, {
