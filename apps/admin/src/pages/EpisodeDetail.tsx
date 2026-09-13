@@ -68,7 +68,6 @@ export default function EpisodeDetail() {
   const [editApplePodcastsUrl, setEditApplePodcastsUrl] = useState("");
   const [editSpotifyUrl, setEditSpotifyUrl] = useState("");
   const [editSkipTranscription, setEditSkipTranscription] = useState(false);
-  const [editHideTranscription, setEditHideTranscription] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [templates, setTemplates] = useState<DescriptionTemplate[]>([]);
@@ -129,7 +128,6 @@ export default function EpisodeDetail() {
         setEditApplePodcastsUrl(data.applePodcastsUrl || "");
         setEditSpotifyUrl(data.spotifyUrl || "");
         setEditSkipTranscription(data.skipTranscription);
-        setEditHideTranscription(data.hideTranscription || false);
         setTemplates(templatesData);
 
         // Fetch transcript segments if available
@@ -188,7 +186,6 @@ export default function EpisodeDetail() {
         referenceLinks: editReferenceLinks,
         applePodcastsUrl: editApplePodcastsUrl.trim() || null,
         spotifyUrl: editSpotifyUrl.trim() || null,
-        hideTranscription: editHideTranscription,
       };
 
       // slugの変更はnew状態のみ
@@ -426,7 +423,6 @@ export default function EpisodeDetail() {
     setEditApplePodcastsUrl(episode.applePodcastsUrl || "");
     setEditSpotifyUrl(episode.spotifyUrl || "");
     setEditSkipTranscription(episode.skipTranscription);
-    setEditHideTranscription(episode.hideTranscription || false);
     setError(null);
   };
 
@@ -941,25 +937,6 @@ export default function EpisodeDetail() {
                     </div>
                   </label>
                 )}
-                {/* hideTranscription: 文字起こしがある場合のみ編集可能 */}
-                {episode.transcriptUrl && (
-                  <label className="flex items-start gap-3 p-4 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg cursor-pointer hover:border-[var(--color-border-strong)] transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={editHideTranscription}
-                      onChange={(e) => setEditHideTranscription(e.target.checked)}
-                      className="mt-0.5 w-5 h-5 rounded border-[var(--color-border)] bg-[var(--color-bg-base)] text-[var(--color-accent)] focus:ring-[var(--color-accent)] focus:ring-offset-0"
-                    />
-                    <div>
-                      <span className="block text-sm font-medium text-[var(--color-text-primary)]">
-                        文字起こしを非表示にする
-                      </span>
-                      <span className="block text-xs text-[var(--color-text-muted)] mt-1">
-                        チェックすると、公開サイトで文字起こしが表示されなくなります
-                      </span>
-                    </div>
-                  </label>
-                )}
                 {/* 文字起こし失敗時のエラー表示 + リトライ */}
                 {episode.transcribeStatus === "failed" && (
                   <div className="space-y-3">
@@ -1066,8 +1043,6 @@ export default function EpisodeDetail() {
                       {isRetryingTranscription ? "リトライ中..." : "文字起こしをリトライ"}
                     </button>
                   </div>
-                ) : episode.hideTranscription ? (
-                  <p className="text-[var(--color-text-muted)] text-sm">文字起こしは非表示に設定されています</p>
                 ) : episode.skipTranscription ? (
                   <p className="text-[var(--color-text-muted)] text-sm">文字起こしはスキップされました</p>
                 ) : transcriptSegments.length > 0 ? (

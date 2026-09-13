@@ -1,6 +1,6 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import { getPublishedEpisodes, getEpisodeBySlug, formatDuration, formatDate, formatFileSize, processDescription, getPodcastIndex, getTranscriptSegments, segmentsToText, visibleTranscriptUrl } from "../../lib/api";
+import { getPublishedEpisodes, getEpisodeBySlug, formatDuration, formatDate, formatFileSize, processDescription, getPodcastIndex, getTranscriptSegments, segmentsToText } from "../../lib/api";
 import { getEpisodeOgImageUrl } from "../../lib/og";
 import Captions from "../../components/Captions.astro";
 import Transcript from "../../components/Transcript.astro";
@@ -26,9 +26,8 @@ export async function getStaticPaths() {
 
   return Promise.all(
     episodes.map(async (episode, idx) => {
-      const transcriptUrl = visibleTranscriptUrl(episode);
-      const transcriptSegments = transcriptUrl
-        ? await getTranscriptSegments(transcriptUrl)
+      const transcriptSegments = episode.transcriptUrl
+        ? await getTranscriptSegments(episode.transcriptUrl)
         : [];
       const transcriptText = segmentsToText(transcriptSegments);
 
@@ -96,9 +95,8 @@ if (Astro.props.episode) {
       (icon) => [icon.name, icon.url]
     )
   );
-  const transcriptUrl = visibleTranscriptUrl(episode);
-  transcriptSegments = transcriptUrl
-    ? await getTranscriptSegments(transcriptUrl)
+  transcriptSegments = episode.transcriptUrl
+    ? await getTranscriptSegments(episode.transcriptUrl)
     : [];
   transcriptText = segmentsToText(transcriptSegments);
   // 前後のエピソードを探す

@@ -284,7 +284,6 @@ export interface EpisodeMeta {
   transcriptUrl: string | null;
   artworkUrl: string | null; // エピソード固有のアートワーク（nullの場合はPodcastのアートワークを使用）
   skipTranscription: boolean;
-  hideTranscription?: boolean; // 文字起こしを非表示にするか
   publishStatus: PublishStatus;
   transcribeStatus: TranscribeStatus;
   createdAt: string;
@@ -360,7 +359,6 @@ export interface UpdateEpisodeRequest {
   description?: string;
   publishAt?: string | null;
   skipTranscription?: boolean;
-  hideTranscription?: boolean;
   blueskyPostText?: string | null;
   blueskyPostEnabled?: boolean;
   referenceLinks?: ReferenceLink[];

@@ -87,17 +87,6 @@ export function segmentsToText(segments: TranscriptSegment[]): string {
 }
 
 /**
- * 公開サイトに出してよい文字起こしの URL
- *
- * hideTranscription が立っている回は、一覧も字幕も検索の索引も出さない。
- * 出す・出さないの判断はここだけに置く。
- */
-export function visibleTranscriptUrl(episode: Episode): string | null {
-  if (!episode.transcriptUrl || episode.hideTranscription) return null;
-  return episode.transcriptUrl;
-}
-
-/**
  * 文字起こしセグメントを取得
  */
 export async function getTranscriptSegments(
@@ -354,7 +343,7 @@ export function processDescription(
   websiteUrl: string
 ): string {
   const episodePageUrl = `${websiteUrl}/episodes/${episode.slug || episode.id}`;
-  const transcriptPageUrl = visibleTranscriptUrl(episode)
+  const transcriptPageUrl = episode.transcriptUrl
     ? `${episodePageUrl}/transcript`
     : "";
 

@@ -62,7 +62,6 @@ export interface EpisodeDetail {
   speakerIcons?: SpeakerIcon[] | null;
   artworkUrl: string | null;
   skipTranscription: boolean;
-  hideTranscription?: boolean;
   publishStatus: PublishStatus;
   transcribeStatus: TranscribeStatus;
   createdAt: string;
@@ -416,7 +415,6 @@ export const api = {
     description?: string;
     publishAt?: string | null;
     skipTranscription?: boolean;
-    hideTranscription?: boolean;
     blueskyPostText?: string | null;
     blueskyPostEnabled?: boolean;
     referenceLinks?: ReferenceLink[];
