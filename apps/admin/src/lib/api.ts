@@ -531,14 +531,6 @@ export const api = {
       method: "DELETE",
     }),
 
-  // LLM による校正
-  reviewTranscript: (id: string) =>
-    request<{
-      success: boolean;
-      corrections: Array<{ index: number; before: string; after: string; reason: string }>;
-      rejected: Array<{ correction: { before: string; after: string }; reason: string }>;
-    }>(`/api/episodes/${id}/transcript/review`, { method: "POST" }),
-
   // Claude の感想
   generateImpression: (id: string) =>
     request<{ success: boolean; impression: string }>(

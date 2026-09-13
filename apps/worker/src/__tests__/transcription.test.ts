@@ -1016,19 +1016,6 @@ describe("Claude の感想", () => {
   });
 });
 
-describe("POST /api/episodes/:id/transcript/review", () => {
-  it("APIキーが無ければ 400 を返す", async () => {
-    const { id } = await createTestEpisode({ title: "Review No Key" });
-
-    const response = await SELF.fetch(
-      `http://localhost/api/episodes/${id}/transcript/review`,
-      { method: "POST" }
-    );
-
-    expect(response.status).toBe(400);
-  });
-});
-
 describe("後処理が保存経路でも全段通ること", () => {
   it("reprocess でハルシネーションが取り除かれる", async () => {
     // savePostProcessed が mergeSegments と applyCorrections だけを直接呼んでいて、
