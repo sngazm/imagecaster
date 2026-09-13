@@ -509,7 +509,8 @@ const ogImageUrl = getEpisodeOgImageUrl(episode.artworkUrl, podcastArtworkUrl);
       track.getAnimations?.().forEach((animation) => animation.cancel());
       rows[1].getAnimations?.().forEach((animation) => animation.cancel());
 
-      const timing = { duration: 260, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' };
+      // 頭で一気に動いて、あとは滑り込んで止まる。長さより、出だしの速さで切れを出す
+      const timing = { duration: 260, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' };
 
       // CSS では 1 行ぶん上にずらしてある。詰め替える前の位置はその 1 行ぶん下
       track.animate(
