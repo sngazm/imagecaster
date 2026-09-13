@@ -620,6 +620,69 @@ transcriptionQueue.post("/reprocess-all", async (c) => {
 });
 
 /**
+ * DELETE /api/episodes/:id/transcript/corrections - この回の置換規則を外す
+ *
+ * 規則は足す一方だったので、間違えて入れたものを外せなかった。実際に
+ * 「加速度 → 経験則」という短い規則を手で送ってしまい、本文の正しい
+ * 「加速度センサー」まで「経験則センサー」になった。
+ *
+ * 外したあとは後処理をやり直す。
+ */
+transcriptionEpisodes.delete("/:id/transcript/corrections", async (c) => {
+  const id = c.req.param("id");
+
+  try {
+    const meta = await findEpisodeBySlug(c.env, id);
+    if (!meta) {
+      return c.json({ error: "Episode not found" }, 404);
+    }
+
+    const body = await c.req.json<{ from?: unknown; to?: unknown }>();
+    const from = typeof body.from === "string" ? body.from : "";
+    const to = typeof body.to === "string" ? body.to : "";
+
+    if (from === "") {
+      return c.json({ error: "from が要ります" }, 400);
+    }
+
+    const before = meta.transcriptCorrections ?? [];
+    // to を省いたら、その from の規則をすべて外す
+    const remaining = before.filter(
+      (rule) => !(rule.from === from && (to === "" || rule.to === to))
+    );
+
+    if (remaining.length === before.length) {
+      return c.json({ error: "その規則はありません", removed: 0 }, 404);
+    }
+
+    meta.transcriptCorrections = remaining.length > 0 ? remaining : null;
+
+    const index = await getIndex(c.env);
+    const result = await applyPostProcessAndSave(
+      c.env,
+      meta,
+      index.podcast.transcriptPostProcess ?? DEFAULT_POST_PROCESS_SETTINGS
+    );
+
+    await saveEpisodeMeta(c.env, meta);
+
+    if (meta.publishStatus === "published") {
+      await triggerWebRebuild(c.env);
+    }
+
+    return c.json({
+      success: true,
+      removed: before.length - remaining.length,
+      episodeRules: remaining.length,
+      segments: result?.segments ?? 0,
+    });
+  } catch (err) {
+    console.error(`[transcript/corrections] Error for episode ${id}:`, err);
+    return c.json({ error: "Failed to remove the correction" }, 500);
+  }
+});
+
+/**
  * PUT /api/episodes/:id/glossary - その回の用語集を受け取る
  *
  * 校正の前に文字起こしを通して読んで集めたもの。校正に渡すために作るが、

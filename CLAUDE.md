@@ -161,6 +161,7 @@ await jwtVerify(jwt, JWKS, { audience: ACCESS_AUD });
 | DELETE | /api/episodes/:id/tracks | 話者トラック削除 |
 | POST | /api/episodes/:id/transcript/reprocess | 後処理のやり直し |
 | POST | /api/episodes/:id/transcript/corrections | 校正で見つかった修正の登録 |
+| DELETE | /api/episodes/:id/transcript/corrections | この回の置換規則を外す |
 | POST | /api/episodes/:id/retranscribe | 音声から文字起こしをやり直す |
 | PUT | /api/episodes/:id/glossary | その回の用語集を登録 |
 | GET | /api/episodes/:id/glossary | その回の用語集 |

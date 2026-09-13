@@ -1570,3 +1570,75 @@ describe("逆向きの置換規則", () => {
     expect(await rulesOf(id)).toEqual(["加速度→経験則"]);
   });
 });
+
+describe("DELETE /api/episodes/:id/transcript/corrections", () => {
+  async function episodeWithRules(
+    rules: Array<{ from: string; to: string }>
+  ) {
+    const { id } = await createTestEpisode({ title: "Remove Rule" });
+
+    await SELF.fetch(`http://localhost/api/episodes/${id}/transcript/corrections`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        corrections: rules.map((r) => ({ ...r, general: false })),
+      }),
+    });
+
+    return id;
+  }
+
+  async function rulesOf(id: string) {
+    const episode = (await (
+      await SELF.fetch(`http://localhost/api/episodes/${id}`)
+    ).json()) as { transcriptCorrections?: Array<{ from: string; to: string }> };
+
+    return (episode.transcriptCorrections ?? []).map((r) => `${r.from}→${r.to}`);
+  }
+
+  function remove(id: string, body: unknown) {
+    return SELF.fetch(`http://localhost/api/episodes/${id}/transcript/corrections`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+
+  it("指定した規則を外す", async () => {
+    const id = await episodeWithRules([
+      { from: "加速度", to: "経験則" },
+      { from: "アサナ", to: "Asana" },
+    ]);
+
+    const response = await remove(id, { from: "加速度", to: "経験則" });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ removed: 1 });
+    expect(await rulesOf(id)).toEqual(["アサナ→Asana"]);
+  });
+
+  it("to を省くとその from の規則をすべて外す", async () => {
+    const id = await episodeWithRules([
+      { from: "帳", to: "長" },
+      { from: "帳", to: "張" },
+      { from: "アサナ", to: "Asana" },
+    ]);
+
+    expect(await (await remove(id, { from: "帳" })).json()).toMatchObject({
+      removed: 2,
+    });
+    expect(await rulesOf(id)).toEqual(["アサナ→Asana"]);
+  });
+
+  it("無い規則は 404", async () => {
+    const id = await episodeWithRules([{ from: "アサナ", to: "Asana" }]);
+
+    expect((await remove(id, { from: "無い規則" })).status).toBe(404);
+  });
+
+  it("from が無ければ 400", async () => {
+    const id = await episodeWithRules([{ from: "アサナ", to: "Asana" }]);
+
+    expect((await remove(id, { to: "Asana" })).status).toBe(400);
+  });
+});
