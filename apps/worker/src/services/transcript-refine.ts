@@ -395,7 +395,7 @@ function overlapsInTime(
  * 隣り合う行にも当たる。#281 で「リアクションで悲劇か悲劇か」の行を直す修正が、直前の
  * 行の正しい「悲劇になっちゃう」まで「喜劇」に変えた。
  */
-function bestOverlapping(
+export function bestOverlapping(
   segments: TranscriptSegment[],
   range: { start: number; end: number }
 ): TranscriptSegment | null {
@@ -472,6 +472,35 @@ function changedSpan(
   const to = after.slice(head, after.length - tail);
 
   return from && to ? { index: head, from, to } : null;
+}
+
+/**
+ * 行の直しを、行の中でちょうど 1 箇所に決まる形にする
+ *
+ * 変わった範囲から始めて、行の中で 1 回しか現れない形になるまで前後の文字を含める。
+ * 「悲劇か悲劇か」→「喜劇か悲劇か」を `悲劇 → 喜劇` にすると、行の中の両方が変わって
+ * 「喜劇か喜劇か」になる（#281 で実際に起きた）。行まるごとにもしない。整形が変わって
+ * 行の区切りが動くと、行まるごとの修正はどの行にも一致しなくなる。
+ */
+export function pinnedSpan(
+  before: string,
+  after: string
+): { from: string; to: string } | null {
+  const span = changedSpan(before, after);
+  if (!span) return null;
+
+  let head = span.index;
+  let tail = before.length - (span.index + span.from.length);
+
+  for (;;) {
+    const from = before.slice(head, before.length - tail);
+    if (before.split(from).length - 1 === 1 || (head === 0 && tail === 0)) {
+      return { from, to: after.slice(head, after.length - tail) };
+    }
+
+    if (head > 0) head--;
+    if (tail > 0) tail--;
+  }
 }
 
 /**
@@ -1682,6 +1711,13 @@ export function transcriptKeys(storageKey: string) {
      * 綴りは Web で確かめたものだけが入っている。
      */
     glossary: `episodes/${storageKey}/glossary.json`,
+    /**
+     * 確認カード
+     *
+     * 機械が決められなかった箇所と、人が音声を聞いて決めた結果。人の確認は取り直しを
+     * またいで残す（修正規則は本文が変われば失効するが、こちらは消さない）
+     */
+    reviewCards: `episodes/${storageKey}/review-cards.json`,
   };
 }
 

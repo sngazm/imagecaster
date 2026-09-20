@@ -14,6 +14,7 @@ import { spotify } from "./routes/spotify";
 import { debug } from "./routes/debug";
 import { transcriptionQueue, transcriptionEpisodes } from "./routes/transcription";
 import { clips, pendingClips } from "./routes/clips";
+import { reviewCards, pendingReviewCards } from "./routes/review-cards";
 import { getIndex, saveIndex, findEpisodeBySlug, saveEpisodeMeta, syncPublishedIndex } from "./services/r2";
 import { regenerateFeed } from "./services/feed";
 import { postEpisodeToBluesky } from "./services/bluesky";
@@ -173,6 +174,10 @@ api.route("/transcription", transcriptionQueue);
 
 // 文字起こしエピソード関連のルートをマウント（/api/episodes/:id/* の形式）
 api.route("/episodes", transcriptionEpisodes);
+
+// 確認カード（人が音声を聞いて決める箇所）
+api.route("/episodes", reviewCards);
+api.route("/review-cards", pendingReviewCards);
 
 // 切り抜き動画のルートをマウント（/api/episodes/:id/clips/* の形式）
 api.route("/episodes", clips);
@@ -357,6 +362,24 @@ async function handleScheduledPublish(env: Env): Promise<void> {
  * リクエスト中に実行すると Worker のリソース制限 (Error 1102) に達しうる。
  * 文字起こし完了通知などはフラグを立てるだけにして、実処理をここに集約する。
  */
+/**
+ * 公開サイトの作り直し待ちの旗が立っていれば、1 回だけ作り直す
+ *
+ * 確認カードを 1 枚決めるたびにビルドを走らせると、50 枚で 50 回走る。決めた側は旗を
+ * 立てるだけにして、ここで 1 回にまとめる。
+ */
+async function handlePendingWebRebuild(env: Env): Promise<void> {
+  const index = await getIndex(env);
+  if (!index.webRebuildPending) return;
+
+  // 先に旗を下ろす。作り直しの最中に決めた分は、次の回で拾う
+  index.webRebuildPending = false;
+  await saveIndex(env, index);
+
+  await triggerWebRebuild(env);
+  console.log("[Cron] Web rebuild triggered from webRebuildPending flag");
+}
+
 async function handleDirtyFeed(env: Env): Promise<void> {
   const index = await getIndex(env);
 
@@ -403,6 +426,12 @@ export default {
       await handleTranscriptReprocess(env);
     } catch (err) {
       console.error("[Cron] Transcript reprocess error:", err);
+    }
+    // 確認カードで直した分を公開サイトに反映する
+    try {
+      await handlePendingWebRebuild(env);
+    } catch (err) {
+      console.error("[Cron] Web rebuild error:", err);
     }
     console.log("[Cron] Scheduled task complete");
   },

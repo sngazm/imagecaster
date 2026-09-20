@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ClipViewer } from "./pages/ClipViewer";
 import { TranscriptTruth } from "./pages/TranscriptTruth";
+import { ReviewCards } from "./pages/ReviewCards";
 import EpisodeList from "./pages/EpisodeList";
 import EpisodeNew from "./pages/EpisodeNew";
 import EpisodeDetail from "./pages/EpisodeDetail";
@@ -28,6 +29,7 @@ function AppContent() {
           <Route path="/episodes/:id" element={<EpisodeDetail />} />
           <Route path="/episodes/:id/clips/:clipId" element={<ClipViewer />} />
           <Route path="/episodes/:id/truth" element={<TranscriptTruth />} />
+          <Route path="/episodes/:id/review" element={<ReviewCards />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>

@@ -28,6 +28,7 @@ import { regenerateFeed } from "../services/feed";
 import { postEpisodeToBluesky } from "../services/bluesky";
 import { triggerWebRebuild } from "../services/deploy";
 import { validateTranscriptData } from "../services/vtt";
+import { recountAfterRetake } from "./review-cards";
 import {
   saveRefined,
   transcriptKeys,
@@ -463,6 +464,14 @@ episodes.post("/:id/transcription-complete", async (c) => {
 
       meta.transcribeStatus = "completed";
       meta.transcriptionErrorMessage = null;
+
+      // 人が確認カードで決めた直しが新しい本文から消えていたら、確認待ちに戻す。
+      // 失敗しても完了は取り消さない（カードは開けば数え直される）
+      try {
+        await recountAfterRetake(c.env, meta);
+      } catch (err) {
+        console.error(`[transcription-complete] review cards recount failed:`, err);
+      }
 
       // Claude の感想を作る。文字起こしそのものは既に保存できているので、
       // ここで失敗しても完了は取り消さない（感想は後から作り直せる）。

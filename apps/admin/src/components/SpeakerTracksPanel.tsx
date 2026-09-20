@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import JSZip from "jszip";
 import { api, uploadToR2 } from "../lib/api";
 import type {
@@ -492,6 +493,18 @@ export function SpeakerTracksPanel({ episode, defaults, onUpdated }: Props) {
             {uploading ? "アップロード中..." : "アップロード"}
           </button>
           {uploading && progress && <UploadProgressBar progress={progress} />}
+        </div>
+      )}
+
+      {/* 確認カード。機械が決められなかった箇所を、音声を聞いて決める */}
+      {episode.transcriptUrl && (
+        <div className="border-t border-[var(--color-border)] pt-3">
+          <Link to={`/episodes/${episode.id}/review`} className="btn btn-secondary">
+            怪しい箇所を聞いて確かめる
+          </Link>
+          <p className="text-xs text-[var(--color-text-muted)] mt-2">
+            機械が決められなかった行を、その区間の音を聞きながら 1 件ずつ決めます。
+          </p>
         </div>
       )}
 

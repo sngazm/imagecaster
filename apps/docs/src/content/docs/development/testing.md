@@ -30,7 +30,8 @@ pnpm test
 | `templates.test.ts` | テンプレート CRUD |
 | `import.test.ts` | RSS インポート、デプロイ状況 |
 | `transcription.test.ts` | 文字起こしキュー |
-| `clips.test.ts` | 切り抜き動画（版の積み上げ、直しの指示、OK / ボツ） |
+| `clips.test.ts` | 切り抜き動画（下書きの検算と保存、OK から描画待ち、版の登録） |
+| `review-cards.test.ts` | 確認カード（受け取り、決める、取り消す、取り直しで戻ってくる） |
 | `audio.test.ts` | 音声処理 |
 | `podcast.test.ts` | Podcast メタデータ |
 | `feed.test.ts` | RSS フィード生成 |

@@ -138,6 +138,31 @@ export interface CorrectionRule {
 }
 
 /**
+ * 確認カード
+ *
+ * 機械が「怪しいが決められない」とした行。その区間の音を聞いて、人が決める。
+ */
+export interface ReviewCard {
+  id: string;
+  start: number;
+  end: number;
+  /** カードを作ったときの行の本文 */
+  line: string;
+  reason: string;
+  /** 直したあとの行の形の候補（行まるごと） */
+  candidates: string[];
+  /** 校正前の音声認識の出力 */
+  whisper?: string;
+  source: "suspicion" | "readback";
+  /** 前に人が決めた結果。取り直しで本文から消えると、これを添えてカードが戻ってくる */
+  resolution?: { action: "keep" | "fix"; text: string; at: string };
+  current: { start: number; end: number; text: string; speaker?: string } | null;
+  before: string[];
+  after: string[];
+  reopened: boolean;
+}
+
+/**
  * この回かぎりの修正
  *
  * 回全体ではなく、決まった 1 箇所にだけ当たる。anchor の無いものは古い形で、
@@ -581,6 +606,38 @@ export const api = {
       { method: "POST" }
     ),
 
+  // 確認カード
+  getReviewCards: (id: string) =>
+    request<{
+      episodeId: string;
+      title: string;
+      audioUrl: string | null;
+      cards: ReviewCard[];
+      decided: number;
+    }>(`/api/episodes/${id}/review-cards`),
+
+  resolveReviewCard: (
+    id: string,
+    cardId: string,
+    body: { action: "keep" | "fix"; text?: string; expected?: string }
+  ) =>
+    request<{ success: boolean; action: "keep" | "fix"; text: string; open: number }>(
+      `/api/episodes/${id}/review-cards/${cardId}/resolve`,
+      { method: "POST", body: JSON.stringify(body) }
+    ),
+
+  // 押し間違いの取り消し
+  undoReviewCard: (id: string, cardId: string) =>
+    request<{ success: boolean; removed: number }>(
+      `/api/episodes/${id}/review-cards/${cardId}/resolution`,
+      { method: "DELETE" }
+    ),
+
+  getPendingReviewCards: () =>
+    request<{ episodes: Array<{ episodeId: string; title: string; open: number }> }>(
+      `/api/review-cards/pending`
+    ),
+
   // 文字起こしの整形
   reprocessTranscript: (id: string) =>
     request<{
@@ -742,40 +799,55 @@ export const api = {
 
   // --- 切り抜き動画 -------------------------------------------------------
   //
-  // 描画はクラウドではできないので、ここでは指示を預けるだけ。作り直しは
-  // 手元の道具が引き取る。docs/clip-viewer-spec.md を参照。
+  // 動画にする前に、音声と字幕で確かめて直す。描くのは OK を出したあとで、手元の
+  // 道具が引き取る。docs/clip-viewer-spec.md を参照。
 
   /** この回の切り抜き一覧 */
   getClips: (episodeId: string) =>
     request<{ clips: ClipListEntry[] }>(`/api/episodes/${episodeId}/clips`),
 
-  /** 切り抜き 1 本分。baseUrl + /v{n}/clip.mp4 が動画の URL */
+  /** 切り抜き 1 本分。baseUrl + /v{n}/{layout}.mp4 が動画の URL */
   getClip: (episodeId: string, clipId: string) =>
     request<ClipDetail>(`/api/episodes/${episodeId}/clips/${clipId}`),
 
-  /** その版の字幕 */
-  getClipSubtitles: (episodeId: string, clipId: string, version: number) =>
-    request<ClipSubtitle[]>(
-      `/api/episodes/${episodeId}/clips/${clipId}/versions/${version}/subs`
-    ),
+  /** 下書き。下書きの仕組みより前に作られた切り抜きには無い（null） */
+  getClipDraft: async (episodeId: string, clipId: string): Promise<ClipDraft | null> => {
+    const res = await fetch(`${API_BASE}/api/episodes/${episodeId}/clips/${clipId}/draft`, {
+      credentials: "include",
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error("下書きを読めませんでした");
+    return res.json();
+  },
 
-  /** 直しの指示を預ける。字幕はここでは書き換わらない */
-  postClipRequest: (
+  /**
+   * 下書きを保存する。of と chars は変えられない。ほかの画面で先に保存されていると
+   * 失敗する（黙って上書きしない）
+   */
+  saveClipDraft: (
     episodeId: string,
     clipId: string,
-    baseVersion: number,
-    items: ClipRequestItem[]
+    draft: Pick<ClipDraft, "revision" | "cut" | "speed" | "subs" | "cards">
   ) =>
-    request<ClipRequest>(
-      `/api/episodes/${episodeId}/clips/${clipId}/requests`,
-      { method: "POST", body: JSON.stringify({ baseVersion, items }) }
-    ),
+    request<ClipDraft>(`/api/episodes/${episodeId}/clips/${clipId}/draft`, {
+      method: "PUT",
+      body: JSON.stringify(draft),
+    }),
 
-  /** OK / ボツ */
-  setClipStatus: (episodeId: string, clipId: string, status: ClipStatus) =>
+  /** OK（投稿の予定つき）/ 取り消し（draft）/ ボツ */
+  setClipStatus: (
+    episodeId: string,
+    clipId: string,
+    status: "draft" | "approved" | "rejected",
+    plan?: {
+      publishAt: string | null;
+      postText: string;
+      posts: Partial<Record<ClipPostTarget, { enabled?: boolean; layout?: ClipLayoutName }>>;
+    }
+  ) =>
     request<ClipDetail>(`/api/episodes/${episodeId}/clips/${clipId}/status`, {
       method: "PUT",
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, ...plan }),
     }),
 };
 
@@ -1001,7 +1073,9 @@ export async function fetchTranscriptSegments(
 
 // --- 切り抜き動画 ---------------------------------------------------------
 
-export type ClipStatus = "draft" | "approved" | "rejected";
+export type ClipStatus = "draft" | "approved" | "rendered" | "published" | "rejected";
+export type ClipLayoutName = "portrait" | "landscape" | "square";
+export type ClipPostTarget = "bluesky" | "x" | "youtube" | "instagram";
 
 export interface ClipListEntry {
   id: string;
@@ -1010,53 +1084,68 @@ export interface ClipListEntry {
   status: ClipStatus;
 }
 
-/**
- * 字幕への直しの指示。
- *
- * 文字を直接書き換えるのではなく指示として預ける。字幕は音のタイムスタンプに
- * 紐づいているので、文字だけ差し替えると音とずれる。読んで区切りを決め直すのは
- * 作り直す側の仕事。
- */
-export type ClipRequestItem =
-  | { type: "edit"; index: number; text: string }
-  | { type: "note"; index: number; text: string }
-  | { type: "delete"; index: number }
-  | { type: "insert"; afterIndex: number; text: string };
-
-export interface ClipRequest {
-  id: string;
-  createdAt: string;
-  baseVersion: number;
-  appliedIn: number | null;
-  items: ClipRequestItem[];
+export interface ClipPost {
+  enabled: boolean;
+  layout: ClipLayoutName;
+  postedAt: string | null;
+  url: string | null;
+  error: string | null;
 }
 
 export interface ClipVersion {
   n: number;
   createdAt: string;
+  revision?: number;
+  /** 置いてある動画。下書きより前の版には無く、v{n}/clip.mp4 が 1 本あるだけ */
+  layouts?: ClipLayoutName[];
   note?: string;
-  fromRequest?: string;
 }
 
 export interface ClipDetail {
   id: string;
   episodeId: string;
   label: string;
-  range: [string, string];
-  clip: { start: number; duration: number };
   latest: number;
   status: ClipStatus;
+  approvedRevision: number | null;
   versions: ClipVersion[];
-  requests: ClipRequest[];
-  /** 動画の置き場。baseUrl + /v{n}/clip.mp4 */
+  publishAt: string | null;
+  postText: string;
+  posts: Record<ClipPostTarget, ClipPost>;
+  /** 動画の置き場。baseUrl + /v{n}/{layout}.mp4 */
   baseUrl: string;
 }
 
-/** 字幕 1 枚。rows が画面の行にそのまま対応する */
-export interface ClipSubtitle {
-  index: number;
+/**
+ * 字幕 1 枚。時刻はすべてエピソードの音声上の秒。
+ *
+ * of と chars は元の書き起こしから来たもので、ここでは書き換えない。直せるのは
+ * rows（画面に出す文字と改行）と skip だけ
+ */
+export interface ClipDraftSub {
+  id: string;
   speaker: string;
   start: number;
   end: number;
+  of: string;
+  chars: number[];
   rows: string[];
+  skip: boolean;
+}
+
+export interface ClipDraftCard {
+  at: number;
+  word: string;
+  image: string;
+  source?: string;
+}
+
+export interface ClipDraft {
+  revision: number;
+  source: { start: number; end: number };
+  cut: { start: number; end: number };
+  /** 再生の速さ。時刻は元の音声の上の秒のままで、描くときに丸ごと速める */
+  speed: number;
+  subs: ClipDraftSub[];
+  cards: ClipDraftCard[];
 }

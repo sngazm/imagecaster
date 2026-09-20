@@ -1,3 +1,4 @@
+import { ReviewInbox } from "../components/ReviewInbox";
 import { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api, Episode, PublishStatus, TranscribeStatus } from "../lib/api";
@@ -87,6 +88,8 @@ export default function EpisodeList() {
           {episodes.length > 0 ? `${episodes.length}件のエピソード` : "エピソードを作成しましょう"}
         </p>
       </header>
+
+      <ReviewInbox />
 
       {/* Loading State */}
       {isLoading && (
