@@ -186,7 +186,7 @@ function Editor({ episodeId, clip, initial, audioUrl, onClip, onReload }: Editor
   const spliceKey = JSON.stringify([draft.spans, draft.gap, draft.edgeFade]);
   useEffect(() => {
     if (!pool) return;
-    const url = URL.createObjectURL(pool.splice(draftRef.current, live.current.timeline));
+    const url = URL.createObjectURL(pool.splice(draftRef.current, live.current.timeline, table.metrics.timing.fade));
     setWavUrl(url);
     return () => URL.revokeObjectURL(url);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -273,7 +273,8 @@ function Editor({ episodeId, clip, initial, audioUrl, onClip, onReload }: Editor
   }, [save, draft, episodeId, clip.id]);
 
   const problems = useMemo(() => draftProblems(draft, table), [draft]);
-  const seconds = timeline.duration / draft.speed;
+  // 本編のあとに、サムネイルとエピソード名のカードが付く。投稿先の上限に効くのは全体の長さ
+  const seconds = (timeline.duration + table.metrics.timing.endCard) / draft.speed;
 
   return (
     <>

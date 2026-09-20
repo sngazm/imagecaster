@@ -129,9 +129,9 @@ export class ClipAudioPool {
   }
 
   /**
-   * 区間の並びのとおりに繋いで、WAV にする。
+   * 区間の並びのとおりに繋いで、WAV にする。fade は全体の頭と尻に掛けるフェード（秒）。
    */
-  splice(draft: ClipDraft, tl: Timeline): Blob {
+  splice(draft: ClipDraft, tl: Timeline, fade: number): Blob {
     const sr = this.info.sampleRate;
     const total = Math.max(1, Math.round(tl.duration * sr));
     const pcm = new Int16Array(total * 2);
@@ -153,6 +153,16 @@ export class ClipAudioPool {
         pcm[(out + i) * 2] = chunk.left[src + i] * g;
         pcm[(out + i) * 2 + 1] = chunk.right[src + i] * g;
       }
+    }
+    // 全体の頭と尻。映像の暗転と同じ長さで、音も絞る
+    const f = Math.round(Math.max(0, Math.min(fade, tl.duration / 2)) * sr);
+    for (let i = 0; i < f; i++) {
+      const g = i / f;
+      const tail = total - 1 - i;
+      pcm[i * 2] *= g;
+      pcm[i * 2 + 1] *= g;
+      pcm[tail * 2] *= g;
+      pcm[tail * 2 + 1] *= g;
     }
     return wav(pcm, sr);
   }

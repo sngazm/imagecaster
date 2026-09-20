@@ -47,7 +47,15 @@ export interface ClipMetrics {
   background: number[][];
   card: { bg: number[]; edge: number[] };
   /** 出入りの秒数 */
-  timing: { subHold: number; cardIn: number; cardHold: number; cardOut: number; fade: number };
+  timing: {
+    subHold: number;
+    cardIn: number;
+    cardHold: number;
+    cardOut: number;
+    fade: number;
+    /** 本編のあとに出す、サムネイルとエピソード名のカードの長さ */
+    endCard: number;
+  };
   layouts: Record<string, ClipLayout>;
 }
 

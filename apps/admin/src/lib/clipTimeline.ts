@@ -216,7 +216,9 @@ export const subtitleShiftFor = (state: CardState | null) => (state ? ease(state
 /** 冒頭と末尾の暗転（0 = 真っ暗、1 = そのまま） */
 export function fadeAt(tl: Timeline, tau: number, fade: number): number {
   if (fade <= 0) return 1;
-  return clamp01(Math.min(tau / fade, (tl.duration - tau) / fade));
+  if (tau < fade) return ease(tau / fade);
+  if (tau > tl.duration - fade) return ease(Math.max(0, tl.duration - tau) / fade);
+  return 1;
 }
 
 /**
