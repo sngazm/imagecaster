@@ -311,14 +311,11 @@ export interface PodcastIndex {
   // 整形のやり直し待ちエピソードのID一覧（Cronが少しずつ処理する）
   // 辞書や統合条件を変えたときに全エピソードへ再適用するために使う
   transcriptReprocessIds?: string[];
-  // 描画待ち（OK が出た）の切り抜きの一覧（"エピソードID/切り抜きID" の形）。
-  // 手元の道具が 1 時間おきに /api/clips/pending を叩くため、全件走査で読むと
-  // Worker のリソース制限に達する。undefined の場合は未構築を意味し、次回の
-  // 巡回時に全件走査で初期化される
-  clipRenderIds?: string[];
-  // 投稿待ち（描き終わっていて、まだ出していない投稿先がある）の切り抜きの一覧。
-  // Cron が読む。clipRenderIds と一緒に初期化される
-  clipPostIds?: string[];
+  // 未処理の指示がある切り抜きの一覧（"エピソードID/切り抜きID" の形）
+  // 手元の道具が 1 時間おきに /api/clips/pending を叩くため、全件走査で
+  // 読むと Worker のリソース制限に達する。undefined の場合は未構築を意味し、
+  // 次回の巡回時に全件走査で初期化される
+  clipRequestIds?: string[];
   // 未確認の確認カードがあるエピソードの ID 一覧。管理画面の「確認待ち」が読む。
   // undefined は未構築（この機能より前の状態）で、カードが初めて届いたときに作る
   reviewCardIds?: string[];
@@ -769,51 +766,51 @@ export interface DeploymentsResponse {
 // ---------------------------------------------------------------------------
 // 切り抜き動画
 //
-// 描画はクラウドではできない（ffmpeg も素材も手元にある）。一方、確かめて直すのに
-// 描画は要らない。音声は R2 にあり、字幕は文字と時刻の並びでしかない。だから
-// 確かめて直すところまでを管理画面で済ませ、手元には決まったものを描かせるだけにする。
-// 詳しくは docs/clip-viewer-spec.md を参照。
+// 描画はクラウドではできない（ffmpeg も素材も手元にある）。管理画面は指示を
+// 預かるだけで、実際の作り直しは手元の道具が引き取る。詳しくは
+// docs/clip-viewer-spec.md を参照。
 // ---------------------------------------------------------------------------
 
 /**
- * 切り抜きの状態。
- *
- * draft → approved（OK。描画待ち）→ rendered（3 本揃った。投稿待ち）→ published。
- * approved と rendered は OK を取り消せば draft に戻る。published は戻らない
+ * 切り抜きの状態。OK を出したものだけが投稿予約に進む
  */
-export type ClipStatus = "draft" | "approved" | "rendered" | "published" | "rejected";
-
-export type ClipLayoutName = "portrait" | "landscape" | "square";
-
-export const CLIP_LAYOUTS: ClipLayoutName[] = ["portrait", "landscape", "square"];
-
-export type ClipPostTarget = "bluesky" | "x" | "youtube" | "instagram";
-
-export const CLIP_POST_TARGETS: ClipPostTarget[] = ["bluesky", "x", "youtube", "instagram"];
+export type ClipStatus = "draft" | "approved" | "rejected";
 
 /**
- * 投稿先ひとつ分の予定と結果
+ * 字幕への直しの指示。
+ *
+ * 文字を直接書き換えるのではなく指示として預かる。字幕は音のタイムスタンプに
+ * 紐づいているので、文字だけ差し替えると音とずれる。読んで区切りを決め直すのは
+ * 作り直す側（Claude Code）の仕事。
  */
-export interface ClipPost {
-  enabled: boolean;
-  layout: ClipLayoutName;
-  postedAt: string | null;
-  url: string | null;
-  error: string | null;
+export type ClipRequestItem =
+  | { type: "edit"; index: number; text: string }
+  | { type: "note"; index: number; text: string }
+  | { type: "delete"; index: number }
+  | { type: "insert"; afterIndex: number; text: string };
+
+/**
+ * まとめて送られた指示ひとかたまり
+ */
+export interface ClipRequest {
+  id: string;
+  createdAt: string;
+  /** どの版に対する指示か。版が変わると字幕の通し番号がずれるため */
+  baseVersion: number;
+  /** 反映された版。未処理なら null */
+  appliedIn: number | null;
+  items: ClipRequestItem[];
 }
 
 /**
- * 描いた版。上書きせずに積む。投稿済みの動画がどの下書きから描かれたかを
- * 後から追えるようにするため
+ * 作った版。上書きせずに積む。見比べたいのと、悪くなったときに戻れるように
  */
 export interface ClipVersion {
   n: number;
   createdAt: string;
-  /** 描いたときの下書きの revision。下書きより前の版には無い */
-  revision?: number;
-  /** 置いてある動画。下書きより前の版には無く、v{n}/clip.mp4 が 1 本あるだけ */
-  layouts?: ClipLayoutName[];
   note?: string;
+  /** どの指示を反映して作ったか */
+  fromRequest?: string;
 }
 
 /**
@@ -824,18 +821,14 @@ export interface ClipMeta {
   episodeId: string;
   /** 画面に出す短い名前 */
   label: string;
+  /** 元エピソードでの区間（表示用） */
+  range: [string, string];
+  /** 実際に切り出した範囲（秒） */
+  clip: { start: number; duration: number };
   latest: number;
   status: ClipStatus;
-  /** OK を出したときの下書きの revision。描く側はこれと違う下書きを描かない */
-  approvedRevision: number | null;
   versions: ClipVersion[];
-  /** 投稿する日時。無ければ描くだけで投稿しない */
-  publishAt: string | null;
-  postText: string;
-  posts: Record<ClipPostTarget, ClipPost>;
-  /** 下書きより前に作られた切り抜きの区間。再生するだけで、直せない */
-  range?: [string, string];
-  clip?: { start: number; duration: number };
+  requests: ClipRequest[];
 }
 
 /**
@@ -846,65 +839,25 @@ export interface ClipIndex {
 }
 
 /**
- * 字幕 1 枚。時刻はすべてエピソードの音声上の秒。
- *
- * of と chars は元の書き起こしから来たもので、管理画面は書き換えない。生成側は
- * of を連ねたものが元の書き起こしと一字一句一致することを確かめてから描く。
- * 字幕と音がずれるのを防ぐ関門で、直せるのは rows と skip だけ
+ * 字幕 1 枚。rows が画面の行にそのまま対応する
  */
-export interface ClipDraftSub {
-  id: string;
+export interface ClipSubtitle {
+  index: number;
   speaker: string;
   start: number;
   end: number;
-  /** 元の書き起こしの文字。足した字幕では "" */
-  of: string;
-  /** of の 1 字ごとの読み始め。数は of の字数（コードポイント）と同じ */
-  chars: number[];
-  /** 画面に出す文字と改行。連ねたものが of と違えば、文字を直したということ */
   rows: string[];
-  /** 字幕を出さない。音は残る */
-  skip: boolean;
 }
 
 /**
- * 画面中央に出す画像 1 枚
- */
-export interface ClipDraftCard {
-  at: number;
-  word: string;
-  image: string;
-  source?: string;
-}
-
-/**
- * 下書き。プレビューと編集の対象
- */
-export interface ClipDraft {
-  /** 保存のたびに 1 増える。食い違う保存は弾く */
-  revision: number;
-  /** 下書きが字幕を持っている範囲。カット位置はこの中でしか動かせない */
-  source: { start: number; end: number };
-  cut: { start: number; end: number };
-  /**
-   * 再生の速さ。ショート動画は少し速いほうが見やすいので、既定は 1.2。
-   * 時刻はどれも元の音声の上の秒のままで、描くときに丸ごと速める
-   */
-  speed: number;
-  subs: ClipDraftSub[];
-  cards: ClipDraftCard[];
-}
-
-export const CLIP_DEFAULT_SPEED = 1.2;
-export const CLIP_SPEED_RANGE: [number, number] = [0.5, 2];
-
-/**
- * 手元が拾う、描画待ちのもの
+ * 手元が拾う、未処理の指示があるもの
  */
 export interface PendingClip {
   episodeId: string;
   storageKey: string;
   clipId: string;
   label: string;
-  revision: number;
+  requestId: string;
+  baseVersion: number;
+  items: ClipRequestItem[];
 }

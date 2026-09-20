@@ -174,18 +174,15 @@ await jwtVerify(jwt, JWKS, { audience: ACCESS_AUD });
 |--------|------|------|
 | GET | /api/episodes/:id/clips | この回の切り抜き一覧 |
 | GET | /api/episodes/:id/clips/:clipId | 切り抜き 1 本分の meta |
-| PUT | /api/episodes/:id/clips/:clipId | 下書きを置く（生成側から） |
-| GET | /api/episodes/:id/clips/:clipId/draft | 下書き |
-| PUT | /api/episodes/:id/clips/:clipId/draft | 下書きを保存する（管理画面から。of は変えられない） |
-| PUT | /api/episodes/:id/clips/:clipId/status | OK（投稿の予定つき）/ 取り消し / ボツ |
-| POST | /api/episodes/:id/clips/:clipId/upload-url | 動画を置く Presigned URL（レイアウトごと） |
-| POST | /api/episodes/:id/clips/:clipId/versions | 描いた版を登録する（生成側から） |
-| GET | /api/clips/pending | 描画待ちのもの（手元が拾う） |
+| POST | /api/episodes/:id/clips/:clipId/upload-url | 版の動画を置く Presigned URL |
+| PUT | /api/episodes/:id/clips/:clipId | 版を追加する（生成側から） |
+| GET | /api/episodes/:id/clips/:clipId/versions/:n/subs | その版の字幕 |
+| POST | /api/episodes/:id/clips/:clipId/requests | 直しの指示を預ける |
+| PUT | /api/episodes/:id/clips/:clipId/status | OK / ボツ |
+| GET | /api/clips/pending | 未処理の指示があるもの（手元が拾う） |
 
-※ 描画は Worker ではできない（ffmpeg も素材も手元）。動画にする前に管理画面で音声と字幕を
-確かめて直し、OK が出たものだけを手元の道具（imagecaster-video）が縦・横・正方形で描く。
-字幕はプレビューと動画で同じ座標に出す（`clipGlyphs.ts` ⇔ 向こうの `glyphs.py`。変えたら
-向こうの `scripts/glyph-parity.py` を通す）。詳細は `docs/clip-viewer-spec.md`
+※ 描画は Worker ではできない（ffmpeg も素材も手元）。管理画面は指示を預かるだけで、
+作り直しは手元の道具（imagecaster-video）が引き取る。詳細は `docs/clip-viewer-spec.md`
 
 ### Review Cards（確認カード）
 | Method | Path | 説明 |
@@ -271,9 +268,8 @@ podcast-bucket/
 │       └── clips/               # 切り抜き動画（任意）
 │           ├── index.json       # この回の切り抜き一覧
 │           └── {clipId}/
-│               ├── meta.json    # 状態・版の一覧・投稿の予定と結果
-│               ├── draft.json   # 下書き（プレビューと編集の対象）
-│               └── v{n}/        # portrait.mp4 / landscape.mp4 / square.mp4 / draft.json / manifest.json
+│               ├── meta.json    # 区間・版の一覧・状態・指示
+│               └── v{n}/        # clip.mp4 / subs.json / cards.json / manifest.json
 ├── templates.json          # テンプレート一覧
 ├── index.json              # エピソード一覧 + Podcast設定
 ├── feed.xml                # RSSフィード
