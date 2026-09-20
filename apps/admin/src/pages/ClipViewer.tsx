@@ -1,370 +1,485 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../lib/api";
-import type {
-  ClipDetail,
-  ClipRequestItem,
-  ClipStatus,
-  ClipSubtitle,
-} from "../lib/api";
+import type { ClipDetail, ClipDraft, ClipLayoutName, ClipPostTarget } from "../lib/api";
+import { GlyphTable } from "../lib/clipGlyphs";
+import type { ClipMetrics } from "../lib/clipGlyphs";
+import metricsJson from "../lib/clip-metrics.json";
+import { draftProblems } from "../lib/clipEdits";
+import { buildTimeline, placeSubs, subAt, toTau } from "../lib/clipTimeline";
+import { ClipAudioPool } from "../lib/clipAudio";
+import {
+  CLIP_LAYOUT_LABEL,
+  CLIP_LAYOUT_NAMES,
+  CLIP_POST_LABEL,
+  CLIP_POST_TARGETS,
+  CLIP_STATUS,
+} from "../lib/clipStatus";
+import { ClipStage } from "../components/clip/ClipStage";
+import { ClipTimeline } from "../components/clip/ClipTimeline";
+import { ClipSubList } from "../components/clip/ClipSubList";
+import { DateTimePicker } from "../components/DateTimePicker";
 
 /**
- * 切り抜き動画ビューワー。
+ * 切り抜きを、動画にする前に確かめて直す。
  *
- * 出来たものを見て、字幕の直しを指示し、作り直させる。ここでは字幕を直接
- * 書き換えない。字幕は音のタイムスタンプに紐づいているので、文字だけ差し替えると
- * 音とずれる。指示として預け、読んで区切りを決め直すのは作り直す側の仕事。
+ * 切り抜きは、離れた区間を AI が選んで並べ、繋いだもの。音はエピソードの mp3 から要る
+ * 範囲だけを取って、ここで本番と同じ規則で繋ぐ（clipAudio）。字幕と画像は、動画を描く側と
+ * 同じ式で canvas に置く。だからここで見えたものが、縦・横・正方形のどれで描いてもそのまま出る。
+ * 直したものはその場で保存し、OK を出すと手元の道具が拾って描く。
  *
  * 仕様は docs/clip-viewer-spec.md を参照。
  */
 
-const STATUS_CONFIG: Record<ClipStatus, { label: string; badgeClass: string }> = {
-  draft: { label: "確認待ち", badgeClass: "badge badge-default" },
-  approved: { label: "OK", badgeClass: "badge badge-success" },
-  rejected: { label: "ボツ", badgeClass: "badge badge-error" },
-};
+const table = new GlyphTable(metricsJson as unknown as ClipMetrics);
+
+const SPEEDS = [1, 1.1, 1.2, 1.3, 1.5];
+
+/** 保存を待つ時間。打っている最中に 1 字ごとに送らない */
+const SAVE_DELAY_MS = 800;
+
+function toLocalInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+export function ClipViewer() {
+  const { id: episodeId, clipId } = useParams<{ id: string; clipId: string }>();
+  const [clip, setClip] = useState<ClipDetail | null>(null);
+  const [draft, setDraft] = useState<ClipDraft | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!episodeId || !clipId) return;
+    try {
+      const [c, d, ep] = await Promise.all([
+        api.getClip(episodeId, clipId),
+        api.getClipDraft(episodeId, clipId),
+        api.getEpisode(episodeId),
+      ]);
+      setClip(c);
+      setDraft(d);
+      setAudioUrl(ep.audioUrl || null);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "読み込めませんでした");
+    } finally {
+      setLoading(false);
+    }
+  }, [episodeId, clipId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (loading) return <div className="p-6 text-secondary">読み込み中…</div>;
+  if (error && !clip) return <div className="p-6 text-error">{error}</div>;
+  if (!clip || !episodeId || !clipId) return null;
+
+  return (
+    <div className="mx-auto max-w-3xl p-4 sm:p-6">
+      <div className="mb-4 flex flex-wrap items-center gap-3 pr-20">
+        <Link to={`/episodes/${episodeId}`} className="btn btn-ghost">
+          ← エピソードへ
+        </Link>
+        <h1 className="flex-1 text-lg font-semibold">{clip.label}</h1>
+        <span className={CLIP_STATUS[clip.status].badgeClass}>{CLIP_STATUS[clip.status].label}</span>
+      </div>
+
+      {draft && audioUrl ? (
+        <Editor
+          episodeId={episodeId}
+          clip={clip}
+          initial={draft}
+          audioUrl={audioUrl}
+          onClip={setClip}
+          onReload={load}
+        />
+      ) : draft ? (
+        <p className="text-sm text-error">この回の音声が見つかりません。</p>
+      ) : (
+        <p className="mb-4 text-sm text-secondary">
+          下書きの仕組みより前に作られた切り抜きです。再生はできますが、ここでは直せません。
+        </p>
+      )}
+
+      {clip.latest > 0 && <Rendered clip={clip} />}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+interface EditorProps {
+  episodeId: string;
+  clip: ClipDetail;
+  initial: ClipDraft;
+  audioUrl: string;
+  onClip: (clip: ClipDetail) => void;
+  onReload: () => Promise<void>;
+}
+
+type SaveState = "saved" | "dirty" | "saving" | "conflict" | "error";
+
+function Editor({ episodeId, clip, initial, audioUrl, onClip, onReload }: EditorProps) {
+  const [draft, setDraft] = useState(initial);
+  const [save, setSave] = useState<SaveState>("saved");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [layoutName, setLayoutName] = useState<ClipLayoutName>("portrait");
+  const [showGuides, setShowGuides] = useState(true);
+  const [playing, setPlaying] = useState(false);
+  const [currentId, setCurrentId] = useState<string | null>(null);
+
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const saving = useRef(false);
+
+  const editable = clip.status === "draft";
+
+  // 読み込み直したら（ほかの画面の保存を取り込んだら）手元の下書きも入れ替える
+  useEffect(() => {
+    setDraft(initial);
+    setSave("saved");
+  }, [initial]);
+
+  // --- 音 -------------------------------------------------------------------
+  //
+  // 時計は「繋いだあとの秒」。audio 要素が鳴らすのは繋いだ波形なので、currentTime が
+  // そのままその時刻になる。速さは playbackRate で変える（ブラウザが音程を保つ）
+
+  const timeline = useMemo(() => buildTimeline(draft), [draft]);
+  const placement = useMemo(() => placeSubs(draft, timeline), [draft, timeline]);
+  const live = useRef({ timeline, placement });
+  live.current = { timeline, placement };
+
+  const [pool, setPool] = useState<ClipAudioPool | null>(null);
+  const [audioState, setAudioState] = useState("音声を読み込み中…");
+  const [wavUrl, setWavUrl] = useState<string | null>(null);
+
+  // pool の波形は一度だけ取る。端は pool の中でしか動かないので、取り直しは要らない
+  const poolKey = JSON.stringify([draft.pool, draft.audio, audioUrl]);
+  useEffect(() => {
+    const abort = new AbortController();
+    setPool(null);
+    (async () => {
+      try {
+        const next = new ClipAudioPool(draftRef.current.audio, audioUrl);
+        await next.load(draftRef.current.pool, abort.signal, (done, total) =>
+          setAudioState(`音声を読み込み中… ${done}/${total}`)
+        );
+        setPool(next);
+        setAudioState("");
+      } catch (e) {
+        if (!abort.signal.aborted) setAudioState(e instanceof Error ? e.message : "音声を読めませんでした");
+      }
+    })();
+    return () => abort.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [poolKey]);
+
+  // 繋ぎ方が変わったら繋ぎ直す。字幕の文字を直しただけでは変わらない
+  const spliceKey = JSON.stringify([draft.spans, draft.gap, draft.edgeFade]);
+  useEffect(() => {
+    if (!pool) return;
+    const url = URL.createObjectURL(pool.splice(draftRef.current, live.current.timeline));
+    setWavUrl(url);
+    return () => URL.revokeObjectURL(url);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pool, spliceKey]);
+
+  const getTime = useCallback(() => audioRef.current?.currentTime ?? 0, []);
+
+  const seek = useCallback((tau: number) => {
+    const audio = audioRef.current;
+    if (audio) audio.currentTime = Math.max(0, tau);
+  }, []);
+
+  const seekSource = useCallback(
+    (t: number) => {
+      const tau = toTau(live.current.timeline, t);
+      if (tau !== null) seek(tau);
+    },
+    [seek]
+  );
+
+  const toggle = () => {
+    const audio = audioRef.current;
+    if (!audio || !wavUrl) return;
+    if (!audio.paused) return audio.pause();
+    if (audio.ended || audio.currentTime >= live.current.timeline.duration - 0.05) audio.currentTime = 0;
+    audio.play();
+  };
+
+  // 繋ぎ直すと src が替わって頭に戻る。直したところをすぐ聞き直せるよう、位置と速さを戻す
+  const resumeAt = useRef(0);
+  const onLoaded = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.playbackRate = draftRef.current.speed;
+    audio.currentTime = Math.min(resumeAt.current, Math.max(0, audio.duration - 0.05));
+  };
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (audio) audio.playbackRate = draft.speed;
+  }, [draft.speed]);
+
+  const onTimeUpdate = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    resumeAt.current = audio.currentTime;
+    const placed = subAt(live.current.placement.shown, audio.currentTime, table.metrics.timing.subHold);
+    setCurrentId(placed?.sub.id ?? null);
+  };
+
+  // --- 保存 -----------------------------------------------------------------
+
+  const change = (next: ClipDraft) => {
+    setDraft(next);
+    setSave("dirty");
+  };
+
+  useEffect(() => {
+    if (save !== "dirty") return;
+    const timer = setTimeout(async () => {
+      // 前の保存が返る前に次を送ると、古い revision を添えることになり、自分の保存と
+      // 食い違って弾かれる。返ってきたら revision が進んで、ここがもう一度回る
+      if (saving.current) return;
+      saving.current = true;
+      const sending = draftRef.current;
+      setSave("saving");
+      try {
+        const saved = await api.saveClipDraft(episodeId, clip.id, sending);
+        // 送っている間にも打たれているかもしれない。中身は手元のものを残し、
+        // revision だけ進める
+        const edited = draftRef.current !== sending;
+        setDraft((d) => ({ ...d, revision: saved.revision }));
+        setSave(edited ? "dirty" : "saved");
+        setSaveError(null);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "保存できませんでした";
+        setSaveError(message);
+        setSave(message.includes("ほかの画面") ? "conflict" : "error");
+      } finally {
+        saving.current = false;
+      }
+    }, SAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [save, draft, episodeId, clip.id]);
+
+  const problems = useMemo(() => draftProblems(draft, table), [draft]);
+  const seconds = timeline.duration / draft.speed;
+
+  return (
+    <>
+      <audio
+        ref={audioRef}
+        src={wavUrl ?? undefined}
+        preload="auto"
+        onLoadedMetadata={onLoaded}
+        onTimeUpdate={onTimeUpdate}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+      />
+
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="flex overflow-hidden rounded border border-[var(--color-border)]">
+          {CLIP_LAYOUT_NAMES.map((name) => (
+            <button
+              key={name}
+              type="button"
+              onClick={() => setLayoutName(name)}
+              className={`px-3 py-1 text-sm ${
+                name === layoutName ? "bg-[var(--color-bg-active)]" : "text-secondary"
+              }`}
+            >
+              {CLIP_LAYOUT_LABEL[name]}
+            </button>
+          ))}
+        </div>
+        <label className="flex items-center gap-1 text-sm text-secondary">
+          <input type="checkbox" checked={showGuides} onChange={(e) => setShowGuides(e.target.checked)} />
+          ガイド線
+        </label>
+        <span className="ml-auto text-xs text-secondary">
+          <SaveBadge state={save} />
+        </span>
+      </div>
+
+      {/* 縦は画面いっぱいにすると字幕リストが見えなくなるので、幅を抑える */}
+      <div className="mx-auto mb-3" style={{ maxWidth: layoutName === "portrait" ? 300 : layoutName === "square" ? 420 : undefined }}>
+        <ClipStage
+          draft={draft}
+          timeline={timeline}
+          shown={placement.shown}
+          table={table}
+          layoutName={layoutName}
+          getTime={getTime}
+          showGuides={showGuides}
+        />
+      </div>
+
+      <div className="mb-2 flex flex-wrap items-center gap-3">
+        <button type="button" className="btn btn-primary px-4" disabled={!wavUrl} onClick={toggle}>
+          {playing ? "止める" : "再生"}
+        </button>
+        {audioState && <span className="text-xs text-secondary">{audioState}</span>}
+        <label className="flex items-center gap-2 whitespace-nowrap text-sm text-secondary">
+          速さ
+          <select
+            className="input py-1"
+            value={draft.speed}
+            disabled={!editable}
+            onChange={(e) => change({ ...draft, speed: Number(e.target.value) })}
+          >
+            {[...new Set([...SPEEDS, draft.speed])].sort().map((s) => (
+              <option key={s} value={s}>
+                {s} 倍
+              </option>
+            ))}
+          </select>
+        </label>
+        <span className="text-sm text-secondary">動画の長さ {Math.round(seconds)} 秒</span>
+      </div>
+
+      <div className="mb-4">
+        <ClipTimeline
+          timeline={timeline}
+          shown={placement.shown}
+          currentId={currentId}
+          getTime={getTime}
+          onSeek={seek}
+        />
+      </div>
+
+      {save === "conflict" && (
+        <div className="card mb-4 flex flex-wrap items-center gap-3 p-3 text-sm">
+          <span className="flex-1 text-error">{saveError}</span>
+          <button type="button" className="btn btn-secondary" onClick={onReload}>
+            読み込み直す
+          </button>
+        </div>
+      )}
+      {save === "error" && <p className="mb-4 text-sm text-error">{saveError}</p>}
+
+      <Cards
+        draft={draft}
+        editable={editable}
+        inside={(t) => toTau(timeline, t) !== null}
+        getSourceTime={() => {
+          // いま鳴っているところの、元の音声での時刻。間の中なら、手前の区間の終わり
+          const tau = getTime();
+          const p = [...timeline.pieces].reverse().find((x) => tau >= x.tau);
+          return p ? Math.min(p.span.end, p.span.start + (tau - p.tau)) : draft.spans[0].start;
+        }}
+        onChange={change}
+        onSeek={seekSource}
+      />
+
+      <div className="mb-4">
+        <ClipSubList
+          draft={draft}
+          table={table}
+          problems={problems}
+          currentId={currentId}
+          disabled={!editable}
+          onChange={change}
+          onSeekSource={seekSource}
+        />
+      </div>
+
+      <Approval
+        episodeId={episodeId}
+        clip={clip}
+        blocked={
+          save !== "saved"
+            ? "保存が済んでから OK を出せます"
+            : problems.length > 0
+              ? `直すところが ${problems.length} 件あります`
+              : null
+        }
+        onClip={onClip}
+      />
+    </>
+  );
+}
+
+function SaveBadge({ state }: { state: SaveState }) {
+  const text: Record<SaveState, string> = {
+    saved: "保存済み",
+    dirty: "未保存…",
+    saving: "保存中…",
+    conflict: "保存できません",
+    error: "保存できません",
+  };
+  return <span className={state === "conflict" || state === "error" ? "text-error" : ""}>{text[state]}</span>;
+}
+
+// ---------------------------------------------------------------------------
 
 function formatTime(sec: number): string {
   const s = Math.max(0, Math.floor(sec));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-/** 指示を人が読める一行にする */
-function describeItem(item: ClipRequestItem, subs: ClipSubtitle[]): string {
-  const textOf = (i: number) => subs.find((s) => s.index === i)?.rows.join("") ?? `#${i}`;
-  switch (item.type) {
-    case "edit":
-      return `「${textOf(item.index)}」→「${item.text}」`;
-    case "note":
-      return `「${textOf(item.index)}」に: ${item.text}`;
-    case "delete":
-      return `「${textOf(item.index)}」を削除`;
-    case "insert":
-      return `「${textOf(item.afterIndex)}」の後に「${item.text}」を追加`;
-  }
-}
-
-export function ClipViewer() {
-  const { id: episodeId, clipId } = useParams<{ id: string; clipId: string }>();
-
-  const [clip, setClip] = useState<ClipDetail | null>(null);
-  const [version, setVersion] = useState<number | null>(null);
-  const [subs, setSubs] = useState<ClipSubtitle[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  // まだ送っていない指示。溜めてからまとめて送る
-  const [items, setItems] = useState<ClipRequestItem[]>([]);
-  const [editing, setEditing] = useState<number | null>(null);
-  // 直した文字と、区切りへの指示は別の箱にする。ひとつにまとめると、元の文字を
-  // 入れておいたときに消し忘れて、それがそのまま指示として飛ぶ
-  const [draft, setDraft] = useState("");
-  const [note, setNote] = useState("");
-  const [sending, setSending] = useState(false);
-
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [now, setNow] = useState(0);
-
-  useEffect(() => {
-    if (!episodeId || !clipId) return;
-    setLoading(true);
-    api
-      .getClip(episodeId, clipId)
-      .then((c) => {
-        setClip(c);
-        setVersion(c.latest);
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [episodeId, clipId]);
-
-  useEffect(() => {
-    if (!episodeId || !clipId || version === null) return;
-    api
-      .getClipSubtitles(episodeId, clipId, version)
-      .then(setSubs)
-      // 字幕が無くても動画は見られる。ここで画面を落とさない
-      .catch(() => setSubs([]));
-  }, [episodeId, clipId, version]);
-
-  const duration = clip?.clip.duration ?? 0;
-  const videoUrl = clip && version !== null ? `${clip.baseUrl}/v${version}/clip.mp4` : "";
-
-  const seek = useCallback((t: number) => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.currentTime = t;
-    void v.play();
-  }, []);
-
-  const currentIndex = useMemo(
-    () => subs.find((s) => now >= s.start && now <= s.end)?.index ?? null,
-    [subs, now]
-  );
-
-  const addItem = (item: ClipRequestItem) => {
-    setItems((prev) => [...prev, item]);
-    setEditing(null);
-    setDraft("");
-    setNote("");
-  };
-
-  const send = async () => {
-    if (!episodeId || !clipId || version === null || items.length === 0) return;
-    setSending(true);
-    try {
-      await api.postClipRequest(episodeId, clipId, version, items);
-      setItems([]);
-      const fresh = await api.getClip(episodeId, clipId);
-      setClip(fresh);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "指示を送れませんでした");
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const setStatus = async (status: ClipStatus) => {
-    if (!episodeId || !clipId) return;
-    try {
-      const updated = await api.setClipStatus(episodeId, clipId, status);
-      setClip((prev) => (prev ? { ...prev, status: updated.status } : prev));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "状態を変えられませんでした");
-    }
-  };
-
-  if (loading) return <div className="p-6 text-secondary">読み込み中…</div>;
-  if (error && !clip) return <div className="p-6 text-error">{error}</div>;
-  if (!clip) return null;
-
-  const pending = clip.requests.filter((r) => r.appliedIn === null);
+/** 画面中央に出す画像。出す時刻を動かすか、外すかだけ。選び直すのは手元の仕事 */
+function Cards({
+  draft,
+  editable,
+  inside,
+  getSourceTime,
+  onChange,
+  onSeek,
+}: {
+  draft: ClipDraft;
+  editable: boolean;
+  /** その時刻（元の音声の上の秒）が、鳴らす区間に入っているか */
+  inside: (t: number) => boolean;
+  getSourceTime: () => number;
+  onChange: (d: ClipDraft) => void;
+  onSeek: (t: number) => void;
+}) {
+  if (draft.cards.length === 0) return null;
+  const setCards = (cards: ClipDraft["cards"]) =>
+    onChange({ ...draft, cards: [...cards].sort((a, b) => a.at - b.at) });
 
   return (
-    <div className="mx-auto max-w-3xl p-4 sm:p-6">
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <Link to={`/episodes/${episodeId}`} className="btn btn-ghost">
-          ← エピソードへ
-        </Link>
-        <h1 className="flex-1 text-lg font-semibold">{clip.label}</h1>
-        <span className={STATUS_CONFIG[clip.status].badgeClass}>
-          {STATUS_CONFIG[clip.status].label}
-        </span>
-      </div>
-
-      <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-secondary">
-        <span>
-          {clip.range[0]} 〜 {clip.range[1]}
-        </span>
-        <span>／ {Math.round(duration)} 秒</span>
-        {clip.versions.length > 1 && (
-          <label className="ml-auto flex items-center gap-2">
-            版
-            <select
-              className="input py-1"
-              value={version ?? clip.latest}
-              onChange={(e) => setVersion(Number(e.target.value))}
-            >
-              {clip.versions.map((v) => (
-                <option key={v.n} value={v.n}>
-                  v{v.n}
-                  {v.n === clip.latest ? "（最新）" : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-      </div>
-
-      <video
-        ref={videoRef}
-        src={videoUrl}
-        controls
-        playsInline
-        className="mb-3 w-full rounded bg-black"
-        onTimeUpdate={(e) => setNow(e.currentTarget.currentTime)}
-      />
-
-      {/* シークバーの上に字幕の区間を並べる。押すとその時刻へ飛ぶ */}
-      <div className="mb-4">
-        <div className="relative h-7 w-full overflow-hidden rounded bg-[var(--color-bg-hover)]">
-          {subs.map((s) => {
-            const left = duration ? (s.start / duration) * 100 : 0;
-            const width = duration ? ((s.end - s.start) / duration) * 100 : 0;
-            const removed = items.some(
-              (i) => i.type === "delete" && i.index === s.index
-            );
-            const touched = items.some(
-              (i) => "index" in i && i.index === s.index && i.type !== "delete"
-            );
-            return (
-              <button
-                key={s.index}
-                type="button"
-                title={s.rows.join(" ")}
-                onClick={() => seek(s.start)}
-                className="absolute top-0 h-full border-r border-white/40 transition-opacity hover:opacity-100"
-                style={{
-                  left: `${left}%`,
-                  width: `${Math.max(width, 0.4)}%`,
-                  background: removed
-                    ? "var(--color-error)"
-                    : touched
-                      ? "var(--color-warning)"
-                      : "var(--color-accent)",
-                  opacity: s.index === currentIndex ? 1 : 0.45,
-                }}
-              />
-            );
-          })}
-        </div>
-        <p className="mt-1 text-xs text-secondary">
-          帯 = 字幕 1 枚。押すとその場面へ飛びます
-        </p>
-      </div>
-
-      {/* 字幕一覧 */}
-      <div className="card mb-4 divide-y divide-[var(--color-border)]">
-        {subs.length === 0 && (
-          <p className="p-4 text-sm text-secondary">
-            この版の字幕データがまだありません。
-          </p>
-        )}
-        {subs.map((s) => {
-          const removed = items.some(
-            (i) => i.type === "delete" && i.index === s.index
-          );
+    <div className="mb-4">
+      <h2 className="label mb-2">画像</h2>
+      <div className="flex gap-3 overflow-x-auto pb-1">
+        {draft.cards.map((card, i) => {
+          const outside = !inside(card.at);
           return (
-            <div key={s.index} className="p-3">
-              <div className="flex items-start gap-3">
-                <button
-                  type="button"
-                  onClick={() => seek(s.start)}
-                  className="shrink-0 text-xs text-secondary tabular-nums hover:underline"
-                >
-                  {formatTime(s.start)}
-                </button>
-                <div
-                  className={`flex-1 text-sm ${removed ? "line-through opacity-50" : ""} ${
-                    s.index === currentIndex ? "font-semibold" : ""
-                  }`}
-                >
-                  {s.rows.map((r, i) => (
-                    <div key={i}>{r}</div>
-                  ))}
-                  <span className="text-xs text-secondary">{s.speaker}</span>
-                </div>
-                <div className="flex shrink-0 gap-1">
-                  <button
-                    type="button"
-                    className="btn btn-ghost px-2 py-1 text-xs"
-                    onClick={() => {
-                      setEditing(s.index);
-                      // 元の文字を入れておく。打ち直させる理由がない
-                      setDraft(s.rows.join(""));
-                      setNote("");
-                    }}
-                  >
-                    直す
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-ghost px-2 py-1 text-xs"
-                    onClick={() => addItem({ type: "delete", index: s.index })}
-                  >
-                    削除
-                  </button>
-                </div>
+            <div key={`${card.image}-${i}`} className="card w-36 shrink-0 p-2" style={{ opacity: outside ? 0.4 : 1 }}>
+              <button type="button" className="block w-full" onClick={() => onSeek(card.at)}>
+                <img src={card.image} alt={card.word} className="h-20 w-full rounded bg-white object-contain" />
+              </button>
+              <div className="mt-1 truncate text-xs">{card.word}</div>
+              <div className="text-xs tabular-nums text-secondary">
+                {formatTime(card.at)}
+                {outside && "（区間の外）"}
               </div>
-
-              {editing === s.index && (
-                <div className="mt-3 space-y-4 rounded border border-[var(--color-border)] p-3">
-                  {/* 文字を直す。箱には元の文字が入っている */}
-                  <div className="space-y-2">
-                    <label className="block text-xs font-semibold">
-                      文字を直す
-                    </label>
-                    <textarea
-                      className="input w-full text-sm"
-                      rows={2}
-                      autoFocus
-                      value={draft}
-                      onChange={(e) => setDraft(e.target.value)}
-                    />
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        className="btn btn-primary px-3 py-1 text-xs"
-                        // 元のままなら直すものがない
-                        disabled={
-                          !draft.trim() || draft.trim() === s.rows.join("")
-                        }
-                        onClick={() =>
-                          addItem({ type: "edit", index: s.index, text: draft.trim() })
-                        }
-                      >
-                        この文字に直す
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-ghost px-2 py-1 text-xs"
-                        onClick={() => setDraft(s.rows.join(""))}
-                        disabled={draft === s.rows.join("")}
-                      >
-                        元に戻す
-                      </button>
-                    </div>
-                    <p className="text-xs text-secondary">
-                      直るのはこの動画の字幕だけです（公開サイトの文字起こしはそのまま）
-                    </p>
-                  </div>
-
-                  {/* 区切りへの注文と、ここに足したいもの。文字を直す箱とは別 */}
-                  <div className="space-y-2">
-                    <label className="block text-xs font-semibold">
-                      区切りへの指示、ここに足したい字幕
-                    </label>
-                    <textarea
-                      className="input w-full text-sm"
-                      rows={2}
-                      placeholder="「区切りを前に寄せて」／ここに足したい字幕"
-                      value={note}
-                      onChange={(e) => setNote(e.target.value)}
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        className="btn btn-secondary px-3 py-1 text-xs"
-                        disabled={!note.trim()}
-                        onClick={() =>
-                          addItem({ type: "note", index: s.index, text: note.trim() })
-                        }
-                      >
-                        指示として伝える
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-ghost px-3 py-1 text-xs"
-                        disabled={!note.trim()}
-                        onClick={() =>
-                          addItem({
-                            type: "insert",
-                            afterIndex: s.index,
-                            text: note.trim(),
-                          })
-                        }
-                      >
-                        この後に追加
-                      </button>
-                    </div>
-                  </div>
-
+              {editable && (
+                <div className="mt-1 flex gap-1">
                   <button
                     type="button"
-                    className="btn btn-ghost px-3 py-1 text-xs"
-                    onClick={() => setEditing(null)}
+                    className="btn btn-ghost flex-1 px-1 py-0.5 text-xs"
+                    title="いまの再生位置で出す"
+                    onClick={() => setCards(draft.cards.map((c, j) => (j === i ? { ...c, at: getSourceTime() } : c)))}
                   >
-                    やめる
+                    ここで出す
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost px-1 py-0.5 text-xs"
+                    onClick={() => setCards(draft.cards.filter((_, j) => j !== i))}
+                  >
+                    外す
                   </button>
                 </div>
               )}
@@ -372,69 +487,199 @@ export function ClipViewer() {
           );
         })}
       </div>
+    </div>
+  );
+}
 
-      {/* 溜めた指示 */}
-      {items.length > 0 && (
-        <div className="card mb-4 p-4">
-          <h2 className="mb-2 text-sm font-semibold">送る指示（{items.length} 件）</h2>
-          <ul className="mb-3 space-y-1 text-sm">
-            {items.map((item, i) => (
-              <li key={i} className="flex items-start gap-2">
-                <span className="flex-1">{describeItem(item, subs)}</span>
-                <button
-                  type="button"
-                  className="btn btn-ghost px-2 py-0 text-xs"
-                  onClick={() => setItems((prev) => prev.filter((_, j) => j !== i))}
-                >
-                  取消
-                </button>
-              </li>
-            ))}
-          </ul>
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={sending}
-            onClick={send}
-          >
-            {sending ? "送っています…" : "作り直しを頼む"}
-          </button>
-          <p className="mt-2 text-xs text-secondary">
-            指示を預けます。実際の作り直しは手元の道具が引き取り、v
-            {(clip.latest ?? 0) + 1} として上がってきます。
-          </p>
-        </div>
-      )}
+// ---------------------------------------------------------------------------
 
-      {pending.length > 0 && (
-        <div className="card mb-4 p-4">
-          <h2 className="mb-1 text-sm font-semibold">作り直し待ち</h2>
-          <p className="text-sm text-secondary">
-            {pending.length} 件の指示を預かっています。手元が拾うと新しい版が増えます。
-          </p>
-        </div>
-      )}
+function Approval({
+  episodeId,
+  clip,
+  blocked,
+  onClip,
+}: {
+  episodeId: string;
+  clip: ClipDetail;
+  blocked: string | null;
+  onClip: (clip: ClipDetail) => void;
+}) {
+  const [publishAt, setPublishAt] = useState(toLocalInput(clip.publishAt));
+  const [postText, setPostText] = useState(clip.postText);
+  const [posts, setPosts] = useState(clip.posts);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => setStatus("approved")}
-          disabled={clip.status === "approved"}
-        >
-          OK
-        </button>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={() => setStatus("rejected")}
-          disabled={clip.status === "rejected"}
-        >
-          ボツ
+  const send = async (status: "draft" | "approved" | "rejected") => {
+    setBusy(true);
+    setError(null);
+    try {
+      const plan =
+        status === "approved"
+          ? {
+              publishAt: publishAt ? new Date(publishAt).toISOString() : null,
+              postText,
+              posts: Object.fromEntries(
+                CLIP_POST_TARGETS.map((t) => [t, { enabled: posts[t].enabled, layout: posts[t].layout }])
+              ),
+            }
+          : undefined;
+      onClip({ ...(await api.setClipStatus(episodeId, clip.id, status, plan)), baseUrl: clip.baseUrl });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "変更できませんでした");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const setPost = (t: ClipPostTarget, change: Partial<{ enabled: boolean; layout: ClipLayoutName }>) =>
+    setPosts((p) => ({ ...p, [t]: { ...p[t], ...change } }));
+
+  if (clip.status === "published") {
+    return <PostResults clip={clip} />;
+  }
+
+  if (clip.status !== "draft") {
+    return (
+      <div className="card mb-4 space-y-3 p-4">
+        <p className="text-sm">
+          {clip.status === "approved" && "OK を出しました。手元の道具が拾って描きます（1 時間おきに見にきます）。"}
+          {clip.status === "rendered" &&
+            (clip.publishAt
+              ? `描き終わりました。${new Date(clip.publishAt).toLocaleString("ja-JP")} に投稿します。`
+              : "描き終わりました。投稿の予定はありません。")}
+          {clip.status === "rejected" && "ボツにしました。"}
+        </p>
+        <PostResults clip={clip} />
+        {error && <p className="text-sm text-error">{error}</p>}
+        <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => send("draft")}>
+          {clip.status === "rejected" ? "下書きに戻す" : "OK を取り消して直す"}
         </button>
       </div>
+    );
+  }
 
-      {error && <p className="mt-3 text-sm text-error">{error}</p>}
+  return (
+    <div className="card mb-4 space-y-4 p-4">
+      <div>
+        <label className="label mb-1 block">投稿する日時（空なら描くだけ）</label>
+        <DateTimePicker value={publishAt} onChange={setPublishAt} />
+      </div>
+      <div>
+        <label className="label mb-1 block">本文</label>
+        <textarea className="input w-full text-sm" rows={3} value={postText} onChange={(e) => setPostText(e.target.value)} />
+      </div>
+      <div className="space-y-2">
+        <span className="label block">投稿先</span>
+        {CLIP_POST_TARGETS.map((t) => (
+          <div key={t} className="flex items-center gap-3 text-sm">
+            <label className="flex flex-1 items-center gap-2">
+              <input type="checkbox" checked={posts[t].enabled} onChange={(e) => setPost(t, { enabled: e.target.checked })} />
+              {CLIP_POST_LABEL[t]}
+            </label>
+            <select
+              className="input py-1"
+              value={posts[t].layout}
+              disabled={!posts[t].enabled}
+              onChange={(e) => setPost(t, { layout: e.target.value as ClipLayoutName })}
+            >
+              {CLIP_LAYOUT_NAMES.map((l) => (
+                <option key={l} value={l}>
+                  {CLIP_LAYOUT_LABEL[l]}
+                </option>
+              ))}
+            </select>
+          </div>
+        ))}
+      </div>
+
+      {(blocked || error) && <p className="text-sm text-error">{error ?? blocked}</p>}
+      <div className="flex justify-end gap-2">
+        <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => send("rejected")}>
+          ボツ
+        </button>
+        <button type="button" className="btn btn-primary px-6" disabled={busy || blocked !== null} onClick={() => send("approved")}>
+          OK
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PostResults({ clip }: { clip: ClipDetail }) {
+  const rows = CLIP_POST_TARGETS.filter((t) => clip.posts[t].postedAt || clip.posts[t].error);
+  if (rows.length === 0) return null;
+  return (
+    <ul className="space-y-1 text-sm">
+      {rows.map((t) => {
+        const post = clip.posts[t];
+        return (
+          <li key={t} className="flex gap-2">
+            <span className="w-32 shrink-0">{CLIP_POST_LABEL[t]}</span>
+            {post.url ? (
+              <a href={post.url} target="_blank" rel="noreferrer" className="underline">
+                投稿を見る
+              </a>
+            ) : post.error ? (
+              <span className="text-error">{post.error}</span>
+            ) : (
+              <span className="text-secondary">投稿済み</span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+/** 描いた動画。版とレイアウトを切り替えて見る */
+function Rendered({ clip }: { clip: ClipDetail }) {
+  const [n, setN] = useState(clip.latest);
+  const version = clip.versions.find((v) => v.n === n) ?? clip.versions[clip.versions.length - 1];
+  const layouts = version?.layouts ?? [];
+  const [layoutName, setLayoutName] = useState<ClipLayoutName>(layouts[0] ?? "portrait");
+
+  useEffect(() => setN(clip.latest), [clip.latest]);
+  if (!version) return null;
+
+  // 下書きより前の版は clip.mp4 が 1 本あるだけ
+  const file = layouts.length ? `${layouts.includes(layoutName) ? layoutName : layouts[0]}.mp4` : "clip.mp4";
+
+  return (
+    <div className="mt-6">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <h2 className="label flex-1">描いた動画</h2>
+        {layouts.length > 1 &&
+          layouts.map((l) => (
+            <button
+              key={l}
+              type="button"
+              className={`btn btn-ghost px-2 py-1 text-xs ${l === layoutName ? "bg-[var(--color-bg-active)]" : ""}`}
+              onClick={() => setLayoutName(l)}
+            >
+              {CLIP_LAYOUT_LABEL[l]}
+            </button>
+          ))}
+        {clip.versions.length > 1 && (
+          <select className="input py-1 text-sm" value={n} onChange={(e) => setN(Number(e.target.value))}>
+            {clip.versions.map((v) => (
+              <option key={v.n} value={v.n}>
+                v{v.n}
+                {v.n === clip.latest ? "（最新）" : ""}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+      <video
+        key={`${version.n}-${file}`}
+        src={`${clip.baseUrl}/v${version.n}/${file}`}
+        controls
+        playsInline
+        className="mx-auto max-h-[70vh] rounded bg-black"
+      />
     </div>
   );
 }

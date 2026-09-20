@@ -1,19 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
-import type { ClipListEntry, ClipStatus } from "../lib/api";
+import type { ClipListEntry } from "../lib/api";
+import { CLIP_STATUS } from "../lib/clipStatus";
 
 /**
  * この回の切り抜き一覧。押すとビューワーへ。
  *
- * 作るのは手元の道具（imagecaster-video）で、ここは出来たものを並べるだけ。
+ * 下書きを作るのも描くのも手元の道具（imagecaster-video）。ここは並べるだけで、
+ * 確かめて直すのは押した先の画面。
  */
-
-const STATUS: Record<ClipStatus, { label: string; badgeClass: string }> = {
-  draft: { label: "確認待ち", badgeClass: "badge badge-default" },
-  approved: { label: "OK", badgeClass: "badge badge-success" },
-  rejected: { label: "ボツ", badgeClass: "badge badge-error" },
-};
 
 export function ClipsPanel({ episodeId }: { episodeId: string }) {
   const [clips, setClips] = useState<ClipListEntry[] | null>(null);
@@ -50,8 +46,8 @@ export function ClipsPanel({ episodeId }: { episodeId: string }) {
             <span className="text-xs text-[var(--color-text-secondary)]">
               v{c.latest}
             </span>
-            <span className={STATUS[c.status].badgeClass}>
-              {STATUS[c.status].label}
+            <span className={CLIP_STATUS[c.status].badgeClass}>
+              {CLIP_STATUS[c.status].label}
             </span>
           </Link>
         </li>

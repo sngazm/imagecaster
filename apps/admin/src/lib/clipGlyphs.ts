@@ -22,6 +22,8 @@ export interface ClipLayout {
   card_cy: number;
   card_w: number;
   card_h: number;
+  card_radius: number;
+  card_pad: number;
   sub_center_y: number;
   sub_bottom: number;
   sub_max_w: number;
@@ -41,6 +43,11 @@ export interface ClipMetrics {
   text: number[];
   speakers: Record<string, number[]>;
   unknownSpeaker: number[];
+  /** 背景の上端と下端の色 */
+  background: number[][];
+  card: { bg: number[]; edge: number[] };
+  /** 出入りの秒数 */
+  timing: { subHold: number; cardIn: number; cardHold: number; cardOut: number; fade: number };
   layouts: Record<string, ClipLayout>;
 }
 
@@ -138,7 +145,7 @@ function pyRound(v: number): number {
   return f % 2 === 0 ? f : f + 1;
 }
 
-const rgb = (c: Rgb) => `rgb(${c[0]},${c[1]},${c[2]})`;
+export const rgb = (c: Rgb) => `rgb(${c[0]},${c[1]},${c[2]})`;
 
 export const SUBTITLE_FONT_FAMILY = "Noto Sans JP";
 
