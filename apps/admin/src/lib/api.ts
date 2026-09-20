@@ -145,7 +145,7 @@ export interface CorrectionRule {
  */
 export interface EpisodeCorrectionRule extends CorrectionRule {
   anchor?: { start: number; end: number; before: string; after: string };
-  source?: "glossary" | "review" | "readback" | "human";
+  source?: "glossary" | "review" | "readback" | "suspicion" | "human";
 }
 
 /**

@@ -99,8 +99,18 @@ export interface CorrectionAnchor {
   after: string;
 }
 
-/** 修正の出どころ。通読の名指しで確定したものは、あとの見直しで触らせない */
-export const CORRECTION_SOURCES = ["glossary", "review", "readback", "human"] as const;
+/**
+ * 修正の出どころ。通読の名指しで確定したものは、あとの見直しで触らせない
+ *
+ * suspicion は、機械（Jev）が怪しいと順位付けした行を claude が見直して出した直し
+ */
+export const CORRECTION_SOURCES = [
+  "glossary",
+  "review",
+  "readback",
+  "suspicion",
+  "human",
+] as const;
 export type CorrectionSource = (typeof CORRECTION_SOURCES)[number];
 
 /**

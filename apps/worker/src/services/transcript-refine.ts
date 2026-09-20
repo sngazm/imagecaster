@@ -387,6 +387,32 @@ function overlapsInTime(
   );
 }
 
+/**
+ * 指定された時刻にいちばん長く重なる行
+ *
+ * 登録のときは、時刻のずれの余裕（ANCHOR_TIME_TOLERANCE_SEC）を使わない。送り手は
+ * いまの本文の行の時刻をそのまま送ってくるので、ずれは無い。余裕を持たせると、時刻が
+ * 隣り合う行にも当たる。#281 で「リアクションで悲劇か悲劇か」の行を直す修正が、直前の
+ * 行の正しい「悲劇になっちゃう」まで「喜劇」に変えた。
+ */
+function bestOverlapping(
+  segments: TranscriptSegment[],
+  range: { start: number; end: number }
+): TranscriptSegment | null {
+  let best: TranscriptSegment | null = null;
+  let bestOverlap = 0;
+
+  for (const segment of segments) {
+    const overlap = Math.min(segment.end, range.end) - Math.max(segment.start, range.start);
+    if (overlap > bestOverlap) {
+      best = segment;
+      bestOverlap = overlap;
+    }
+  }
+
+  return best;
+}
+
 function anchorAt(segment: TranscriptSegment, index: number, length: number): CorrectionAnchor {
   return {
     start: segment.start,
@@ -560,7 +586,8 @@ export function applyEpisodeCorrections(
  * `segments` は、既にある修正まで当てた**いまの本文**。校正はこの本文を読んで直しを
  * 挙げてくるので、from はここから探す。
  *
- * at の無い修正は、いまの本文で当たる全箇所に展開する。「経電数 → ケイデンス」を
+ * at のある修正は、その時刻にいちばん長く重なる 1 行の中だけで探す（行の中に複数あれば
+ * 全部）。at の無い修正は、いまの本文で当たる全箇所に展開する。「経電数 → ケイデンス」を
  * 1 行で見つければ同じ回の 10 箇所が直る、という利点は残しつつ、次の取り直しの
  * 本文には持ち越さない。
  *
@@ -583,8 +610,10 @@ export function anchorIncomingCorrections(
       // to が from を含む修正は、自分の直した結果にもう一度当たる
       if (pass > 0 && correction.to.includes(correction.from)) continue;
 
-      for (const segment of working) {
-        if (correction.at && !overlapsInTime(segment, correction.at)) continue;
+      const only = correction.at ? bestOverlapping(working, correction.at) : null;
+      if (correction.at && !only) continue;
+
+      for (const segment of only ? [only] : working) {
 
         let index = segment.text.indexOf(correction.from);
         while (index !== -1) {

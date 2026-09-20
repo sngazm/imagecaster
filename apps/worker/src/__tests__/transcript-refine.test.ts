@@ -1338,6 +1338,33 @@ describe("この回かぎりの修正（場所つき）", () => {
     expect(replay.unmatched).toEqual([]);
   });
 
+  it("at のある修正は、時刻が隣り合う行には当たらない", () => {
+    // #281 で起きた。次の行を直す修正が、直前の行の正しい「悲劇」まで変えた
+    const segments: TranscriptSegment[] = [
+      { start: 3072, end: 3081, text: "そこで悲しんだら、やっぱなんか悲劇になっちゃうんで。" },
+      { start: 3081, end: 3086, text: "確かに、リアクションで悲劇か悲劇かが定まる。" },
+    ];
+
+    const result = anchorIncomingCorrections(segments, [
+      { from: "で悲劇", to: "で喜劇", at: { start: 3081, end: 3086 } },
+    ]);
+
+    expect(result.segments.map((s) => s.text)).toEqual([
+      "そこで悲しんだら、やっぱなんか悲劇になっちゃうんで。",
+      "確かに、リアクションで喜劇か悲劇かが定まる。",
+    ]);
+    expect(result.rules).toHaveLength(1);
+  });
+
+  it("at の時刻に重なる行が無ければ、どこにも当てない", () => {
+    const result = anchorIncomingCorrections([line(0, "わー、コードだな。")], [
+      { from: "コード", to: "高度", at: { start: 600, end: 605 } },
+    ]);
+
+    expect(result.rules).toEqual([]);
+    expect(result.unmatched).toHaveLength(1);
+  });
+
   it("refine は辞書のあとに、この回かぎりの修正を決めた場所へ当てる", () => {
     const { data, episode } = refineDetailed(
       { segments: [line(0, "クロードにコードを見せた。"), line(10, "わー、コードだな。")] },
