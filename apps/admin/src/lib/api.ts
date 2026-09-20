@@ -57,7 +57,7 @@ export interface EpisodeDetail {
   sourceGuid: string | null;
   transcriptUrl: string | null;
   /** この回かぎりの誤字修正。校正が見つけた文脈依存のもの */
-  transcriptCorrections?: CorrectionRule[] | null;
+  transcriptCorrections?: EpisodeCorrectionRule[] | null;
   /** この回だけの話者アイコン。ゲスト回で使う */
   speakerIcons?: SpeakerIcon[] | null;
   artworkUrl: string | null;
@@ -135,6 +135,17 @@ export interface CorrectionRule {
   to: string;
   enabled: boolean;
   note?: string;
+}
+
+/**
+ * この回かぎりの修正
+ *
+ * 回全体ではなく、決まった 1 箇所にだけ当たる。anchor の無いものは古い形で、
+ * 次の整形のときに場所つきへ書き直される。
+ */
+export interface EpisodeCorrectionRule extends CorrectionRule {
+  anchor?: { start: number; end: number; before: string; after: string };
+  source?: "glossary" | "review" | "readback" | "human";
 }
 
 /**

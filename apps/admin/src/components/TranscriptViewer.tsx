@@ -24,7 +24,7 @@ interface Props {
  * 1 時間を超える回があるので、途中で桁が増えると読みづらい。formatDuration は
  * 一覧向けに短く出すので、ここでは使わない。
  */
-function formatClock(seconds: number): string {
+export function formatClock(seconds: number): string {
   const total = Math.max(0, Math.floor(Number.isFinite(seconds) ? seconds : 0));
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);

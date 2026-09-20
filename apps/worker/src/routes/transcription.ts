@@ -20,10 +20,17 @@ import {
   syncPublishedIndex,
 } from "../services/r2";
 import {
+  anchorIncomingCorrections,
+  getRawTranscript,
   refineAndSave,
+  refineDetailed,
   resolveSpeakerTracks,
+  saveRefined,
+  toRefineOptions,
   transcriptKeys,
 } from "../services/transcript-refine";
+import { validateTranscriptData } from "../services/vtt";
+import { CORRECTION_SOURCES, type CorrectionSource } from "../types";
 import { triggerWebRebuild } from "../services/deploy";
 import {
   DEFAULT_HALLUCINATION_SETTINGS,
@@ -423,6 +430,11 @@ transcriptionEpisodes.post("/:id/transcript/reprocess", async (c) => {
  *
  * こうしておくと、整形をやり直しても修正が残る。辞書は次回以降の文字起こしにも
  * 自動で効くので、同じ誤りを毎回直さずに済む。
+ *
+ * この回かぎりの修正は、**いまの本文のどこに当たるかを決めて**保存する。`at`
+ * （行の時刻）があればその行だけ、無ければいまの本文で当たる全箇所。回全体の
+ * 文字列置換として持っていた頃は、取り直しをまたいで規則が積み上がり、正しい本文を
+ * 壊した（#281 の「喜劇か悲劇か」が「悲劇か悲劇か」に、「不安障害」が「ぶあー障害」に）。
  */
 transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
   const id = c.req.param("id");
@@ -440,6 +452,10 @@ transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
         note?: unknown;
         general?: unknown;
         occurrences?: unknown;
+        // 出どころ（glossary / review / readback / human）
+        source?: unknown;
+        // 当てる行の時刻。無ければ、いまの本文で当たる全箇所
+        at?: { start?: unknown; end?: unknown };
       }>;
       // 文字起こし側がこの回で繰り返し見つけた、行頭の架空の話者ラベル（「深井」）。
       // 番組の設定に足して、次の回からは 1 回しか出なくても剥がせるようにする
@@ -459,6 +475,8 @@ transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
           note?: string;
           general?: boolean;
           occurrences?: number;
+          source?: unknown;
+          at?: { start?: unknown; end?: unknown };
         } =>
           typeof r.from === "string" &&
           typeof r.to === "string" &&
@@ -472,6 +490,16 @@ transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
         note: typeof r.note === "string" ? r.note : undefined,
         general: r.general === true,
         occurrences: typeof r.occurrences === "number" ? r.occurrences : 0,
+        source: CORRECTION_SOURCES.includes(r.source as CorrectionSource)
+          ? (r.source as CorrectionSource)
+          : undefined,
+        at:
+          typeof r.at?.start === "number" &&
+          typeof r.at?.end === "number" &&
+          Number.isFinite(r.at.start) &&
+          Number.isFinite(r.at.end)
+            ? { start: r.at.start, end: r.at.end }
+            : undefined,
       }));
 
     const index = await getIndex(c.env);
@@ -538,52 +566,33 @@ transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
     // `general` が立っていても、その回では効かせる。番組全体に効かせてよいかは
     // 別の判断で、承認を待つのは辞書に入れるかどうかだけ。校正は「この回では
     // そう直すのが適切」と判定して挙げてきているので、待たせる理由がない。
-    const episodeRules = rules
-      .map((r) => ({
-        from: r.from,
-        to: r.to,
-        enabled: true,
-        note: r.note,
-      }));
-
-    // 既にある規則は残す。校正を回すたびに入れ替わると、手で足したものや
-    // 前回の校正が見つけたものが消える。
     //
-    // ただし**逆向きの規則は外す**。取り直しで本文が変わると、前回「A → B」と
-    // 直した箇所が今回「B → A」になることがある。両方残すと整形の中で
-    // 打ち消し合い、どちらも効かない。実際に #286 で「加速度 → 経験則」を
-    // 登録したのに、前から残っていた「経験則 → 加速度」に戻されて公開された。
-    // 新しいほうを採る（校正はいまの本文を見て判断している）
-    const incomingKeys = new Set(
-      episodeRules.map((r) => `${r.from}\u0000${r.to}`)
-    );
-    const reversed = new Set(episodeRules.map((r) => `${r.to}\u0000${r.from}`));
-
-    const existing = (meta.transcriptCorrections ?? []).filter((r) => {
-      const key = `${r.from}\u0000${r.to}`;
-      if (!reversed.has(key) || incomingKeys.has(key)) return true;
-
-      console.log(`[transcript/corrections] 逆向きの規則を外します: ${r.from} → ${r.to}`);
-      return false;
-    });
-
-    const seen = new Set(existing.map((r) => `${r.from}\u0000${r.to}`));
-    const merged = [...existing];
-
-    for (const rule of episodeRules) {
-      const key = `${rule.from}\u0000${rule.to}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      merged.push(rule);
+    // 保存する前に、いまの本文のどこに当たるかを決める。
+    //
+    // 校正は公開中の本文（既にある修正まで当たったもの）を読んで直しを挙げてくるので、
+    // from はその本文から探す。当たる場所の無いものは保存しない。同じ本文に校正を
+    // もう一度回すと前回と同じ直しが届くが、その from はもう本文に無いので自然に落ちる。
+    //
+    // 既にある修正は残す。校正は回すたびに拾うものが変わるので、入れ替えると前回の
+    // 校正が見つけたものや手で足したものが消える。取り直しで本文が変わったときの
+    // 整理は、新しい生データが届いたとき（transcription-complete）にやる
+    const raw = await getRawTranscript(c.env, meta.storageKey);
+    if (!raw || !validateTranscriptData(raw)) {
+      return c.json({ error: "No transcript available to correct" }, 400);
     }
 
+    const settingsNow = index.podcast.transcriptRefine;
+    const current = refineDetailed(raw, toRefineOptions(settingsNow, meta));
+    const anchored = anchorIncomingCorrections(current.episode.segments, rules);
+
+    for (const miss of anchored.unmatched) {
+      console.log(`[transcript/corrections] 当たる場所がありません: ${miss.from} → ${miss.to}`);
+    }
+
+    const merged = [...current.episode.rules, ...anchored.rules];
     meta.transcriptCorrections = merged.length > 0 ? merged : null;
 
-    const result = await refineAndSave(
-      c.env,
-      meta,
-      index.podcast.transcriptRefine
-    );
+    const result = await saveRefined(c.env, meta, raw, settingsNow);
 
     await saveEpisodeMeta(c.env, meta);
 
@@ -595,10 +604,13 @@ transcriptionEpisodes.post("/:id/transcript/corrections", async (c) => {
       success: true,
       proposed: added,
       episodeRules: merged.length,
+      // 今回届いたうち、場所が決まって保存した数と、当たる場所が無く捨てた数
+      anchored: anchored.rules.length,
+      unmatched: anchored.unmatched.length,
       leadingLabelsAdded: newLabels.length,
-      segments: result?.segments ?? 0,
+      segments: result.segments,
       // 前の本文と何行違うか。何も変わらなかったときに分かるように返す
-      changed: result?.changed ?? null,
+      changed: result.changed,
     });
   } catch (err) {
     console.error(`[transcript/corrections] Error for episode ${id}:`, err);
@@ -634,6 +646,10 @@ transcriptionQueue.post("/reprocess-all", async (c) => {
  * 「加速度 → 経験則」という短い規則を手で送ってしまい、本文の正しい
  * 「加速度センサー」まで「経験則センサー」になった。
  *
+ * 修正は 1 箇所につき 1 件なので、同じ from / to が複数の場所にある。`at`（秒）を
+ * 付けると、その時刻の行に当たるものだけを外す。#281 の `不安 → ぶあー` は
+ * 「不安って開発する」では正しく、「不安障害」では誤りだった。
+ *
  * 外したあとは整形をやり直す。
  */
 transcriptionEpisodes.delete("/:id/transcript/corrections", async (c) => {
@@ -645,18 +661,25 @@ transcriptionEpisodes.delete("/:id/transcript/corrections", async (c) => {
       return c.json({ error: "Episode not found" }, 404);
     }
 
-    const body = await c.req.json<{ from?: unknown; to?: unknown }>();
+    const body = await c.req.json<{ from?: unknown; to?: unknown; at?: unknown }>();
     const from = typeof body.from === "string" ? body.from : "";
     const to = typeof body.to === "string" ? body.to : "";
+    const at = typeof body.at === "number" && Number.isFinite(body.at) ? body.at : null;
 
     if (from === "") {
       return c.json({ error: "from が要ります" }, 400);
     }
 
     const before = meta.transcriptCorrections ?? [];
-    // to を省いたら、その from の規則をすべて外す
+    // to を省いたら、その from の規則をすべて外す。at があれば、その時刻の行のものだけ
     const remaining = before.filter(
-      (rule) => !(rule.from === from && (to === "" || rule.to === to))
+      (rule) =>
+        !(
+          rule.from === from &&
+          (to === "" || rule.to === to) &&
+          (at === null ||
+            (rule.anchor !== undefined && rule.anchor.start <= at && at <= rule.anchor.end))
+        )
     );
 
     if (remaining.length === before.length) {

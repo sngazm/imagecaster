@@ -1505,69 +1505,246 @@ describe("PUT /api/episodes/:id/glossary", () => {
   });
 });
 
-describe("逆向きの置換規則", () => {
-  async function episodeWithRule(from: string, to: string) {
-    const { id } = await createTestEpisode({ title: "Reversed Rule" });
+/** 生データを置く。行は 10 秒おきに並べる */
+async function putRawLines(storageKey: string, lines: string[]) {
+  const data: TranscriptData = {
+    segments: lines.map((text, i) => ({ start: i * 10, end: i * 10 + 5, text })),
+    language: "ja",
+  };
 
-    await SELF.fetch(`http://localhost/api/episodes/${id}/transcript/corrections`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ corrections: [{ from, to, general: false }] }),
-    });
+  await env.R2_BUCKET.put(
+    `episodes/${storageKey}/transcript.raw.json`,
+    JSON.stringify(data),
+    { httpMetadata: { contentType: "application/json" } }
+  );
+}
 
-    return id;
-  }
+async function publishedLines(storageKey: string): Promise<string[]> {
+  const obj = await env.R2_BUCKET.get(`episodes/${storageKey}/transcript.json`);
+  return (JSON.parse(await obj!.text()) as TranscriptData).segments.map((s) => s.text);
+}
 
-  async function rulesOf(id: string) {
+function registerCorrections(id: string, corrections: unknown[]) {
+  return SELF.fetch(`http://localhost/api/episodes/${id}/transcript/corrections`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ corrections }),
+  });
+}
+
+describe("この回かぎりの修正は場所を決めて当てる", () => {
+  async function savedRules(id: string) {
     const episode = (await (
       await SELF.fetch(`http://localhost/api/episodes/${id}`)
-    ).json()) as { transcriptCorrections?: Array<{ from: string; to: string }> };
+    ).json()) as {
+      transcriptCorrections?: Array<{
+        from: string;
+        to: string;
+        source?: string;
+        anchor?: { start: number; end: number; before: string; after: string };
+      }>;
+    };
 
-    return (episode.transcriptCorrections ?? []).map((r) => `${r.from}→${r.to}`);
+    return episode.transcriptCorrections ?? [];
   }
 
-  it("逆向きの古い規則を外す", async () => {
-    // 取り直しで本文が変わると、前回「A → B」と直した箇所が今回「B → A」になる。
-    // 両方残すと整形の中で打ち消し合い、どちらも効かない
-    const id = await episodeWithRule("経験則", "加速度");
+  it("場所なしで届いた修正は、いまの本文で当たる全箇所に展開する", async () => {
+    const { id, storageKey } = await createTestEpisode({ title: "Anchor Expand" });
+    await putRawLines(storageKey, [
+      "経電数を測るセンサーを作りました。",
+      "それは便利そうですね。",
+      "経電数が分かると走り方が変わります。",
+    ]);
 
-    await SELF.fetch(`http://localhost/api/episodes/${id}/transcript/corrections`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        corrections: [{ from: "加速度", to: "経験則", general: false }],
-      }),
-    });
+    const response = await registerCorrections(id, [
+      { from: "経電数", to: "ケイデンス", general: false },
+    ]);
 
-    expect(await rulesOf(id)).toEqual(["加速度→経験則"]);
+    expect(await response.json()).toMatchObject({ anchored: 2, unmatched: 0 });
+    expect(await publishedLines(storageKey)).toEqual([
+      "ケイデンスを測るセンサーを作りました。",
+      "それは便利そうですね。",
+      "ケイデンスが分かると走り方が変わります。",
+    ]);
+
+    const rules = await savedRules(id);
+    expect(rules.map((r) => r.anchor?.start)).toEqual([0, 20]);
+    expect(rules[0].anchor).toMatchObject({ before: "", after: "を測るセンサーを" });
   });
 
-  it("関係のない規則は残す", async () => {
-    const id = await episodeWithRule("アサナ", "Asana");
+  it("at を付けた修正は、その時刻の行だけに当たる", async () => {
+    // 「コード → 高度」を回全体に当てると、正しい「コード」まで壊す
+    const { id, storageKey } = await createTestEpisode({ title: "Anchor At" });
+    await putRawLines(storageKey, [
+      "ファームウェアのコードを書き直しました。",
+      "スリープ中でも勝手に起きるんですよ。",
+      "わー、コードだな。",
+    ]);
 
-    await SELF.fetch(`http://localhost/api/episodes/${id}/transcript/corrections`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        corrections: [{ from: "加速度", to: "経験則", general: false }],
-      }),
-    });
+    await registerCorrections(id, [
+      { from: "コード", to: "高度", general: false, source: "human", at: { start: 20, end: 25 } },
+    ]);
 
-    expect(await rulesOf(id)).toEqual(["アサナ→Asana", "加速度→経験則"]);
+    expect(await publishedLines(storageKey)).toEqual([
+      "ファームウェアのコードを書き直しました。",
+      "スリープ中でも勝手に起きるんですよ。",
+      "わー、高度だな。",
+    ]);
+    expect(await savedRules(id)).toMatchObject([{ from: "コード", to: "高度", source: "human" }]);
   });
 
-  it("同じ規則を送り直しても消えない", async () => {
-    const id = await episodeWithRule("加速度", "経験則");
+  it("本文に当たる場所の無い修正は保存しない", async () => {
+    const { id, storageKey } = await createTestEpisode({ title: "Anchor Unmatched" });
+    await putRawLines(storageKey, ["今日は自転車の話をします。"]);
 
-    await SELF.fetch(`http://localhost/api/episodes/${id}/transcript/corrections`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        corrections: [{ from: "加速度", to: "経験則", general: false }],
-      }),
+    const response = await registerCorrections(id, [
+      { from: "加速度", to: "経験則", general: false },
+    ]);
+
+    expect(await response.json()).toMatchObject({ anchored: 0, unmatched: 1, episodeRules: 0 });
+    expect(await savedRules(id)).toEqual([]);
+  });
+
+  it("同じ修正を送り直しても二重にならない", async () => {
+    // 校正を同じ本文にもう一度回すと、前回と同じ直しが届く
+    const { id, storageKey } = await createTestEpisode({ title: "Anchor Resend" });
+    await putRawLines(storageKey, ["先も話したと思うんですけど。"]);
+
+    const correction = { from: "先も", to: "先ほども", general: false };
+    await registerCorrections(id, [correction]);
+    await registerCorrections(id, [correction]);
+
+    expect(await publishedLines(storageKey)).toEqual(["先ほども話したと思うんですけど。"]);
+    expect(await savedRules(id)).toHaveLength(1);
+  });
+
+  it("前の修正が作った本文を、あとの修正がさらに直せる", async () => {
+    // 校正は公開中の本文（前の修正が当たったあと）を読んで直しを挙げてくる
+    const { id, storageKey } = await createTestEpisode({ title: "Anchor Chain" });
+    await putRawLines(storageKey, ["もう一回、鉱山トレーニングみたいな感じで。"]);
+
+    await registerCorrections(id, [{ from: "鉱山", to: "高山", general: false }]);
+    await registerCorrections(id, [{ from: "高山", to: "高地", general: false }]);
+
+    expect(await publishedLines(storageKey)).toEqual([
+      "もう一回、高地トレーニングみたいな感じで。",
+    ]);
+  });
+
+  it("文字起こしが無ければ 400", async () => {
+    const { id } = await createTestEpisode({ title: "Anchor No Transcript" });
+
+    const response = await registerCorrections(id, [
+      { from: "加速度", to: "経験則", general: false },
+    ]);
+
+    expect(response.status).toBe(400);
+  });
+
+  it("取り直しで本文が変わった箇所の修正は失効し、逆向きの修正と打ち消し合わない", async () => {
+    // #281 で起きたこと。ある取り直しでは Whisper が「喜劇か喜劇か」と出し、別の
+    // 取り直しでは「悲劇か悲劇か」と出した。それぞれを直す規則が回全体の置換として
+    // 残り、最初から正しい「喜劇か悲劇か」が「悲劇か悲劇か」になって公開された
+    const { id, storageKey } = await createTestEpisode({
+      title: "Anchor Retake",
+      publishAt: new Date(Date.now() + 86400000).toISOString(),
+      skipTranscription: false,
     });
 
-    expect(await rulesOf(id)).toEqual(["加速度→経験則"]);
+    await putRawLines(storageKey, [
+      "リアクションで喜劇か喜劇かが定まる。",
+      "パニック障害とか不安障害とかは結構多い。",
+    ]);
+    await registerCorrections(id, [
+      { from: "喜劇か喜劇か", to: "喜劇か悲劇か", general: false },
+    ]);
+    expect((await publishedLines(storageKey))[0]).toBe("リアクションで喜劇か悲劇かが定まる。");
+
+    // 取り直し。今度は Whisper が逆に間違えた
+    await setEpisodeToTranscribing(storageKey, id);
+    await putRawLines(storageKey, [
+      "リアクションで悲劇か悲劇かが定まる。",
+      "パニック障害とか不安障害とかは結構多い。",
+    ]);
+    await SELF.fetch(`http://localhost/api/episodes/${id}/transcription-complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transcribeStatus: "completed", duration: 300 }),
+    });
+
+    // 前の本文についての修正は、新しい本文に合わないので消えている
+    expect(await savedRules(id)).toEqual([]);
+
+    await registerCorrections(id, [
+      { from: "悲劇か悲劇か", to: "喜劇か悲劇か", general: false },
+    ]);
+
+    // もう一度取り直し。今度は最初から正しい
+    await setEpisodeToTranscribing(storageKey, id);
+    await putRawLines(storageKey, [
+      "リアクションで喜劇か悲劇かが定まる。",
+      "パニック障害とか不安障害とかは結構多い。",
+    ]);
+    await SELF.fetch(`http://localhost/api/episodes/${id}/transcription-complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transcribeStatus: "completed", duration: 300 }),
+    });
+
+    expect(await publishedLines(storageKey)).toEqual([
+      "リアクションで喜劇か悲劇かが定まる。",
+      "パニック障害とか不安障害とかは結構多い。",
+    ]);
+  });
+
+  it("古い形の規則は、整形のやり直しで本文を変えずに場所つきへ書き直される", async () => {
+    const { id, storageKey } = await createTestEpisode({ title: "Anchor Legacy" });
+    await putRawLines(storageKey, [
+      "集中して不安って開発するのが気持ちいい。",
+      "それは便利そうですね。",
+      "パニック障害とか不安障害とかは結構多い。",
+    ]);
+
+    // 移行前のデータ: 回全体に当たる規則が meta に入っている
+    const metaKey = `episodes/${storageKey}/meta.json`;
+    const meta = JSON.parse(await (await env.R2_BUCKET.get(metaKey))!.text());
+    meta.transcriptCorrections = [{ from: "不安", to: "ぶあー", enabled: true, note: "擬態語" }];
+    await env.R2_BUCKET.put(metaKey, JSON.stringify(meta));
+
+    await SELF.fetch(`http://localhost/api/episodes/${id}/transcript/reprocess`, {
+      method: "POST",
+    });
+
+    // 本文は古い規則が当たっていたときのまま（壊れている箇所も含めて 1 文字も変えない）
+    expect(await publishedLines(storageKey)).toEqual([
+      "集中してぶあーって開発するのが気持ちいい。",
+      "それは便利そうですね。",
+      "パニック障害とかぶあー障害とかは結構多い。",
+    ]);
+
+    // 規則は 2 箇所それぞれへの修正になる
+    const rules = await savedRules(id);
+    expect(rules.map((r) => `${r.from}→${r.to}@${r.anchor?.start}`)).toEqual([
+      "不安→ぶあー@0",
+      "不安→ぶあー@20",
+    ]);
+
+    // 壊している側（不安障害）だけを、時刻を指定して外せる
+    const removed = await SELF.fetch(
+      `http://localhost/api/episodes/${id}/transcript/corrections`,
+      {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ from: "不安", at: 22 }),
+      }
+    );
+
+    expect(await removed.json()).toMatchObject({ removed: 1 });
+    expect(await publishedLines(storageKey)).toEqual([
+      "集中してぶあーって開発するのが気持ちいい。",
+      "それは便利そうですね。",
+      "パニック障害とか不安障害とかは結構多い。",
+    ]);
   });
 });
 
@@ -1575,15 +1752,13 @@ describe("DELETE /api/episodes/:id/transcript/corrections", () => {
   async function episodeWithRules(
     rules: Array<{ from: string; to: string }>
   ) {
-    const { id } = await createTestEpisode({ title: "Remove Rule" });
+    const { id, storageKey } = await createTestEpisode({ title: "Remove Rule" });
+    await putRawLines(storageKey, ["加速度とアサナとコンテクスト帳と手帳の話。"]);
 
-    await SELF.fetch(`http://localhost/api/episodes/${id}/transcript/corrections`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        corrections: rules.map((r) => ({ ...r, general: false })),
-      }),
-    });
+    await registerCorrections(
+      id,
+      rules.map((r) => ({ ...r, general: false }))
+    );
 
     return id;
   }
@@ -1618,9 +1793,9 @@ describe("DELETE /api/episodes/:id/transcript/corrections", () => {
   });
 
   it("to を省くとその from の規則をすべて外す", async () => {
+    // 「帳」は 1 行に 2 箇所あり、場所ごとに 1 件ずつ保存されている
     const id = await episodeWithRules([
       { from: "帳", to: "長" },
-      { from: "帳", to: "張" },
       { from: "アサナ", to: "Asana" },
     ]);
 

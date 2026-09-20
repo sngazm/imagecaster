@@ -452,11 +452,13 @@ episodes.post("/:id/transcription-complete", async (c) => {
 
       // 整形（セグメント統合・誤字修正）をかけて公開用の JSON と VTT を書き出す
       const settingsIndex = await getIndex(c.env);
+      // 新しい生データなので、前の本文についての修正は合うものだけを残す
       await saveRefined(
         c.env,
         meta,
         transcriptData,
-        settingsIndex.podcast.transcriptRefine
+        settingsIndex.podcast.transcriptRefine,
+        { newRaw: true }
       );
 
       meta.transcribeStatus = "completed";

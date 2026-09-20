@@ -77,6 +77,44 @@ export interface CorrectionRule {
 }
 
 /**
+ * この回かぎりの修正が当たる場所
+ *
+ * 修正は「ある時点の本文の、ある箇所についての判断」なので、その箇所だけに当てる。
+ * 以前は回全体の文字列置換だったため、取り直しをまたいで規則が積み上がり、正しい
+ * 本文を壊していた。#281 では `悲劇 → 喜劇` と `喜劇 → 悲劇` が別々の取り直しで
+ * 入り、最初から正しかった「喜劇か悲劇か」が「悲劇か悲劇か」になって公開された。
+ * `不安 → ぶあー`（「不安って開発する」用）は「不安障害」まで書き換えた。
+ */
+export interface CorrectionAnchor {
+  /** 当てる行の時刻（秒）。整形後の行の start〜end */
+  start: number;
+  end: number;
+  /**
+   * from の直前・直後の文字
+   *
+   * 同じ行に from が複数あるときの見分けと、取り直しで本文が変わったことの検出に使う。
+   * 前後まで含めて一致しなければ、その判断の対象だった本文はもう無いので当てない
+   */
+  before: string;
+  after: string;
+}
+
+/** 修正の出どころ。通読の名指しで確定したものは、あとの見直しで触らせない */
+export const CORRECTION_SOURCES = ["glossary", "review", "readback", "human"] as const;
+export type CorrectionSource = (typeof CORRECTION_SOURCES)[number];
+
+/**
+ * この回かぎりの修正
+ *
+ * anchor の無いものは古い形（回全体に当たる）。次の整形で、そのとき実際に
+ * 変えている箇所へ場所つきで書き直される。
+ */
+export interface EpisodeCorrectionRule extends CorrectionRule {
+  anchor?: CorrectionAnchor;
+  source?: CorrectionSource;
+}
+
+/**
  * 相槌の整形設定
  *
  * 「うんうんうんうんうんうん」のような相槌は実際にそう喋っていても、文字で読むと
@@ -331,7 +369,7 @@ export interface EpisodeMeta {
    * 番組全体の辞書に入れると誤爆するもの（「ソロスを」→「そろそろ」など）を、
    * このエピソードだけに当てる。番組全体の辞書のあとに適用する。
    */
-  transcriptCorrections?: CorrectionRule[] | null;
+  transcriptCorrections?: EpisodeCorrectionRule[] | null;
   /** トラックごとの音量（波形）。正解データ作成画面が読む */
   levelsUrl?: string | null;
 }
@@ -406,8 +444,13 @@ export interface TranscriptData {
   language?: string;
   /** いつ整形したか。この本文がどの時点の設定で作られたかを辿るため */
   refinedAt?: string;
-  /** 当てた置換規則の数（番組の辞書 / この回かぎり） */
-  appliedRules?: { dictionary: number; episode: number };
+  /**
+   * 当てた置換規則の数（番組の辞書 / この回かぎり）
+   *
+   * episodeUnmatched は、場所つきの修正のうち本文が合わず当たらなかった数。
+   * 設定を変えて行の形が変わったとき、取り直しで本文が変わったときに増える
+   */
+  appliedRules?: { dictionary: number; episode: number; episodeUnmatched?: number };
 }
 
 /**

@@ -8,6 +8,7 @@ import type {
   UploadProgress,
 } from "../lib/api";
 import { UploadProgressBar } from "./UploadProgressBar";
+import { formatClock } from "./TranscriptViewer";
 
 interface Props {
   episode: EpisodeDetail;
@@ -500,7 +501,8 @@ export function SpeakerTracksPanel({ episode, defaults, onUpdated }: Props) {
           <h3 className="text-sm font-medium mb-1">この回かぎりの修正</h3>
           <p className="text-xs text-[var(--color-text-muted)] mb-2">
             校正が見つけた、文脈に依る修正です。番組全体の辞書に入れると他の回で
-            誤爆するため、このエピソードにだけ当てています。
+            誤爆するため、このエピソードの、その時刻の 1 箇所にだけ当てています。
+            取り直しで本文が変わった箇所の修正は失効します。
           </p>
           <ul className="space-y-1">
             {episode.transcriptCorrections.map((rule, index) => (
@@ -508,6 +510,11 @@ export function SpeakerTracksPanel({ episode, defaults, onUpdated }: Props) {
                 key={`${rule.from}-${index}`}
                 className="text-xs font-mono flex items-baseline gap-2"
               >
+                {rule.anchor && (
+                  <span className="text-[var(--color-text-muted)] tabular-nums">
+                    {formatClock(rule.anchor.start)}
+                  </span>
+                )}
                 <span className="text-[var(--color-text-muted)]">{rule.from}</span>
                 <span className="text-[var(--color-text-muted)]">→</span>
                 <span>{rule.to}</span>

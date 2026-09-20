@@ -2,6 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   mergeSegments,
   applyCorrections,
+  applyEpisodeCorrections,
+  anchorIncomingCorrections,
+  refineDetailed,
   removeHallucinations,
   dropStandaloneBackchannels,
   removeFillers,
@@ -1176,5 +1179,186 @@ describe("applyCorrections: 規則が連鎖する場合", () => {
     );
 
     expect(result.applied[0].count).toBe(1);
+  });
+});
+
+describe("この回かぎりの修正（場所つき）", () => {
+  const line = (start: number, text: string): TranscriptSegment => ({
+    start,
+    end: start + 5,
+    text,
+  });
+
+  it("古い形の規則を、本文を変えずに場所つきへ書き直す", () => {
+    const segments = [
+      line(0, "集中して不安って開発する。"),
+      line(10, "鉱山トレーニングみたいな感じ。"),
+      line(20, "パニック障害とか不安障害とか。"),
+    ];
+    const legacy = [
+      { from: "不安", to: "ぶあー", enabled: true, note: "擬態語" },
+      // 連鎖。別々の校正が順に足したもの
+      { from: "鉱山", to: "高山", enabled: true },
+      { from: "高山", to: "高地", enabled: true },
+    ];
+
+    const before = applyCorrections(segments, legacy).segments.map((s) => s.text);
+    const result = applyEpisodeCorrections(segments, legacy);
+
+    expect(result.segments.map((s) => s.text)).toEqual(before);
+    expect(result.unmatched).toEqual([]);
+
+    // 連鎖は 1 つの修正に畳まれる
+    expect(result.rules.map((r) => `${r.from}→${r.to}`)).toEqual([
+      "不安→ぶあー",
+      "鉱山→高地",
+      "不安→ぶあー",
+    ]);
+    expect(result.rules.every((r) => r.anchor)).toBe(true);
+    expect(result.rules[0].note).toBe("擬態語");
+
+    // 書き直したものをもう一度通しても同じ結果になる（保存して読み直した状態）
+    const again = applyEpisodeCorrections(segments, result.rules);
+    expect(again.segments.map((s) => s.text)).toEqual(before);
+    expect(again.rules).toEqual(result.rules);
+  });
+
+  it("挿入だけ・削除だけの直しも、空でない from と to になる", () => {
+    const segments = [line(0, "先も話したと思うんですけど。"), line(10, "深井 そうなんですよ。")];
+    const legacy = [
+      { from: "先も話したと思う", to: "先も話したとおりだと思う", enabled: true },
+      { from: "深井 そう", to: "そう", enabled: true },
+    ];
+
+    const result = applyEpisodeCorrections(segments, legacy);
+
+    expect(result.segments.map((s) => s.text)).toEqual([
+      "先も話したとおりだと思うんですけど。",
+      "そうなんですよ。",
+    ]);
+    expect(result.rules.every((r) => r.from !== "" && r.to !== "")).toBe(true);
+  });
+
+  it("前後の文字まで一致しなければ当てない", () => {
+    // 取り直しで、同じ時刻の本文が最初から正しくなった
+    const rule = {
+      from: "喜劇",
+      to: "悲劇",
+      enabled: true,
+      anchor: { start: 0, end: 5, before: "喜劇か", after: "が定まる" },
+    };
+
+    const result = applyEpisodeCorrections([line(0, "喜劇か悲劇かが定まる。")], [rule]);
+
+    expect(result.segments[0].text).toBe("喜劇か悲劇かが定まる。");
+    expect(result.unmatched).toEqual([rule]);
+  });
+
+  it("同じ語が同じ行に 2 つあっても、決めた 1 箇所だけに当たる", () => {
+    const rule = {
+      from: "コード",
+      to: "高度",
+      enabled: true,
+      anchor: { start: 0, end: 5, before: "わー、", after: "だな。" },
+    };
+
+    const result = applyEpisodeCorrections(
+      [line(0, "コードを見せたら、わー、コードだな。って。")],
+      [rule]
+    );
+
+    expect(result.segments[0].text).toBe("コードを見せたら、わー、高度だな。って。");
+  });
+
+  it("時刻の離れた行には当たらない", () => {
+    const rule = {
+      from: "コード",
+      to: "高度",
+      enabled: true,
+      anchor: { start: 0, end: 5, before: "", after: "だな。" },
+    };
+
+    const result = applyEpisodeCorrections(
+      [line(0, "そうですね。"), line(600, "コードだな。")],
+      [rule]
+    );
+
+    expect(result.segments[1].text).toBe("コードだな。");
+    expect(result.unmatched).toHaveLength(1);
+  });
+
+  it("統合の境界が動いて行の時刻が変わっても、重なっていれば当たる", () => {
+    const rule = {
+      from: "経電数",
+      to: "ケイデンス",
+      enabled: true,
+      anchor: { start: 12, end: 17, before: "これ", after: "って" },
+    };
+
+    // 前の行と繋がって 1 行になった
+    const result = applyEpisodeCorrections(
+      [line(0, "回転数だけはセンサーが要る。"), { start: 6, end: 17, text: "測れないから。これ経電数って言うんですけど。" }],
+      [rule]
+    );
+
+    expect(result.segments[1].text).toBe("測れないから。これケイデンスって言うんですけど。");
+  });
+
+  it("無効にした修正は当てず、失効にも数えない", () => {
+    const rule = {
+      from: "コード",
+      to: "高度",
+      enabled: false,
+      anchor: { start: 0, end: 5, before: "", after: "だな。" },
+    };
+
+    const result = applyEpisodeCorrections([line(0, "コードだな。")], [rule]);
+
+    expect(result.segments[0].text).toBe("コードだな。");
+    expect(result.unmatched).toEqual([]);
+    expect(result.rules).toEqual([rule]);
+  });
+
+  it("届いた修正は長いものから場所を決め、to が from を含んでも繰り返さない", () => {
+    const segments = [line(0, "先も話したと思う。バントウに頼んだ。")];
+
+    const result = anchorIncomingCorrections(segments, [
+      { from: "バント", to: "番頭" },
+      { from: "バントウ", to: "番頭" },
+      { from: "話したと", to: "話したとおりだと" },
+    ]);
+
+    expect(result.segments[0].text).toBe("先も話したとおりだと思う。番頭に頼んだ。");
+    expect(result.rules.map((r) => r.from)).toEqual(["バントウ", "話したと"]);
+    expect(result.unmatched.map((r) => r.from)).toEqual(["バント"]);
+
+    // 保存した順に当て直すと同じ本文になる
+    const replay = applyEpisodeCorrections(segments, result.rules);
+    expect(replay.segments[0].text).toBe(result.segments[0].text);
+    expect(replay.unmatched).toEqual([]);
+  });
+
+  it("refine は辞書のあとに、この回かぎりの修正を決めた場所へ当てる", () => {
+    const { data, episode } = refineDetailed(
+      { segments: [line(0, "クロードにコードを見せた。"), line(10, "わー、コードだな。")] },
+      {
+        merge: { enabled: false, maxGapSec: null, maxDurationSec: 10, maxChars: 200 },
+        corrections: [{ from: "クロード", to: "Claude", enabled: true }],
+        episodeCorrections: [
+          {
+            from: "コード",
+            to: "高度",
+            enabled: true,
+            anchor: { start: 10, end: 15, before: "わー、", after: "だな。" },
+          },
+        ],
+      }
+    );
+
+    expect(data.segments.map((s) => s.text)).toEqual([
+      "Claudeにコードを見せた。",
+      "わー、高度だな。",
+    ]);
+    expect(episode.applied).toBe(1);
   });
 });

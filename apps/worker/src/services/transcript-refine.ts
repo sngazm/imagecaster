@@ -11,8 +11,11 @@ import type {
   BackchannelSettings,
   CorrectionProposal,
   FillerSettings,
+  CorrectionAnchor,
   CorrectionRule,
+  CorrectionSource,
   Env,
+  EpisodeCorrectionRule,
   EpisodeMeta,
   HallucinationSettings,
   MergeSettings,
@@ -54,8 +57,8 @@ export interface RefineOptions {
   corrections?: CorrectionRule[];
   hallucination?: Partial<HallucinationSettings>;
   backchannel?: Partial<BackchannelSettings>;
-  /** この回かぎりの修正。番組全体の辞書のあとに当てる */
-  episodeCorrections?: CorrectionRule[];
+  /** この回かぎりの修正。番組全体の辞書のあとに、場所を決めて当てる */
+  episodeCorrections?: EpisodeCorrectionRule[];
   filler?: Partial<FillerSettings>;
 }
 
@@ -342,6 +345,273 @@ export function applyCorrections(
     }));
 
   return { segments: replaced, applied };
+}
+
+/** from の前後から控えておく文字数 */
+const ANCHOR_CONTEXT_CHARS = 8;
+
+/**
+ * 場所つきの修正を探すとき、行の時刻のずれをどこまで許すか（秒）
+ *
+ * 設定を変えると統合の境界が動き、取り直すと Whisper の時刻が少しずれる。
+ * 前後の文字まで一致しないと当てないので、広めに取っても別の箇所には当たらない。
+ */
+const ANCHOR_TIME_TOLERANCE_SEC = 2;
+
+export interface EpisodeCorrectionResult {
+  segments: TranscriptSegment[];
+  /** 場所つきに直した規則。古い形は変換済みなので、meta にはこれを書き戻す */
+  rules: EpisodeCorrectionRule[];
+  /** 当たった数 */
+  applied: number;
+  /** 本文が合わず当たらなかった規則 */
+  unmatched: EpisodeCorrectionRule[];
+}
+
+/** 登録に届いた修正。at があればその時刻の行だけ、無ければいまの本文で当たる全箇所 */
+export interface IncomingCorrection {
+  from: string;
+  to: string;
+  note?: string;
+  source?: CorrectionSource;
+  at?: { start: number; end: number };
+}
+
+function overlapsInTime(
+  segment: TranscriptSegment,
+  range: { start: number; end: number }
+): boolean {
+  return (
+    segment.end >= range.start - ANCHOR_TIME_TOLERANCE_SEC &&
+    segment.start <= range.end + ANCHOR_TIME_TOLERANCE_SEC
+  );
+}
+
+function anchorAt(segment: TranscriptSegment, index: number, length: number): CorrectionAnchor {
+  return {
+    start: segment.start,
+    end: segment.end,
+    before: segment.text.slice(Math.max(0, index - ANCHOR_CONTEXT_CHARS), index),
+    after: segment.text.slice(index + length, index + length + ANCHOR_CONTEXT_CHARS),
+  };
+}
+
+function replaceAt(text: string, index: number, from: string, to: string): string {
+  return text.slice(0, index) + to + text.slice(index + from.length);
+}
+
+/**
+ * 行の中で実際に変わった範囲を取り出す
+ *
+ * 両端の共通部分を除いた真ん中。1 行に離れた直しが 2 つあると間も含むが、
+ * その行のその形にしか当たらなくなるだけで、結果は変わらない。
+ */
+function changedSpan(
+  before: string,
+  after: string
+): { index: number; from: string; to: string } | null {
+  if (before === after) {
+    return null;
+  }
+
+  const max = Math.min(before.length, after.length);
+
+  let head = 0;
+  while (head < max && before[head] === after[head]) head++;
+
+  let tail = 0;
+  while (
+    tail < max - head &&
+    before[before.length - 1 - tail] === after[after.length - 1 - tail]
+  ) {
+    tail++;
+  }
+
+  // 挿入だけ・削除だけの直しは from か to が空になる。空の from は場所が定まらず、
+  // 空の to は登録の検査を通らないので、隣の文字を含める
+  while (
+    (before.length - tail - head === 0 || after.length - tail - head === 0) &&
+    (head > 0 || tail > 0)
+  ) {
+    if (head > 0) head--;
+    else tail--;
+  }
+
+  // サロゲートペアの途中で切らない
+  const isHigh = (code: number) => code >= 0xd800 && code <= 0xdbff;
+  if (head > 0 && isHigh(before.charCodeAt(head - 1))) head--;
+  if (tail > 0 && isHigh(before.charCodeAt(before.length - tail - 1))) tail--;
+
+  const from = before.slice(head, before.length - tail);
+  const to = after.slice(head, after.length - tail);
+
+  return from && to ? { index: head, from, to } : null;
+}
+
+/**
+ * 古い形（回全体に当たる）の規則を、いま実際に変えている箇所への修正に書き直す
+ *
+ * 古い規則を当てた結果をそのまま写すので、本文は 1 文字も変わらない。変わるのは
+ * これから先で、取り直しで本文が変わった箇所には当たらなくなり、別の取り直しで
+ * 入った逆向きの規則と打ち消し合うこともなくなる。
+ */
+export function anchorLegacyCorrections(
+  segments: TranscriptSegment[],
+  legacy: EpisodeCorrectionRule[]
+): EpisodeCorrectionRule[] {
+  if (legacy.length === 0) {
+    return [];
+  }
+
+  const { segments: replaced } = applyCorrections(segments, legacy);
+  const anchored: EpisodeCorrectionRule[] = [];
+
+  segments.forEach((segment, i) => {
+    const span = changedSpan(segment.text, replaced[i].text);
+    if (!span) return;
+
+    // 理由は、この行に当たった規則のものを引き継ぐ。連鎖の 2 段目（高山 → 高地）は
+    // 元の本文に from が無いので、直したあとの本文に to があるかでも探す
+    const fired =
+      legacy.find((rule) => segment.text.includes(rule.from)) ??
+      legacy.find((rule) => replaced[i].text.includes(rule.to));
+
+    anchored.push({
+      from: span.from,
+      to: span.to,
+      enabled: true,
+      note: fired?.note,
+      source: fired?.source,
+      anchor: anchorAt(segment, span.index, span.from.length),
+    });
+  });
+
+  return anchored;
+}
+
+/** 場所つきの修正が当たる行と位置を探す。時刻が近い行から見て、前後の文字まで一致する最初の箇所 */
+function findAnchored(
+  segments: TranscriptSegment[],
+  rule: EpisodeCorrectionRule & { anchor: CorrectionAnchor }
+): { segment: number; index: number } | null {
+  const { anchor } = rule;
+  const needle = anchor.before + rule.from + anchor.after;
+
+  const candidates = segments
+    .map((segment, i) => ({ segment, i }))
+    .filter(({ segment }) => overlapsInTime(segment, anchor))
+    .sort(
+      (a, b) =>
+        Math.abs(a.segment.start - anchor.start) - Math.abs(b.segment.start - anchor.start)
+    );
+
+  for (const { segment, i } of candidates) {
+    const found = segment.text.indexOf(needle);
+    if (found !== -1) {
+      return { segment: i, index: found + anchor.before.length };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * この回かぎりの修正を当てる
+ *
+ * 保存されている順に、それぞれ決まった 1 箇所だけに当てる。順に当てるので、前の修正が
+ * 作った本文をさらに直す連鎖（鉱山 → 高山 → 高地）はそのまま動く。前後の文字まで
+ * 一致しない修正は当てない。その判断の対象だった本文がもう無いということなので。
+ */
+export function applyEpisodeCorrections(
+  segments: TranscriptSegment[],
+  rules: EpisodeCorrectionRule[]
+): EpisodeCorrectionResult {
+  const working = segments.map((segment) => ({ ...segment }));
+
+  const legacy = rules.filter((rule) => !rule.anchor && rule.enabled && rule.from);
+  const ordered = [
+    ...anchorLegacyCorrections(working, legacy),
+    ...rules.filter((rule) => !legacy.includes(rule)),
+  ];
+
+  const unmatched: EpisodeCorrectionRule[] = [];
+  let applied = 0;
+
+  for (const rule of ordered) {
+    if (!rule.enabled || !rule.anchor) continue;
+
+    const hit = findAnchored(working, { ...rule, anchor: rule.anchor });
+    if (!hit) {
+      unmatched.push(rule);
+      continue;
+    }
+
+    const target = working[hit.segment];
+    target.text = replaceAt(target.text, hit.index, rule.from, rule.to);
+    applied++;
+  }
+
+  return { segments: working, rules: ordered, applied, unmatched };
+}
+
+/**
+ * 届いた修正に場所を付ける
+ *
+ * `segments` は、既にある修正まで当てた**いまの本文**。校正はこの本文を読んで直しを
+ * 挙げてくるので、from はここから探す。
+ *
+ * at の無い修正は、いまの本文で当たる全箇所に展開する。「経電数 → ケイデンス」を
+ * 1 行で見つければ同じ回の 10 箇所が直る、という利点は残しつつ、次の取り直しの
+ * 本文には持ち越さない。
+ *
+ * 長い修正から当て、変化がなくなるまで繰り返すのは applyCorrections と同じ理由。
+ */
+export function anchorIncomingCorrections(
+  segments: TranscriptSegment[],
+  incoming: IncomingCorrection[]
+): { segments: TranscriptSegment[]; rules: EpisodeCorrectionRule[]; unmatched: IncomingCorrection[] } {
+  const working = segments.map((segment) => ({ ...segment }));
+  const sorted = [...incoming].sort((a, b) => b.from.length - a.from.length);
+
+  const rules: EpisodeCorrectionRule[] = [];
+  const matched = new Set<IncomingCorrection>();
+
+  for (let pass = 0; pass < CORRECTION_MAX_PASSES; pass++) {
+    const before = rules.length;
+
+    for (const correction of sorted) {
+      // to が from を含む修正は、自分の直した結果にもう一度当たる
+      if (pass > 0 && correction.to.includes(correction.from)) continue;
+
+      for (const segment of working) {
+        if (correction.at && !overlapsInTime(segment, correction.at)) continue;
+
+        let index = segment.text.indexOf(correction.from);
+        while (index !== -1) {
+          rules.push({
+            from: correction.from,
+            to: correction.to,
+            enabled: true,
+            note: correction.note,
+            source: correction.source,
+            anchor: anchorAt(segment, index, correction.from.length),
+          });
+          matched.add(correction);
+
+          segment.text = replaceAt(segment.text, index, correction.from, correction.to);
+          index = segment.text.indexOf(correction.from, index + correction.to.length);
+        }
+      }
+    }
+
+    if (rules.length === before) break;
+  }
+
+  return {
+    segments: working,
+    rules,
+    unmatched: sorted.filter((correction) => !matched.has(correction)),
+  };
 }
 
 /**
@@ -897,6 +1167,19 @@ export function refine(
   data: TranscriptData,
   options: RefineOptions = {}
 ): TranscriptData {
+  return refineDetailed(data, options).data;
+}
+
+/**
+ * 整形して、この回かぎりの修正がどう当たったかも返す
+ *
+ * `episode.segments` は、この回かぎりの修正まで当てた本文（相槌だけの行を最後に
+ * 落とす前）。新しく届いた修正は、この本文から from を探して場所を決める。
+ */
+export function refineDetailed(
+  data: TranscriptData,
+  options: RefineOptions = {}
+): { data: TranscriptData; episode: EpisodeCorrectionResult } {
   const hallucination = {
     ...DEFAULT_HALLUCINATION_SETTINGS,
     ...options.hallucination,
@@ -955,17 +1238,19 @@ export function refine(
   // 1 文字も変わらなかったので外した。行をまたぐ処理（統合）の前と、読者が見る
   // 最終形の 2 回だけにする
   // 番組全体の辞書を当ててから、この回かぎりの修正を当てる。
-  // 全体の辞書に入れると誤爆するものを、ここで拾う
+  // 全体の辞書に入れると誤爆するものを、ここで拾う。辞書はどこにでも当たるが、
+  // この回かぎりの修正は決まった 1 箇所にだけ当たる
   const { segments: corrected } = applyCorrections(cleared, options.corrections ?? []);
-  const { segments: replaced } = applyCorrections(corrected, options.episodeCorrections ?? []);
+  const episode = applyEpisodeCorrections(corrected, options.episodeCorrections ?? []);
+  const replaced = episode.segments;
   // 読者が見る最終形で落とす。ここまでの各段が新しく「相槌だけの行」を生む。
   // 置換で行頭の幻覚（「深井 はいはいはい。」の「深井 」）が剥がれると残るのが
   // 相槌だけになり、#286 ではこれが「はいはいはい。」として公開まで通った
   const { segments } = dropStandaloneBackchannels(replaced, backchannel);
 
   return {
-    ...data,
-    segments,
+    data: { ...data, segments },
+    episode,
   };
 }
 
@@ -1442,17 +1727,49 @@ export async function saveRefined(
   env: Env,
   meta: EpisodeMeta,
   raw: TranscriptData,
-  settings: TranscriptRefineSettings | undefined
+  settings: TranscriptRefineSettings | undefined,
+  options: {
+    /**
+     * 生データが新しく届いた（取り直し）
+     *
+     * この回かぎりの修正は前の本文についての判断なので、新しい本文で前後の文字まで
+     * 一致するものだけを残す。古い形（回全体に当たる）の規則は、新しい本文のどこに
+     * 当たるべきかが分からないので捨てる。取り直しのあとは校正がもう一度走る。
+     */
+    newRaw?: boolean;
+  } = {}
 ): Promise<{
   segments: number;
   applied: AppliedCorrection[];
   changed: number | null;
+  /** この回かぎりの修正のうち、本文が合わず当たらなかった数 */
+  episodeUnmatched: number;
 }> {
   const keys = transcriptKeys(meta.storageKey);
 
+  if (options.newRaw && meta.transcriptCorrections) {
+    const kept = meta.transcriptCorrections.filter((rule) => rule.anchor);
+    const dropped = meta.transcriptCorrections.length - kept.length;
+    if (dropped > 0) {
+      console.log(`[refine] ${meta.id}: 取り直しのため、古い形の規則 ${dropped} 件を捨てます`);
+    }
+    meta.transcriptCorrections = kept.length > 0 ? kept : null;
+  }
+
   // パイプライン全体を通す。ここで mergeSegments と applyCorrections だけを
   // 直接呼んでいたため、ハルシネーション除去と相槌の整形が効いていなかった。
-  const processed = refine(raw, toRefineOptions(settings, meta));
+  const { data: processed, episode } = refineDetailed(raw, toRefineOptions(settings, meta));
+
+  // 古い形の規則は場所つきに書き直されているので、それを保存させる（保存は呼び出し側）。
+  // 取り直しのときは、新しい本文に合わなかったものを失効させる
+  const unmatched = new Set(episode.unmatched);
+  const nextRules = options.newRaw
+    ? episode.rules.filter((rule) => !unmatched.has(rule))
+    : episode.rules;
+  if (options.newRaw && unmatched.size > 0) {
+    console.log(`[refine] ${meta.id}: 本文が変わったため、修正 ${unmatched.size} 件が失効しました`);
+  }
+  meta.transcriptCorrections = nextRules.length > 0 ? nextRules : null;
 
   // どの置換が何回効いたかは呼び出し側に返す（統合後のテキストに対して数える）
   const merged = mergeSegments(raw.segments, settings?.merge);
@@ -1470,9 +1787,8 @@ export async function saveRefined(
     appliedRules: {
       dictionary: (settings?.corrections ?? []).filter((r) => r.enabled !== false)
         .length,
-      episode: (meta.transcriptCorrections ?? []).filter(
-        (r) => r.enabled !== false
-      ).length,
+      episode: episode.applied,
+      episodeUnmatched: options.newRaw ? 0 : episode.unmatched.length,
     },
   };
 
@@ -1494,7 +1810,12 @@ export async function saveRefined(
     );
   }
 
-  return { segments: segments.length, applied, changed: diff?.changed ?? null };
+  return {
+    segments: segments.length,
+    applied,
+    changed: diff?.changed ?? null,
+    episodeUnmatched: episode.unmatched.length,
+  };
 }
 
 /**
@@ -1510,6 +1831,7 @@ export async function refineAndSave(
   segments: number;
   applied: AppliedCorrection[];
   changed: number | null;
+  episodeUnmatched: number;
 } | null> {
   const raw = await getRawTranscript(env, meta.storageKey);
 
