@@ -352,17 +352,74 @@ uv run python scripts/timeline-parity.py 下書き.json          # いつ何が�
 ## 投稿
 
 Cron（5 分おき）が `clipPostIds` を見て、`status` が `rendered` で `publishAt` を
-過ぎたものを投稿する。投稿先ごとに結果を `meta.posts` に残し、失敗した先だけ次の回で
-やり直す。1 つの失敗で他の投稿先を止めない。
+過ぎたものを投稿する（`services/clip-posts.ts`）。投稿先ごとに結果を `meta.posts` に残し、
+失敗した先だけ次の回でやり直す。1 つの失敗で他の投稿先を止めない。5 回失敗したら諦め、
+人がやり直しを指示するまで試さない。
 
-| 投稿先 | 既定のレイアウト |
-|---|---|
-| X | 横 |
-| Bluesky | 正方形 |
-| YouTube Shorts | 縦 |
-| Instagram（Reels） | 縦 |
+動画を上げてから向こうの処理が済むまで待つ投稿先は、1 回の Cron では終わらない。途中経過
+（`posts[先].state`）を控えて、次の回が続きからやる。骨組みは投稿先を知らない。投稿先ごとの
+手順は `Poster` に閉じ込め、`index.ts` で登録する。登録の無い投稿先には Worker は触らない。
 
-認証の持ち方と各 API の制約は、実装するときに公式の文書で確かめてここに書き足す。
+| 投稿先 | 既定のレイアウト | 出し方 |
+|---|---|---|
+| Bluesky | 正方形 | Worker から。実装済み（`clip-post-bluesky.ts`） |
+| Instagram（Reels） | 縦 | Worker から出せる見込み。未実装 |
+| YouTube Shorts | 縦 | Worker から上げられるが、下の関門がある。未実装 |
+| X | 横 | 未定（下を参照） |
+
+以下は 2026-09-20 に公式の文書を読んで確かめたこと。実装する前に、原文をもう一度見ること。
+
+### Bluesky
+
+- アプリパスワードで動画を上げられる。アカウントのメール確認が済んでいること
+- サービス認証（`com.atproto.server.getServiceAuth`）の `aud` は動画サービスではなく**自分の PDS**
+  （`did:web:<PDS のホスト>`）、`lxm` は `com.atproto.repo.uploadBlob`、`exp` は**整数**で 1 時間以内
+- `video.bsky.app` の `app.bsky.video.uploadVideo` に `Content-Length` つきで送る。Workers では
+  R2 のストリームを `FixedLengthStream` に通す（そのまま渡すと chunked になる）
+- 処理の状況（`getJobStatus`）は認証なしで聞ける。`already_exists` のエラーでも blob が返るので、
+  成否より先に blob の有無を見る
+- 上限 300MB。1 日 25 本 / 10GB（`getUploadLimits` で残りが分かる）。本文は 300 書記素。
+  リンクは自動では付かないので facet を付ける。動画とリンクカードは同時に付けられない
+- 出典: bluesky-social/bsky-docs `docs/tutorials/video.mdx`、atproto `lexicons/app/bsky/video/`
+
+### Instagram（Reels）
+
+- プロアカウント（ビジネス / クリエイター）が要る。**自分のアカウントにだけ出すなら、アプリ審査も
+  ビジネス認証も要らない**（Instagram Login の系統、Standard Access）
+- `POST /{ig-id}/media`（`media_type=REELS`、`video_url`）→ `status_code` が `FINISHED` になるのを待つ
+  （公式の目安は 1 分おき・5 分まで）→ `POST /{ig-id}/media_publish`。コンテナは 24 時間で失効
+- `video_url` は**公開 URL**。向こうが取りに来る。R2 の公開 URL で足りる
+- 動画は moov atom が先頭（`+faststart`）、H.264、AAC 48kHz 以下、3 秒〜15 分、300MB まで
+- トークンは 60 日。24 時間たてば更新でき、更新でまた 60 日。**放置して切れると人手で再発行**。
+  Worker の secret は Worker から書き換えられないので、トークンは R2 に持つ
+- 未確認: 開発モードのまま出した投稿が、アプリにロールを持たない人から見えるか。最初の 1 本を
+  出して、ログアウトしたブラウザから確かめること
+- 出典: developers.facebook.com `docs/instagram-platform/content-publishing`、`…/app-review`
+
+### YouTube Shorts
+
+- **2020-07-28 より後に作った API プロジェクトは、審査（compliance audit）を通るまで、API から上げた
+  動画が非公開に固定される。** これから作るプロジェクトは必ず当たる。OAuth の同意画面の審査とは別物。
+  申請は「YouTube API Services - Audit and Quota Extension Form」。個人でも出せるが、期間は書かれていない
+- OAuth の同意画面を「Testing」のままにすると、リフレッシュトークンが 7 日で切れる。
+  「In production」（個人利用・未検証）か、Workspace の「Internal」にする
+- アップロードは resumable upload。`videos.insert` は専用の枠で 1 日 100 回（2026-06-01 から）
+- Shorts かどうかは API では指定できない。3 分以内で、正方形か縦長なら YouTube が判定する
+- 先に非公開で上げて `status.publishAt` で予約公開できる（処理が公開時刻までに終わる）。ただし上の
+  固定が掛かっていると、公開されない可能性が高い
+- 出典: developers.google.com `youtube/v3/docs/videos/insert`、`…/guides/quota_and_compliance_audits`
+
+### X
+
+- **API を使わない自動操作は、X の自動化ルールが名指しで禁じている。**
+  「Use non-API-based forms of automation, such as scripting the X website. The use of these techniques
+  may result in the permanent suspension of your account.」（X Automation Rules）
+- API は従量課金だけになっている。ポスト 1 件 $0.015、URL を含むと $0.20（2026-04-16 改定）。
+  動画のアップロード自体に課金の行は無い
+- Web 版の予約投稿は、人が使うぶんには制限の記載が無い
+- 動画は非 Premium で 140 秒 / 512MB。解像度の上限は 1920x1200 と 1200x1900 と書かれていて、
+  縦 1080x1920 は文面上これを越える（実際に弾かれるかは未確認）
+- 出典: help.x.com `rules-and-policies/x-automation`、docs.x.com `x-api/getting-started/pricing`
 
 ## 作る順番
 

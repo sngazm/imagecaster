@@ -14,12 +14,17 @@ import { spotify } from "./routes/spotify";
 import { debug } from "./routes/debug";
 import { transcriptionQueue, transcriptionEpisodes } from "./routes/transcription";
 import { clips, pendingClips } from "./routes/clips";
+import { handleClipPosts, registerPoster } from "./services/clip-posts";
+import { postClipToBluesky } from "./services/clip-post-bluesky";
 import { reviewCards, pendingReviewCards } from "./routes/review-cards";
 import { getIndex, saveIndex, findEpisodeBySlug, saveEpisodeMeta, syncPublishedIndex } from "./services/r2";
 import { regenerateFeed } from "./services/feed";
 import { postEpisodeToBluesky } from "./services/bluesky";
 import { triggerWebRebuild } from "./services/deploy";
 import { refineAndSave } from "./services/transcript-refine";
+
+// 切り抜きの投稿先のうち、Worker から出すもの
+registerPoster("bluesky", postClipToBluesky);
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -432,6 +437,12 @@ export default {
       await handlePendingWebRebuild(env);
     } catch (err) {
       console.error("[Cron] Web rebuild error:", err);
+    }
+    // 描き終わった切り抜きを、予定の時刻に投稿する
+    try {
+      await handleClipPosts(env);
+    } catch (err) {
+      console.error("[Cron] Clip posts error:", err);
     }
     console.log("[Cron] Scheduled task complete");
   },

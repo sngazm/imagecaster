@@ -15,6 +15,7 @@ import type {
 import {
   CLIP_DEFAULT_SPEED,
   CLIP_LAYOUTS,
+  CLIP_POST_MAX_ATTEMPTS,
   CLIP_POST_TARGETS,
   CLIP_SPEED_RANGE,
 } from "../types";
@@ -38,7 +39,7 @@ import {
  * 詳しくは docs/clip-viewer-spec.md を参照。
  */
 
-const clipsPrefix = (storageKey: string) => `episodes/${storageKey}/clips`;
+export const clipsPrefix = (storageKey: string) => `episodes/${storageKey}/clips`;
 
 async function readJson<T>(env: Env, key: string): Promise<T | null> {
   const obj = await env.R2_BUCKET.get(key);
@@ -82,7 +83,7 @@ function normalize(clip: ClipMeta): ClipMeta {
   };
 }
 
-async function readClip(env: Env, storageKey: string, clipId: string): Promise<ClipMeta | null> {
+export async function readClip(env: Env, storageKey: string, clipId: string): Promise<ClipMeta | null> {
   const clip = await readJson<ClipMeta>(env, `${clipsPrefix(storageKey)}/${clipId}/meta.json`);
   return clip ? normalize(clip) : null;
 }
@@ -111,7 +112,12 @@ async function refreshIndex(env: Env, storageKey: string, meta: ClipMeta): Promi
 /** まだ出していない投稿先があるか */
 function hasUnposted(clip: ClipMeta): boolean {
   if (!clip.publishAt) return false;
-  return CLIP_POST_TARGETS.some((t) => clip.posts[t].enabled && !clip.posts[t].postedAt);
+  return CLIP_POST_TARGETS.some(
+    (t) =>
+      clip.posts[t].enabled &&
+      !clip.posts[t].postedAt &&
+      (clip.posts[t].attempts ?? 0) < CLIP_POST_MAX_ATTEMPTS
+  );
 }
 
 const waitsForRender = (clip: ClipMeta) => clip.status === "approved";
@@ -147,7 +153,7 @@ async function syncQueues(env: Env, clip: ClipMeta): Promise<void> {
   await saveIndex(env, index);
 }
 
-async function saveClip(env: Env, storageKey: string, clip: ClipMeta): Promise<void> {
+export async function saveClip(env: Env, storageKey: string, clip: ClipMeta): Promise<void> {
   await writeJson(env, `${clipsPrefix(storageKey)}/${clip.id}/meta.json`, clip);
   await refreshIndex(env, storageKey, clip);
   await syncQueues(env, clip);

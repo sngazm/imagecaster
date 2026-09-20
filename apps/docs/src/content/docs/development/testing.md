@@ -31,6 +31,8 @@ pnpm test
 | `import.test.ts` | RSS インポート、デプロイ状況 |
 | `transcription.test.ts` | 文字起こしキュー |
 | `clips.test.ts` | 切り抜き動画（下書きの検算と保存、OK から描画待ち、版の登録） |
+| `clip-posts.test.ts` | 切り抜きの投稿の骨組み（時刻、投稿先ごとの結果、失敗のやり直しと諦め、途中経過の持ち越し） |
+| `clip-post-bluesky.test.ts` | Bluesky への動画つき投稿（サービス認証の宛先、処理待ちの持ち越し、本文の上限） |
 | `review-cards.test.ts` | 確認カード（受け取り、決める、取り消す、取り直しで戻ってくる） |
 | `audio.test.ts` | 音声処理 |
 | `podcast.test.ts` | Podcast メタデータ |

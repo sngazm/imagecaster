@@ -800,7 +800,17 @@ export interface ClipPost {
   postedAt: string | null;
   url: string | null;
   error: string | null;
+  /** 失敗した回数。上限に達したら、人がやり直しを押すまで試さない */
+  attempts?: number;
+  /**
+   * 途中まで進んだ投稿の控え。動画を上げてから処理が済むまで待つ投稿先は、1 回の Cron で
+   * 終わらない。次の回が続きからやれるように、投稿先ごとの中身をここに持つ
+   */
+  state?: unknown;
 }
+
+/** 投稿を諦めるまでの回数。Cron は 5 分おきなので、直らない失敗を叩き続けないため */
+export const CLIP_POST_MAX_ATTEMPTS = 5;
 
 /**
  * 描いた版。上書きせずに積む。投稿済みの動画がどの下書きから描かれたかを

@@ -77,6 +77,7 @@ pnpm test
   - `settings.test.ts` - 設定管理
   - `templates.test.ts` - テンプレートCRUD
   - `import.test.ts` - RSSインポート、デプロイ状況
+  - `clip-posts.test.ts` / `clip-post-bluesky.test.ts` - 切り抜きの投稿（骨組みと Bluesky）
   - `review-cards.test.ts` - 確認カード（受け取り、決める、取り消す、取り直しで戻ってくる）
 
 ### 新機能追加時

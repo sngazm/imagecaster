@@ -10,7 +10,7 @@ const BLUESKY_API_URL = "https://bsky.social/xrpc";
 /**
  * セッション情報
  */
-interface BlueskySession {
+export interface BlueskySession {
   accessJwt: string;
   refreshJwt: string;
   handle: string;
@@ -65,7 +65,7 @@ interface PostRecord {
 /**
  * Blueskyにログイン
  */
-async function createSession(
+export async function createSession(
   identifier: string,
   password: string
 ): Promise<BlueskySession> {
@@ -139,7 +139,7 @@ async function uploadImageBlob(
 /**
  * テキスト内のURLを検出してfacetsを生成
  */
-function detectUrls(text: string): Facet[] {
+export function detectUrls(text: string): Facet[] {
   const facets: Facet[] = [];
   const urlRegex = /https?:\/\/[^\s\u3000]+/g;
 
