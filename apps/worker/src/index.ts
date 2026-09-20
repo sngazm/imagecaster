@@ -16,6 +16,7 @@ import { transcriptionQueue, transcriptionEpisodes } from "./routes/transcriptio
 import { clips, pendingClips } from "./routes/clips";
 import { handleClipPosts, registerPoster } from "./services/clip-posts";
 import { postClipToBluesky } from "./services/clip-post-bluesky";
+import { postClipToInstagram } from "./services/clip-post-instagram";
 import { reviewCards, pendingReviewCards } from "./routes/review-cards";
 import { getIndex, saveIndex, findEpisodeBySlug, saveEpisodeMeta, syncPublishedIndex } from "./services/r2";
 import { regenerateFeed } from "./services/feed";
@@ -25,6 +26,7 @@ import { refineAndSave } from "./services/transcript-refine";
 
 // 切り抜きの投稿先のうち、Worker から出すもの
 registerPoster("bluesky", postClipToBluesky);
+registerPoster("instagram", postClipToInstagram);
 
 const app = new Hono<{ Bindings: Env }>();
 

@@ -37,6 +37,7 @@ sidebar:
 | PUT | `/api/episodes/:id/clips/:clipId/status` | OK / 取り消し / ボツ |
 | POST | `/api/episodes/:id/clips/:clipId/upload-url` | 動画を置く Presigned URL（レイアウトごと） |
 | POST | `/api/episodes/:id/clips/:clipId/versions` | 描いた版を登録する（生成側から） |
+| POST | `/api/episodes/:id/clips/:clipId/posts/:target` | 投稿先の結果を付ける（手で出した / もう一度試す） |
 | GET | `/api/clips/pending` | 描画待ちのもの（手元が拾う） |
 
 ## 状態
@@ -187,3 +188,19 @@ sidebar:
 ものと違うので受け取りません。
 
 版は上書きしません。OK を取り消して直し、描き直すと v2 になります。
+
+## 投稿
+
+### POST `/api/episodes/:id/clips/:clipId/posts/:target`
+
+`target` は `bluesky` / `x` / `youtube` / `instagram`。描き終わった（`rendered` / `published`）切り抜きにだけ使えます。
+
+```json
+{ "action": "done", "url": "https://x.com/…/status/…" }
+{ "action": "retry" }
+```
+
+- `done`: 人が手で出した。`url` は無くてもよい（`http(s)` で始まるものだけ）。有効な投稿先が全部済むと `published` になります
+- `retry`: 失敗して諦めた投稿先の回数を戻し、Cron にもう一度試させます
+
+X と YouTube は Worker からは出しません。理由は[切り抜きの投稿](/features/clip-posting/)を参照してください。

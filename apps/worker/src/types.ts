@@ -18,6 +18,11 @@ export interface Env {
   // Bluesky
   BLUESKY_IDENTIFIER?: string; // ハンドル or DID
   BLUESKY_PASSWORD?: string; // アプリパスワード
+  // Instagram の長期トークン（60 日）。切り抜きをリールとして出すのに使う
+  INSTAGRAM_ACCESS_TOKEN?: string;
+  // 更新したトークンの置き場（任意）。Worker は自分の secret を書き換えられず、R2 は公開されて
+  // いるので鍵を置けない。これが無ければ更新せず、secret のトークンを切れるまで使う
+  CLIP_SECRETS?: KVNamespace;
   // Cloudflare Pages API（ビルド状況確認用）
   CLOUDFLARE_API_TOKEN?: string;
   PAGES_PROJECT_NAME?: string;
@@ -790,6 +795,16 @@ export const CLIP_LAYOUTS: ClipLayoutName[] = ["portrait", "landscape", "square"
 export type ClipPostTarget = "bluesky" | "x" | "youtube" | "instagram";
 
 export const CLIP_POST_TARGETS: ClipPostTarget[] = ["bluesky", "x", "youtube", "instagram"];
+
+/**
+ * 人が手で出す投稿先。Worker は触らず、管理画面が動画と本文を並べて、出したら印を付けてもらう。
+ *
+ * - x: API を使わない自動操作は X の自動化ルールが名指しで禁じている（永久凍結の可能性）。
+ *   API は使わないと決めたので、手で出す
+ * - youtube: 2020-07-28 より後に作った API プロジェクトは、審査を通るまで API から上げた動画が
+ *   非公開に固定される。審査が通ったらここから外して Poster を登録する
+ */
+export const CLIP_MANUAL_TARGETS: ClipPostTarget[] = ["x", "youtube"];
 
 /**
  * 投稿先ひとつ分の予定と結果

@@ -834,6 +834,21 @@ export const api = {
       body: JSON.stringify(draft),
     }),
 
+  /**
+   * 投稿先 1 つの結果を付ける。done は「手で出した」（出した先の URL を添えられる）、
+   * retry は、失敗して諦めた投稿先をもう一度試させる
+   */
+  markClipPost: (
+    episodeId: string,
+    clipId: string,
+    target: ClipPostTarget,
+    body: { action: "done"; url?: string } | { action: "retry" }
+  ) =>
+    request<ClipDetail>(`/api/episodes/${episodeId}/clips/${clipId}/posts/${target}`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
   /** OK（投稿の予定つき）/ 取り消し（draft）/ ボツ */
   setClipStatus: (
     episodeId: string,
@@ -1090,6 +1105,7 @@ export interface ClipPost {
   postedAt: string | null;
   url: string | null;
   error: string | null;
+  attempts?: number;
 }
 
 export interface ClipVersion {

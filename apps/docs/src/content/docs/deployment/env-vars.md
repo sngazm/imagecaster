@@ -37,6 +37,8 @@ sidebar:
 | `PAGES_PROJECT_NAME` | Pages プロジェクト名（ビルド状況表示用） |
 | `BLUESKY_IDENTIFIER` | Bluesky ハンドル（Bluesky 連携用） |
 | `BLUESKY_PASSWORD` | Bluesky アプリパスワード（Bluesky 連携用） |
+| `INSTAGRAM_ACCESS_TOKEN` | Instagram の長期トークン（切り抜きをリールとして出す。60 日で切れる） |
+| `CLIP_SECRETS`（KV） | 更新した Instagram トークンの置き場。無ければ更新しない |
 | `SPOTIFY_CLIENT_ID` | Spotify Client ID（Spotify 連携用） |
 | `SPOTIFY_CLIENT_SECRET` | Spotify Client Secret（Spotify 連携用） |
 

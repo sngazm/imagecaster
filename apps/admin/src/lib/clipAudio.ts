@@ -55,6 +55,21 @@ function findFrame(bytes: Uint8Array, near: number, size: number): number {
   throw new UnsupportedAudio("音声のフレームの境目が見つかりません");
 }
 
+/**
+ * 同じ音声でも、ここから取るときは別の URL にする。
+ *
+ * 同じブラウザで、この回の音声を <audio> で鳴らしたことがあると（公開サイトや管理画面の
+ * エピソード詳細）、そのときの応答がブラウザのキャッシュに残っている。<audio> は Origin を
+ * 付けずに取るので、その応答には Access-Control-Allow-Origin が無く、Vary: Origin も無い。
+ * ここからの取得（CORS つき）にそれが使い回されると、CORS で弾かれる。
+ * クエリ文字列を付ければ、キャッシュの上では別物になる。R2 はクエリを無視して同じものを返す。
+ */
+function corsUrl(url: string): string {
+  const u = new URL(url);
+  u.searchParams.set("cors", "1");
+  return u.toString();
+}
+
 async function loadChunk(
   url: string,
   info: ClipAudioInfo,
@@ -70,7 +85,7 @@ async function loadChunk(
   // 見積もりは 2 バイト以内に収まる（実測）。前後に 1 フレームずつ余分に取って境目を探す
   const from = Math.max(0, Math.floor(info.headerBytes + (first - 1) * size));
   const to = Math.ceil(info.headerBytes + (last + 1) * size);
-  const res = await fetch(url, { headers: { Range: `bytes=${from}-${to}` }, signal });
+  const res = await fetch(corsUrl(url), { headers: { Range: `bytes=${from}-${to}` }, signal });
   if (res.status !== 206) throw new UnsupportedAudio("音声を途中から取れませんでした");
   const bytes = new Uint8Array(await res.arrayBuffer());
 

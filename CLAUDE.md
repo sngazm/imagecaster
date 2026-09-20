@@ -77,7 +77,7 @@ pnpm test
   - `settings.test.ts` - 設定管理
   - `templates.test.ts` - テンプレートCRUD
   - `import.test.ts` - RSSインポート、デプロイ状況
-  - `clip-posts.test.ts` / `clip-post-bluesky.test.ts` - 切り抜きの投稿（骨組みと Bluesky）
+  - `clip-posts.test.ts` / `clip-post-bluesky.test.ts` / `clip-post-instagram.test.ts` - 切り抜きの投稿（骨組み・手で出す投稿先・Bluesky・Instagram）
   - `review-cards.test.ts` - 確認カード（受け取り、決める、取り消す、取り直しで戻ってくる）
 
 ### 新機能追加時
@@ -181,6 +181,7 @@ await jwtVerify(jwt, JWKS, { audience: ACCESS_AUD });
 | PUT | /api/episodes/:id/clips/:clipId/status | OK（投稿の予定つき）/ 取り消し / ボツ |
 | POST | /api/episodes/:id/clips/:clipId/upload-url | 動画を置く Presigned URL（レイアウトごと） |
 | POST | /api/episodes/:id/clips/:clipId/versions | 描いた版を登録する（生成側から） |
+| POST | /api/episodes/:id/clips/:clipId/posts/:target | 投稿先の結果を付ける（手で出した / もう一度試す） |
 | GET | /api/clips/pending | 描画待ちのもの（手元が拾う） |
 
 ※ 描画は Worker ではできない（ffmpeg も素材も手元）。動画にする前に管理画面で音声と字幕を
@@ -299,6 +300,7 @@ podcast-bucket/
 - `R2_SECRET_ACCESS_KEY` - R2 APIシークレット
 - `BLUESKY_IDENTIFIER` - Blueskyアカウント
 - `BLUESKY_PASSWORD` - Blueskyアプリパスワード
+- `INSTAGRAM_ACCESS_TOKEN` - Instagram の長期トークン（切り抜きのリール投稿。60 日で切れる）
 - `CLOUDFLARE_API_TOKEN` - CF API トークン
 
 ### Admin

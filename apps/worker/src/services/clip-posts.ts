@@ -1,6 +1,6 @@
 import type { Env, ClipMeta, ClipPostTarget, EpisodeMeta } from "../types";
 import { CLIP_POST_MAX_ATTEMPTS, CLIP_POST_TARGETS } from "../types";
-import { clipsPrefix, readClip, saveClip } from "../routes/clips";
+import { clipsPrefix, readClip, saveClip, settlePublished } from "../routes/clips";
 import { findEpisodeBySlug, getIndex } from "./r2";
 
 /**
@@ -100,12 +100,9 @@ export async function postClip(
     changed = true;
   }
 
-  const enabled = CLIP_POST_TARGETS.filter((t) => clip.posts[t].enabled);
-  if (enabled.length > 0 && enabled.every((t) => clip.posts[t].postedAt)) {
-    clip.status = "published";
-    changed = true;
-  }
-  return changed;
+  const before = clip.status;
+  settlePublished(clip);
+  return changed || clip.status !== before;
 }
 
 /**

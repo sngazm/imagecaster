@@ -154,6 +154,9 @@ episodes/{storageKey}/clips/
   ビットリザーバが落ち着くまでを捨てる）
 - `audio` は手元がその回の mp3 を調べて書く。固定ビットレートでない回は `format` が変わり、
   管理画面はその回のプレビューを断る（そのときに別の道を作る）
+- 音声は `?cors=1` を付けた URL で取る。同じブラウザでその回を `<audio>` で鳴らしたことがあると、
+  CORS ヘッダーの無い応答（`Vary: Origin` も無い）がブラウザのキャッシュに残っていて、それが
+  使い回されて CORS で弾かれる。本番で実際に起きた。クエリを付ければキャッシュの上で別物になる
 - 繋いだ波形は WAV にして `<audio>` で鳴らす。速さは `playbackRate` で変える。ブラウザが音程を
   保ったまま速めるので、Web Audio で直接鳴らすより確かめやすい
 
@@ -360,12 +363,16 @@ Cron（5 分おき）が `clipPostIds` を見て、`status` が `rendered` で `
 （`posts[先].state`）を控えて、次の回が続きからやる。骨組みは投稿先を知らない。投稿先ごとの
 手順は `Poster` に閉じ込め、`index.ts` で登録する。登録の無い投稿先には Worker は触らない。
 
+人が手で出す投稿先（`CLIP_MANUAL_TARGETS`）は、管理画面が本文と動画を並べ、出したら印を付けて
+もらう（`POST …/posts/:target`）。Cron の投稿待ちには数えない。数えると、人が出すまで 5 分おきに
+その切り抜きを読み続ける。有効な投稿先が全部済んだら `published`。
+
 | 投稿先 | 既定のレイアウト | 出し方 |
 |---|---|---|
 | Bluesky | 正方形 | Worker から。実装済み（`clip-post-bluesky.ts`） |
-| Instagram（Reels） | 縦 | Worker から出せる見込み。未実装 |
-| YouTube Shorts | 縦 | Worker から上げられるが、下の関門がある。未実装 |
-| X | 横 | 未定（下を参照） |
+| Instagram（Reels） | 縦 | Worker から。実装済み（`clip-post-instagram.ts`） |
+| YouTube Shorts | 縦 | **人が手で出す**（下の関門のため。審査が通ったら自動にできる） |
+| X | 横 | **人が手で出す**（API は使わないと決めた。ブラウザの自動操作は規約が禁じている） |
 
 以下は 2026-09-20 に公式の文書を読んで確かめたこと。実装する前に、原文をもう一度見ること。
 
@@ -435,4 +442,4 @@ Cron（5 分おき）が `clipPostIds` を見て、`status` が `rendered` で `
      同じ下書きを両方に通して確かめる（`scripts/timeline-parity.py`）~~
    - ~~`watch.py`：描画待ち（`/api/clips/pending`）を拾って描く~~
    - **Worker を出すのと、Mac の `watch.py` を新しくするのは同じ日に**
-6. 投稿（Bluesky → X → YouTube → Instagram）
+6. ~~投稿~~（Bluesky と Instagram は自動、X と YouTube は手で出す。どちらも本番ではまだ 1 本も出していない）

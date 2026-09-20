@@ -15,6 +15,7 @@ import type {
 import {
   CLIP_DEFAULT_SPEED,
   CLIP_LAYOUTS,
+  CLIP_MANUAL_TARGETS,
   CLIP_POST_MAX_ATTEMPTS,
   CLIP_POST_TARGETS,
   CLIP_SPEED_RANGE,
@@ -109,11 +110,15 @@ async function refreshIndex(env: Env, storageKey: string, meta: ClipMeta): Promi
   await writeJson(env, key, index);
 }
 
-/** まだ出していない投稿先があるか */
+/**
+ * Cron がまだ出すべき投稿先があるか。人が手で出す投稿先は数えない。数えると、人が出すまで
+ * Cron が 5 分おきにその切り抜きを読み続ける
+ */
 function hasUnposted(clip: ClipMeta): boolean {
   if (!clip.publishAt) return false;
   return CLIP_POST_TARGETS.some(
     (t) =>
+      !CLIP_MANUAL_TARGETS.includes(t) &&
       clip.posts[t].enabled &&
       !clip.posts[t].postedAt &&
       (clip.posts[t].attempts ?? 0) < CLIP_POST_MAX_ATTEMPTS
@@ -500,6 +505,59 @@ clips.put("/:id/clips/:clipId/status", async (c) => {
   }
 
   clip.status = body.status;
+  await saveClip(c.env, meta.storageKey, clip);
+  return c.json(clip);
+});
+
+/** 出すべき投稿先が全部済んだら published にする */
+export function settlePublished(clip: ClipMeta): void {
+  const enabled = CLIP_POST_TARGETS.filter((t) => clip.posts[t].enabled);
+  if (clip.status === "rendered" && enabled.length > 0 && enabled.every((t) => clip.posts[t].postedAt)) {
+    clip.status = "published";
+  }
+}
+
+/**
+ * 投稿先 1 つの結果を、人が付ける。
+ *
+ * - done: 手で出した（X など）。出した先の URL を添えられる
+ * - retry: 失敗して諦めた投稿先を、もう一度 Cron に試させる
+ */
+clips.post("/:id/clips/:clipId/posts/:target", async (c) => {
+  const meta = await findEpisodeBySlug(c.env, c.req.param("id"));
+  if (!meta) return c.json({ error: "Episode not found" }, 404);
+
+  const target = c.req.param("target") as ClipPostTarget;
+  if (!CLIP_POST_TARGETS.includes(target)) return c.json({ error: "知らない投稿先です" }, 400);
+
+  const clip = await readClip(c.env, meta.storageKey, c.req.param("clipId"));
+  if (!clip) return c.json({ error: "Clip not found" }, 404);
+  if (clip.status !== "rendered" && clip.status !== "published") {
+    return c.json({ error: "描き終わっていない切り抜きです" }, 409);
+  }
+
+  const body = await c.req.json<{ action?: string; url?: string | null }>();
+  const post = clip.posts[target];
+
+  if (body.action === "done") {
+    if (body.url != null && body.url !== "" && !/^https?:\/\//.test(body.url)) {
+      return c.json({ error: "url は http(s) で始まるものにしてください" }, 400);
+    }
+    post.enabled = true;
+    post.postedAt = new Date().toISOString();
+    post.url = body.url || null;
+    post.error = null;
+    post.state = undefined;
+  } else if (body.action === "retry") {
+    if (post.postedAt) return c.json({ error: "もう出ています" }, 409);
+    post.attempts = 0;
+    post.error = null;
+    post.state = undefined;
+  } else {
+    return c.json({ error: "action は done か retry です" }, 400);
+  }
+
+  settlePublished(clip);
   await saveClip(c.env, meta.storageKey, clip);
   return c.json(clip);
 });

@@ -101,11 +101,11 @@ describe("切り抜きの投稿", () => {
   });
 
   it("1 つ失敗しても他は出す。失敗した先だけ次の回でやり直す", async () => {
-    await rendered(PAST, { x: { enabled: false }, instagram: { enabled: false } });
+    await rendered(PAST, { x: { enabled: false }, youtube: { enabled: false } });
     let blueskyCalls = 0;
     const posters: Posters = {
       bluesky: async () => (blueskyCalls++, { done: true, url: "https://b/1" }),
-      youtube: async () => {
+      instagram: async () => {
         throw new Error("quota exceeded");
       },
     };
@@ -114,13 +114,13 @@ describe("切り抜きの投稿", () => {
     let clip = await getClip();
     expect(clip.status).toBe("rendered");
     expect(clip.posts.bluesky.postedAt).toBeTruthy();
-    expect(clip.posts.youtube.error).toBe("quota exceeded");
-    expect(clip.posts.youtube.attempts).toBe(1);
+    expect(clip.posts.instagram.error).toBe("quota exceeded");
+    expect(clip.posts.instagram.attempts).toBe(1);
 
-    await handleClipPosts(env, { ...posters, youtube: ok("https://y/1") });
+    await handleClipPosts(env, { ...posters, instagram: ok("https://y/1") });
     clip = await getClip();
     expect(blueskyCalls).toBe(1);
-    expect(clip.posts.youtube.error).toBeNull();
+    expect(clip.posts.instagram.error).toBeNull();
     expect(clip.status).toBe("published");
   });
 
@@ -151,6 +151,60 @@ describe("切り抜きの投稿", () => {
     for (let i = 0; i < 8; i++) await handleClipPosts(env, failing);
     expect(called).toBe(5);
     expect((await getClip()).status).toBe("rendered");
+  });
+
+  describe("手で出す投稿先", () => {
+    const mark = (target: string, body: unknown) => send("POST", `/c1/posts/${target}`, body);
+
+    it("人が出すのを待っている間、Cron はその切り抜きを見にこない", async () => {
+      await rendered(PAST, { instagram: { enabled: false } });
+      await handleClipPosts(env, { bluesky: ok("https://b/1") });
+
+      // 残っているのは x と youtube（どちらも手で出す）。Cron からは外れる
+      const index = JSON.parse(await (await env.R2_BUCKET.get("index.json"))!.text());
+      expect(index.clipPostIds).not.toContain(`${episodeId}/c1`);
+      expect((await getClip()).status).toBe("rendered");
+    });
+
+    it("出した印を付けると結果が残り、全部済めば published になる", async () => {
+      await rendered(PAST, { instagram: { enabled: false } });
+      await handleClipPosts(env, { bluesky: ok("https://b/1") });
+
+      const first = await (await mark("x", { action: "done", url: "https://x.com/me/status/1" })).json();
+      expect(first.posts.x.url).toBe("https://x.com/me/status/1");
+      expect(first.status).toBe("rendered");
+
+      const second = await (await mark("youtube", { action: "done" })).json();
+      expect(second.posts.youtube.postedAt).toBeTruthy();
+      expect(second.status).toBe("published");
+    });
+
+    it("描き終わっていないものには付けられない。変な URL も受け取らない", async () => {
+      await SELF.fetch("http://localhost/api/clips/pending");
+      await send("PUT", "/c2", { label: "まだ下書き", draft });
+      expect((await send("POST", "/c2/posts/x", { action: "done" })).status).toBe(409);
+
+      await rendered(PAST);
+      expect((await mark("x", { action: "done", url: "javascript:alert(1)" })).status).toBe(400);
+      expect((await mark("tiktok", { action: "done" })).status).toBe(400);
+    });
+
+    it("諦めた投稿先を、もう一度試させられる", async () => {
+      await rendered(PAST, { x: { enabled: false }, youtube: { enabled: false }, instagram: { enabled: false } });
+      let called = 0;
+      const failing: Posters = {
+        bluesky: async () => {
+          called++;
+          throw new Error("no");
+        },
+      };
+      for (let i = 0; i < 6; i++) await handleClipPosts(env, failing);
+      expect(called).toBe(5);
+
+      expect((await mark("bluesky", { action: "retry" })).status).toBe(200);
+      await handleClipPosts(env, { bluesky: ok("https://b/1") });
+      expect((await getClip()).status).toBe("published");
+    });
   });
 
   it("Worker が受け持たない投稿先には触らない", async () => {

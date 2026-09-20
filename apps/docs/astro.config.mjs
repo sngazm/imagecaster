@@ -61,6 +61,7 @@ export default defineConfig({
             { label: 'RSS フィード', slug: 'features/rss' },
             { label: 'バックアップ', slug: 'features/backup' },
             { label: 'Spotify 連携', slug: 'features/spotify' },
+            { label: '切り抜きの投稿', slug: 'features/clip-posting' },
           ],
         },
         {

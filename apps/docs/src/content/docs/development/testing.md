@@ -33,6 +33,7 @@ pnpm test
 | `clips.test.ts` | 切り抜き動画（下書きの検算と保存、OK から描画待ち、版の登録） |
 | `clip-posts.test.ts` | 切り抜きの投稿の骨組み（時刻、投稿先ごとの結果、失敗のやり直しと諦め、途中経過の持ち越し） |
 | `clip-post-bluesky.test.ts` | Bluesky への動画つき投稿（サービス認証の宛先、処理待ちの持ち越し、本文の上限） |
+| `clip-post-instagram.test.ts` | Instagram へのリールの投稿（公開 URL で渡す、処理待ちの持ち越し、二重公開の防止、トークンの更新） |
 | `review-cards.test.ts` | 確認カード（受け取り、決める、取り消す、取り直しで戻ってくる） |
 | `audio.test.ts` | 音声処理 |
 | `podcast.test.ts` | Podcast メタデータ |

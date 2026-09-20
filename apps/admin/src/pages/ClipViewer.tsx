@@ -11,7 +11,9 @@ import { ClipAudioPool } from "../lib/clipAudio";
 import {
   CLIP_LAYOUT_LABEL,
   CLIP_LAYOUT_NAMES,
+  CLIP_MANUAL_TARGETS,
   CLIP_POST_LABEL,
+  CLIP_POST_MAX_ATTEMPTS,
   CLIP_POST_TARGETS,
   CLIP_STATUS,
 } from "../lib/clipStatus";
@@ -537,7 +539,7 @@ function Approval({
     setPosts((p) => ({ ...p, [t]: { ...p[t], ...change } }));
 
   if (clip.status === "published") {
-    return <PostResults clip={clip} />;
+    return <Posts episodeId={episodeId} clip={clip} onClip={onClip} />;
   }
 
   if (clip.status !== "draft") {
@@ -551,7 +553,7 @@ function Approval({
               : "描き終わりました。投稿の予定はありません。")}
           {clip.status === "rejected" && "ボツにしました。"}
         </p>
-        <PostResults clip={clip} />
+        {clip.status === "rendered" && <Posts episodeId={episodeId} clip={clip} onClip={onClip} />}
         {error && <p className="text-sm text-error">{error}</p>}
         <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => send("draft")}>
           {clip.status === "rejected" ? "下書きに戻す" : "OK を取り消して直す"}
@@ -577,6 +579,7 @@ function Approval({
             <label className="flex flex-1 items-center gap-2">
               <input type="checkbox" checked={posts[t].enabled} onChange={(e) => setPost(t, { enabled: e.target.checked })} />
               {CLIP_POST_LABEL[t]}
+              {CLIP_MANUAL_TARGETS.includes(t) && <span className="text-xs text-secondary">（手で出す）</span>}
             </label>
             <select
               className="input py-1"
@@ -607,29 +610,128 @@ function Approval({
   );
 }
 
-function PostResults({ clip }: { clip: ClipDetail }) {
-  const rows = CLIP_POST_TARGETS.filter((t) => clip.posts[t].postedAt || clip.posts[t].error);
-  if (rows.length === 0) return null;
+/**
+ * 投稿先ごとの様子。出たものは結果を、手で出すものは材料（動画と本文）を並べて、出したら
+ * 印を付けてもらう。Cron が出すものは待つだけで、失敗して諦めたものだけやり直しを頼める。
+ */
+function Posts({
+  episodeId,
+  clip,
+  onClip,
+}: {
+  episodeId: string;
+  clip: ClipDetail;
+  onClip: (clip: ClipDetail) => void;
+}) {
+  const [urls, setUrls] = useState<Partial<Record<ClipPostTarget, string>>>({});
+  const [busy, setBusy] = useState<ClipPostTarget | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const targets = CLIP_POST_TARGETS.filter((t) => clip.posts[t].enabled);
+  if (targets.length === 0) return null;
+
+  const mark = async (target: ClipPostTarget, body: Parameters<typeof api.markClipPost>[3]) => {
+    setBusy(target);
+    setError(null);
+    try {
+      onClip({ ...(await api.markClipPost(episodeId, clip.id, target, body)), baseUrl: clip.baseUrl });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "変更できませんでした");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const copy = async () => {
+    await navigator.clipboard.writeText(clip.postText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  const hasManual = targets.some((t) => CLIP_MANUAL_TARGETS.includes(t) && !clip.posts[t].postedAt);
+
   return (
-    <ul className="space-y-1 text-sm">
-      {rows.map((t) => {
-        const post = clip.posts[t];
-        return (
-          <li key={t} className="flex gap-2">
-            <span className="w-32 shrink-0">{CLIP_POST_LABEL[t]}</span>
-            {post.url ? (
-              <a href={post.url} target="_blank" rel="noreferrer" className="underline">
-                投稿を見る
-              </a>
-            ) : post.error ? (
-              <span className="text-error">{post.error}</span>
-            ) : (
-              <span className="text-secondary">投稿済み</span>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+    <div className="space-y-3">
+      {hasManual && clip.postText && (
+        <div className="rounded border border-[var(--color-border)] p-3 text-sm">
+          <p className="whitespace-pre-wrap">{clip.postText}</p>
+          <button type="button" className="btn btn-ghost mt-2 px-2 py-1 text-xs" onClick={copy}>
+            {copied ? "コピーしました" : "本文をコピー"}
+          </button>
+        </div>
+      )}
+
+      <ul className="divide-y divide-[var(--color-border)] text-sm">
+        {targets.map((t) => {
+          const post = clip.posts[t];
+          const manual = CLIP_MANUAL_TARGETS.includes(t);
+          const gaveUp = !manual && !post.postedAt && (post.attempts ?? 0) >= CLIP_POST_MAX_ATTEMPTS;
+          return (
+            <li key={t} className="flex flex-wrap items-center gap-2 py-2">
+              <span className="w-32 shrink-0">{CLIP_POST_LABEL[t]}</span>
+
+              {post.postedAt ? (
+                post.url ? (
+                  <a href={post.url} target="_blank" rel="noreferrer" className="underline">
+                    投稿を見る
+                  </a>
+                ) : (
+                  <span className="text-secondary">出しました</span>
+                )
+              ) : manual ? (
+                <>
+                  <a
+                    href={`${clip.baseUrl}/v${clip.latest}/${post.layout}.mp4`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn-ghost px-2 py-1 text-xs"
+                  >
+                    動画を開く（{CLIP_LAYOUT_LABEL[post.layout]}）
+                  </a>
+                  <input
+                    // スマホでは横に並べると潰れる。下の段に回す
+                    className="input order-last min-w-0 basis-full py-1 text-xs sm:order-none sm:flex-1 sm:basis-0"
+                    placeholder="出した先の URL（無くてもよい）"
+                    value={urls[t] ?? ""}
+                    onChange={(e) => setUrls((u) => ({ ...u, [t]: e.target.value }))}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-secondary px-3 py-1 text-xs"
+                    disabled={busy === t}
+                    onClick={() => mark(t, { action: "done", url: urls[t]?.trim() || undefined })}
+                  >
+                    出した
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className={`min-w-0 flex-1 ${post.error ? "text-error" : "text-secondary"}`}>
+                    {post.error
+                      ? `${post.error}（${post.attempts ?? 0}/${CLIP_POST_MAX_ATTEMPTS} 回）`
+                      : clip.publishAt
+                        ? "時刻になったら出します"
+                        : "投稿の予定がありません"}
+                  </span>
+                  {gaveUp && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary px-3 py-1 text-xs"
+                      disabled={busy === t}
+                      onClick={() => mark(t, { action: "retry" })}
+                    >
+                      もう一度試す
+                    </button>
+                  )}
+                </>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {error && <p className="text-sm text-error">{error}</p>}
+    </div>
   );
 }
 
