@@ -12,6 +12,7 @@ import { HtmlEditor, type PreviewContext } from "../components/HtmlEditor";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { BlueskyPostEditor } from "../components/BlueskyPostEditor";
 import { ReferenceLinksEditor } from "../components/ReferenceLinksEditor";
+import { ReferenceLinkProposals } from "../components/ReferenceLinkProposals";
 import { getWebsiteUrl, getEnvironment } from "../lib/env";
 
 // PublishStatus badge configuration
@@ -904,6 +905,30 @@ export default function EpisodeDetail() {
                 )}
               </div>
             )}
+
+            {/* 通読が見つけた候補。足すか見送るかは人が決める */}
+            <ReferenceLinkProposals
+              episodeId={episode.id}
+              links={isEditing ? editReferenceLinks : episode.referenceLinks || []}
+              dismissed={episode.dismissedLinkProposals || []}
+              onAdd={async (link) => {
+                if (isEditing) {
+                  // 編集中は下書きに足す。保存ボタンで一緒に保存される
+                  setEditReferenceLinks([...editReferenceLinks, link]);
+                  return;
+                }
+                const updated = await api.updateEpisode(episode.id, {
+                  referenceLinks: [...(episode.referenceLinks || []), link],
+                });
+                setEpisode(updated);
+              }}
+              onDismiss={async (url) => {
+                const updated = await api.updateEpisode(episode.id, {
+                  dismissedLinkProposals: [...(episode.dismissedLinkProposals || []), url],
+                });
+                setEpisode(updated);
+              }}
+            />
           </div>
 
           {/* 文字起こし */}

@@ -150,6 +150,7 @@ interface EpisodeMeta {
   blueskyPostEnabled: boolean;
   blueskyPostedAt: string | null;
   referenceLinks: ReferenceLink[];
+  dismissedLinkProposals?: string[] | null; // 見送った参考リンクの提案（URL）
   applePodcastsUrl: string | null;
   spotifyUrl: string | null;
   transcriptionLockedAt?: string | null;

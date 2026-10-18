@@ -73,6 +73,7 @@ export interface EpisodeDetail {
   blueskyPostedAt: string | null;
   // 参考リンク
   referenceLinks: ReferenceLink[];
+  dismissedLinkProposals?: string[] | null;
   // Apple Podcasts
   applePodcastsUrl: string | null;
   // Spotify
@@ -454,6 +455,7 @@ export const api = {
     blueskyPostText?: string | null;
     blueskyPostEnabled?: boolean;
     referenceLinks?: ReferenceLink[];
+    dismissedLinkProposals?: string[] | null;
     applePodcastsUrl?: string | null;
     applePodcastsFetchedAt?: string | null;
     spotifyUrl?: string | null;

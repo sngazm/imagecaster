@@ -245,6 +245,11 @@ episodes.put("/:id", async (c) => {
     if (body.referenceLinks !== undefined) {
       meta.referenceLinks = body.referenceLinks;
     }
+    if (body.dismissedLinkProposals !== undefined) {
+      meta.dismissedLinkProposals = Array.isArray(body.dismissedLinkProposals)
+        ? body.dismissedLinkProposals.filter((u): u is string => typeof u === "string")
+        : null;
+    }
     // Apple Podcasts
     if (body.applePodcastsUrl !== undefined) {
       meta.applePodcastsUrl = body.applePodcastsUrl;

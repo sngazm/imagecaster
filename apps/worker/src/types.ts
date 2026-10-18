@@ -401,6 +401,14 @@ export interface EpisodeMeta {
   blueskyPostedAt: string | null; // 投稿済みの場合の日時
   // 参考リンク
   referenceLinks: ReferenceLink[];
+  /**
+   * 見送った参考リンクの提案（URL）
+   *
+   * 通読が集めた用語集（glossary.json）のうち notable かつ url のある語を、管理画面が
+   * 参考リンクの候補として並べる。候補は人が「足す」か「見送る」かを決める。
+   * 見送ったものを次に開いたときにまた出さないために URL を控える。
+   */
+  dismissedLinkProposals?: string[] | null;
   // Apple Podcasts
   applePodcastsUrl: string | null; // エピソード個別URL
   applePodcastsFetchedAt?: string | null; // 自動取得を最後に試みた日時
@@ -471,6 +479,8 @@ export interface UpdateEpisodeRequest {
   blueskyPostText?: string | null;
   blueskyPostEnabled?: boolean;
   referenceLinks?: ReferenceLink[];
+  // 見送った参考リンクの提案（URL）
+  dismissedLinkProposals?: string[] | null;
   // Apple Podcasts（管理画面から編集可能）
   applePodcastsUrl?: string | null;
   applePodcastsFetchedAt?: string | null;

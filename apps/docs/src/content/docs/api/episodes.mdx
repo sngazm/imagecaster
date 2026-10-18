@@ -109,12 +109,17 @@ interface UpdateEpisodeRequest {
   blueskyPostText?: string | null;
   blueskyPostEnabled?: boolean;
   referenceLinks?: ReferenceLink[];
+  dismissedLinkProposals?: string[] | null; // 見送った参考リンクの提案（URL）
   applePodcastsUrl?: string | null;
   applePodcastsFetchedAt?: string | null;
   spotifyUrl?: string | null;
   transcribeStatus?: TranscribeStatus; // 失敗からのリトライ用
 }
 ```
+
+`dismissedLinkProposals` は、通読が集めた用語集（`glossary.json` の `notable` かつ `url` のある語）の
+うち、管理画面で「見送る」を選んだものの URL です。管理画面はエピソード画面の参考リンクの下に
+候補を並べ、ここに入った URL とすでに参考リンクにある URL は出しません。
 
 `publishAt` に将来の日時を設定すると `publishStatus` が `scheduled` になります。
 

@@ -939,3 +939,20 @@ describe("POST /api/episodes/:id/retranscribe", () => {
     expect(meta.skipTranscription).toBe(false);
   });
 });
+
+describe("Episodes API - 参考リンクの提案", () => {
+  it("見送った提案の URL を覚え、次に読んだときに返す", async () => {
+    const { id } = await createTestEpisode({ title: "Link Proposals" });
+
+    const response = await SELF.fetch(`http://localhost/api/episodes/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dismissedLinkProposals: ["https://example.com/a", 3, "https://example.com/b"] }),
+    });
+    expect(response.status).toBe(200);
+
+    const detail = await (await SELF.fetch(`http://localhost/api/episodes/${id}`)).json();
+    // 文字列でないものは捨てる
+    expect(detail.dismissedLinkProposals).toEqual(["https://example.com/a", "https://example.com/b"]);
+  });
+});
