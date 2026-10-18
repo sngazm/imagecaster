@@ -142,6 +142,7 @@ interface EpisodeMeta {
   skipTranscription: boolean;
   publishStatus: PublishStatus;
   transcribeStatus: TranscribeStatus;
+  transcribedAt?: string | null; // 文字起こしが完了した日時（zip が後から置かれたときの判断に使う）
   createdAt: string;         // ISO 8601
   publishAt: string | null;
   publishedAt: string | null;

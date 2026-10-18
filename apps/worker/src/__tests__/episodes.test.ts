@@ -433,6 +433,11 @@ describe("Episodes API - Transcription", () => {
       // publishAtが未来なのでscheduledになる
       expect(json.publishStatus).toBe("scheduled");
       expect(json.transcribeStatus).toBe("completed");
+
+      // 完了した日時が残る。トラックの zip が後から置かれたときの判断に使う
+      const detail = await (await SELF.fetch(`http://localhost/api/episodes/${id}`)).json();
+      expect(detail.transcribedAt).toBeTruthy();
+      expect(new Date(detail.transcribedAt).getTime()).toBeGreaterThan(Date.now() - 60_000);
     });
 
     it("marks transcription as failed", async () => {

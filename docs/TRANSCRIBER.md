@@ -76,6 +76,17 @@ polling:
   interval_seconds: 60        # キュー確認間隔
   max_concurrent: 1           # 同時処理数（将来拡張用）
 
+# 話者トラックの zip を Nextcloud から自動で探す
+nextcloud:
+  enabled: false
+  base_url: ""                # 例 https://cloud.example.com
+  username: ""
+  app_password: ""            # 設定 → セキュリティ で作るアプリパスワード
+  root: ""                    # 音源が置いてあるフォルダ
+  depth: 2                    # 日付フォルダの下まで見るなら 2
+  rescan_interval_seconds: 3600   # 置き忘れた zip の見回り（キューが空のとき 1 時間に 1 回。0 で止める）
+  retranscribe_within_days: 7     # 文字起こしからこの日数以内なら自動で取り直す。古い回はメールで知らせるだけ
+
 # Whisper設定
 whisper:
   model: "large-v3"           # tiny, base, small, medium, large, large-v2, large-v3
@@ -112,8 +123,14 @@ notification:
   username: ""
   password: ""              # Gmail はアプリパスワードが必要
   to_address: ""
-  episode_url_template: "https://cast.image.club/episodes/{id}/"
+  episode_url_template: "https://cast.image.club/episodes/{id}/"   # 公開ページ
+  settings_url: "https://caster.image.club/settings"                 # 校正の提案を承認する画面
+  admin_url_template: "https://caster.image.club/episodes/{id}"      # 管理画面のエピソード画面
 ```
+
+メールには管理画面へのリンクを載せる。完了通知の「音声を聞いて確かめたい箇所」には
+確認カードの画面（`{admin}/review`）、置き忘れた zip の知らせには取り直しのボタンがある
+エピソード画面。トラック無しで起こした回はカードを送っていないので、その旨を書く。
 
 ### initial_prompt について
 

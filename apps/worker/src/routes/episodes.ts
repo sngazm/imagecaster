@@ -464,6 +464,7 @@ episodes.post("/:id/transcription-complete", async (c) => {
 
       meta.transcribeStatus = "completed";
       meta.transcriptionErrorMessage = null;
+      meta.transcribedAt = new Date().toISOString();
 
       // 人が確認カードで決めた直しが新しい本文から消えていたら、確認待ちに戻す。
       // 失敗しても完了は取り消さない（カードは開けば数え直される）

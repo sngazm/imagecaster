@@ -410,6 +410,9 @@ export interface EpisodeMeta {
   transcriptionLockedAt?: string | null;
   // 文字起こし失敗時のエラーメッセージ
   transcriptionErrorMessage?: string | null;
+  // 文字起こしが完了した日時。トラックの zip が後から置かれたとき、取り直すか知らせるだけかを
+  // 文字起こしワーカーがこれで決める（1 週間以内なら取り直す）
+  transcribedAt?: string | null;
   // Claude が書いたエピソードの感想（公開サイトに掲載する）
   claudeImpression?: string | null;
   claudeImpressionAt?: string | null;
