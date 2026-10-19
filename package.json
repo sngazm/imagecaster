@@ -11,9 +11,7 @@
     "dev:worker": "turbo dev --filter=worker",
     "test:worker": "turbo test --filter=worker",
     "dev:docs": "turbo dev --filter=docs",
-    "deploy:worker": "turbo deploy --filter=worker",
-    "deploy:web": "turbo deploy --filter=web",
-    "deploy:admin": "turbo deploy --filter=admin"
+    "deploy:worker": "turbo deploy --filter=worker"
   },
   "devDependencies": {
     "turbo": "^2.3.3",

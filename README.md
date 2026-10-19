@@ -91,7 +91,6 @@ pnpm dev:web       # 公開サイト（localhost:4321）
 | `pnpm build` | 本番ビルド |
 | `pnpm test` | Worker API テスト |
 | `pnpm deploy:worker` | Worker デプロイ |
-| `pnpm deploy:admin` | 管理画面デプロイ |
 
 ## 機能一覧
 

@@ -409,80 +409,32 @@ pnpm dev:admin    # http://localhost:5173
 
 ## 本番デプロイ
 
-### GitHub Actions による自動デプロイ（推奨）
+### Worker をデプロイ
 
-> **Note**: Cloudflare の GitHub 連携には環境変数がデプロイ時に消えるバグがあるため、GitHub Actions での手動デプロイを推奨します。
-> 参考: [Issue #8871](https://github.com/cloudflare/workers-sdk/issues/8871)
-
-#### 1. Cloudflare の GitHub 連携を無効化
-
-1. Cloudflare Dashboard → Workers & Pages → `imagecaster-api`
-2. **Settings** → **Builds & deployments**
-3. **Git repository** セクションで **Disconnect** をクリック
-
-#### 2. GitHub Variables と Secrets を設定
-
-リポジトリの **Settings** → **Secrets and variables** → **Actions** で設定します。
-
-**Variables（テキスト、後から確認可能）:**
-
-| 変数名 | 説明 | 例 |
-|--------|------|-----|
-| `PODCAST_TITLE` | 番組名 | `My Podcast` |
-| `WEBSITE_URL` | 公開サイトURL | `https://your-website.com` |
-| `R2_BUCKET_NAME` | R2バケット名 | `podcast-bucket` |
-| `R2_PUBLIC_URL` | R2公開URL | `https://pub-xxx.r2.dev` |
-| `CF_ACCESS_TEAM_DOMAIN` | Accessチームドメイン | `yourteam.cloudflareaccess.com` |
-| `PAGES_PROJECT_NAME` | Pagesプロジェクト名 | `podcast-web` |
-
-> **Note**: プレビュー環境では本番と同じ変数を使用し、R2バケット名のみ `podcast-bucket-dev` に自動設定されます。
-
-**Secrets（暗号化、機密情報）:**
-
-| シークレット名 | 説明 |
-|---------------|------|
-| `CLOUDFLARE_API_TOKEN` | Workers デプロイ用 API Token |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare Account ID |
-| `R2_ACCOUNT_ID` | R2 Account ID |
-| `R2_ACCESS_KEY_ID` | R2 API Key ID |
-| `R2_SECRET_ACCESS_KEY` | R2 API Secret |
-| `CF_ACCESS_AUD` | Cloudflare Access AUD Tag |
-| `WEB_DEPLOY_HOOK_URL` | Pages デプロイフック URL（オプション） |
-| `WORKER_CLOUDFLARE_API_TOKEN` | Worker内で使用するAPI Token（オプション） |
-| `BLUESKY_IDENTIFIER` | Bluesky ハンドル（オプション） |
-| `BLUESKY_PASSWORD` | Bluesky アプリパスワード（オプション） |
-| `SPOTIFY_CLIENT_ID` | Spotify Client ID（オプション） |
-| `SPOTIFY_CLIENT_SECRET` | Spotify Client Secret（オプション） |
-
-> **Note**: Cloudflare Dashboard の環境変数は空のままで OK です。すべて GitHub で管理します。
-
-#### 3. デプロイの動作
-
-- **main ブランチへの push**: 本番環境にデプロイ
-- **PR / 他のブランチへの push**: プレビュー環境にデプロイ
-- **手動実行**: Actions タブから `workflow_dispatch` でデプロイ可能
-
-プレビュー環境は `imagecaster-api-preview.<subdomain>.workers.dev` でアクセスできます。
-
----
-
-### 手動デプロイ（代替手段）
-
-GitHub Actions を使わない場合:
-
-#### 1. Worker をデプロイ
+Worker（`imagecaster-api`）は手元から `wrangler` で出す。GitHub Actions は使わない。
 
 ```bash
+pnpm test            # 先にテストを通す
 pnpm deploy:worker
 ```
 
-#### 2. Admin をデプロイ
+環境変数は Cloudflare Dashboard（Workers & Pages → `imagecaster-api` → Settings → Variables and Secrets）
+で管理する。`wrangler.toml` に `keep_vars = true` があるので、デプロイしても Dashboard の値は消えない。
+変数を足すときも Dashboard か `wrangler secret put` で入れる。
 
-```bash
-pnpm deploy:admin
-```
+> **Note**: 以前は GitHub Actions（`deploy-worker.yml`）で Worker を出し、環境変数も GitHub の Secrets から
+> `wrangler secret bulk` で流し込む作りだった。GitHub 側に値が揃っておらず、動かせば本番の値を空で
+> 上書きする状態だったため、2026-10-19 に workflow ごと削除した。Cloudflare の GitHub 連携（Workers Builds）
+> も環境変数が消える不具合（[Issue #8871](https://github.com/cloudflare/workers-sdk/issues/8871)）が
+> あるので、Worker にはつながない。
 
-#### 3. 本番用バケットの CORS 設定
+### 管理画面・公開サイトをデプロイ
+
+管理画面（`imagecaster-admin`）と公開サイト（`imagecaster-web`）は Cloudflare Pages の Git 連携で出る。
+`main` に push すると Pages がビルドして配信するので、手で出す手順はない。
+ドキュメントサイトは GitHub Actions（`deploy-docs.yml`）で GitHub Pages に出る。
+
+### 本番用バケットの CORS 設定
 
 セットアップ時に `r2-cors.json` を適用済みであれば、追加設定は不要です。
 

@@ -78,6 +78,4 @@ pnpm build:admin  # 管理画面のみ
 
 ```bash
 pnpm deploy:worker  # Worker を本番環境にデプロイ
-pnpm deploy:admin   # 管理画面を本番環境にデプロイ
-pnpm deploy:web     # 公開サイトを本番環境にデプロイ
 ```

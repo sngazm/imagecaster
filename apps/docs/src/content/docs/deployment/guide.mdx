@@ -7,75 +7,34 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 
-## GitHub Actions によるデプロイ（推奨）
+## Worker のデプロイ
 
-<Aside type="note">
-Cloudflare の GitHub 連携には環境変数がデプロイ時に消えるバグがあるため、GitHub Actions での手動デプロイを推奨します。
-参考: [Issue #8871](https://github.com/cloudflare/workers-sdk/issues/8871)
-</Aside>
-
-### 1. Cloudflare の GitHub 連携を無効化
-
-Cloudflare Dashboard → Workers & Pages → `imagecaster-api` → Settings → Builds & deployments → **Disconnect**
-
-### 2. GitHub Secrets / Variables を設定
-
-**Settings → Secrets and variables → Actions** で設定します。
-
-**Variables（テキスト）:**
-
-| 変数名 | 例 |
-|--------|----|
-| `PODCAST_TITLE` | `My Podcast` |
-| `WEBSITE_URL` | `https://your-website.com` |
-| `R2_BUCKET_NAME` | `podcast-bucket` |
-| `R2_PUBLIC_URL` | `https://pub-xxx.r2.dev` |
-| `CF_ACCESS_TEAM_DOMAIN` | `yourteam.cloudflareaccess.com` |
-| `PAGES_PROJECT_NAME` | `podcast-web` |
-
-**Secrets（暗号化）:**
-
-| シークレット名 | 説明 |
-|----------------|------|
-| `CLOUDFLARE_API_TOKEN` | Workers デプロイ用 API Token |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare Account ID |
-| `R2_ACCOUNT_ID` | R2 Account ID |
-| `R2_ACCESS_KEY_ID` | R2 API Key ID |
-| `R2_SECRET_ACCESS_KEY` | R2 API Secret |
-| `CF_ACCESS_AUD` | Cloudflare Access AUD Tag |
-| `WEB_DEPLOY_HOOK_URL` | Pages デプロイフック URL（オプション） |
-| `WORKER_CLOUDFLARE_API_TOKEN` | Worker 内で使う API Token（オプション） |
-| `BLUESKY_IDENTIFIER` | Bluesky ハンドル（オプション） |
-| `BLUESKY_PASSWORD` | Bluesky アプリパスワード（オプション） |
-| `SPOTIFY_CLIENT_ID` | Spotify Client ID（オプション） |
-| `SPOTIFY_CLIENT_SECRET` | Spotify Client Secret（オプション） |
-
-### 3. デプロイの動作
-
-| トリガー | 動作 |
-|---------|------|
-| `main` ブランチへの push | 本番環境にデプロイ |
-| PR / その他のブランチ | プレビュー環境にデプロイ |
-| 手動実行（workflow_dispatch） | 任意のタイミングでデプロイ |
-
-プレビュー環境は `imagecaster-api-preview.<subdomain>.workers.dev` でアクセスできます。
-
----
-
-## 手動デプロイ
-
-GitHub Actions を使わない場合:
+Worker（`imagecaster-api`）は手元から `wrangler` で出します。GitHub Actions は使いません。
 
 ```bash
-# Worker をデプロイ
+pnpm test            # 先にテストを通す
 pnpm deploy:worker
-
-# 管理画面をデプロイ
-pnpm deploy:admin
-
-# 公開サイトをデプロイ
-pnpm deploy:web
 ```
+
+環境変数は Cloudflare Dashboard（Workers & Pages → `imagecaster-api` → Settings → Variables and Secrets）で
+管理します。`wrangler.toml` に `keep_vars = true` があるので、デプロイしても Dashboard の値は消えません。
+変数を足すときも Dashboard か `wrangler secret put` で入れます。
+
+<Aside type="caution">
+以前は GitHub Actions（`deploy-worker.yml`）で Worker を出し、環境変数も GitHub の Secrets から
+`wrangler secret bulk` で流し込む作りでした。GitHub 側に値が揃っておらず、動かせば本番の値を空で
+上書きする状態だったため、2026-10-19 に workflow ごと削除しました。
+Cloudflare の GitHub 連携（Workers Builds）も環境変数が消える不具合
+（[Issue #8871](https://github.com/cloudflare/workers-sdk/issues/8871)）があるので、Worker には
+つながず、手元から出します。
+</Aside>
+
+## 管理画面・公開サイトのデプロイ
+
+管理画面（`imagecaster-admin`）と公開サイト（`imagecaster-web`）は Cloudflare Pages の Git 連携で
+出ます。`main` に push すると Pages がビルドして配信するので、手で出す手順はありません。
+
+ドキュメントサイトは GitHub Actions（`deploy-docs.yml`）で GitHub Pages に出ます。
 
 ---
 

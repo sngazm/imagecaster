@@ -251,7 +251,6 @@ pnpm dev:docs         # ドキュメントサイト（localhost:4322）
 pnpm build            # ビルド
 pnpm test             # Worker API テスト
 pnpm deploy:worker    # Worker デプロイ
-pnpm deploy:admin     # 管理画面デプロイ
 ```
 
 ## R2 バケット構造
