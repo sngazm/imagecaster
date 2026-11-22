@@ -113,7 +113,11 @@ export async function handlePatreonWebhook(
   }
 
   const { title, url } = payload.data?.attributes ?? {};
-  const posted = await postToDiscord(env.DISCORD_WEBHOOK_URL, buildPatreonAnnouncement(postId, title, url));
+  const posted = await postToDiscord(
+    env.DISCORD_WEBHOOK_URL,
+    buildPatreonAnnouncement(postId, title, url),
+    index.podcast.artworkUrl || undefined
+  );
   if (!posted) {
     return { status: "error", httpStatus: 502, message: "Failed to post to Discord" };
   }

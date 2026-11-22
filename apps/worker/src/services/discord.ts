@@ -73,13 +73,20 @@ export function buildAnnouncement(meta: EpisodeMeta, websiteUrl: string): string
 
 /**
  * Webhook に投稿する
+ *
+ * avatarUrl を渡すと、その画像を投稿者のアイコンにする（番組のアートワークを渡す）。
+ * 無ければ Discord 側で Webhook に付けたアイコンのまま出る。
  */
-export async function postToDiscord(webhookUrl: string, content: string): Promise<boolean> {
+export async function postToDiscord(webhookUrl: string, content: string, avatarUrl?: string): Promise<boolean> {
   const response = await fetch(webhookUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    // タイトルに @everyone などが紛れていても、誰にも通知を飛ばさない
-    body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
+    body: JSON.stringify({
+      content,
+      // タイトルに @everyone などが紛れていても、誰にも通知を飛ばさない
+      allowed_mentions: { parse: [] },
+      ...(avatarUrl && { avatar_url: avatarUrl }),
+    }),
   });
 
   if (!response.ok) {
@@ -118,7 +125,11 @@ export async function handleDiscordAnnouncements(env: Env): Promise<void> {
     const expired = now.getTime() - publishedAt > GIVE_UP_AFTER_MS;
 
     const live = await isEpisodePageLive(env.WEBSITE_URL, meta.slug);
-    const posted = live && (await postToDiscord(env.DISCORD_WEBHOOK_URL, buildAnnouncement(meta, env.WEBSITE_URL)));
+    const posted = live && (await postToDiscord(
+        env.DISCORD_WEBHOOK_URL,
+        buildAnnouncement(meta, env.WEBSITE_URL),
+        index.podcast.artworkUrl || undefined
+      ));
 
     if (posted) {
       meta.discordPostedAt = now.toISOString();

@@ -5,7 +5,7 @@ import {
   handleDiscordAnnouncements,
   queueDiscordAnnouncement,
 } from "../services/discord";
-import { getIndex } from "../services/r2";
+import { getIndex, saveIndex } from "../services/r2";
 import type { Env, EpisodeMeta } from "../types";
 
 /**
@@ -41,7 +41,7 @@ describe("Discord への新着エピソードの告知", () => {
 
   /** 公開サイトと Webhook の応答を決めて、Webhook に届いたものを記録する */
   const stub = (opts: { live: boolean; webhookStatus?: number }) => {
-    const posts: Array<{ content: string; allowed_mentions: unknown }> = [];
+    const posts: Array<{ content: string; allowed_mentions: unknown; avatar_url?: string }> = [];
     vi.stubGlobal("fetch", async (input: string, init?: RequestInit) => {
       const url = String(input);
       if (url === WEBHOOK) {
@@ -88,12 +88,26 @@ describe("Discord への新着エピソードの告知", () => {
     expect(posts).toHaveLength(1);
     expect(posts[0].content).toBe("新しいエピソードを公開しました\n#300 題名\nhttps://cast.example/episodes/300/");
     expect(posts[0].allowed_mentions).toEqual({ parse: [] });
+    // 投稿者のアイコンは番組のアートワーク。無ければ付けない
+    expect(posts[0].avatar_url).toBeUndefined();
     expect((await getIndex(env)).discordAnnounceIds).toEqual([]);
     expect((await readMeta("300")).discordPostedAt).toBeTruthy();
 
     // 次の回でもう一度出したりしない
     await handleDiscordAnnouncements(testEnv);
     expect(posts).toHaveLength(1);
+  });
+
+  it("番組のアートワークを投稿者のアイコンにする", async () => {
+    await seed("300");
+    const index = await getIndex(env);
+    index.podcast.artworkUrl = "https://r2.example/assets/artwork.png";
+    await saveIndex(env, index);
+    const posts = stub({ live: true });
+
+    await handleDiscordAnnouncements(testEnv);
+
+    expect(posts[0].avatar_url).toBe("https://r2.example/assets/artwork.png");
   });
 
   it("投稿に失敗したら残して、次の回でやり直す", async () => {
