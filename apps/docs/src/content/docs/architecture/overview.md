@@ -68,6 +68,8 @@ apps/
 | `r2.ts` | R2 へのデータ読み書き（index.json、meta.json） |
 | `feed.ts` | RSS フィード生成 |
 | `bluesky.ts` | Bluesky への投稿 |
+| `discord.ts` | Discord への新着エピソードの告知（公開サイトにページが出てから） |
+| `patreon.ts` | Patreon の Webhook を受けて Discord に告知 |
 | `deploy.ts` | Web サイトのリビルドトリガー |
 | `audio.ts` | 音声処理 |
 | `vtt.ts` | VTT 字幕フォーマット変換 |
@@ -88,6 +90,7 @@ Worker は 5分ごとに `handleScheduledPublish` を実行します。
   5. RSS フィードを再生成
   6. 公開サイトのリビルドをトリガー（WEB_DEPLOY_HOOK_URL）
   7. Bluesky へ投稿（blueskyPostEnabled が true の場合）
+  8. Discord の告知待ちに入れる（公開サイトにページが出たら、後の Cron が告知する）
 ```
 
 ## データフロー

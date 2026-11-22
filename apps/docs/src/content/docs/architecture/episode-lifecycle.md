@@ -84,6 +84,7 @@ new → uploading → draft → scheduled → published
 - `index.json` に追加され、RSS フィードに含まれる
 - 公開サイトのリビルドがトリガーされる
 - `blueskyPostEnabled: true` の場合、Bluesky に投稿
+- 初めての公開なら、公開サイトにページが出たあとで Discord に告知（`DISCORD_WEBHOOK_URL` 設定時）
 
 ## 文字起こしステータス
 

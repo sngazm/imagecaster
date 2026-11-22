@@ -18,6 +18,10 @@ export interface Env {
   // Bluesky
   BLUESKY_IDENTIFIER?: string; // ハンドル or DID
   BLUESKY_PASSWORD?: string; // アプリパスワード
+  // Discord の Webhook URL。新着エピソードの告知に使う（URL 自体が鍵）
+  DISCORD_WEBHOOK_URL?: string;
+  // Patreon の Webhook の secret。新しい投稿の知らせが本物かを署名で確かめる
+  PATREON_WEBHOOK_SECRET?: string;
   // Instagram の長期トークン（60 日）。切り抜きをリールとして出すのに使う
   INSTAGRAM_ACCESS_TOKEN?: string;
   // 更新したトークンの置き場（任意）。Worker は自分の secret を書き換えられず、R2 は公開されて
@@ -309,6 +313,10 @@ export interface PodcastIndex {
     storageKey: string; // R2ディレクトリ名（推測不能）
   }>;
   scheduledEpisodeIds?: string[]; // 予約投稿待ちエピソードのID一覧（Cron最適化用）
+  // Discord への告知待ちエピソードのID一覧。公開サイトにページが出たら Cron が告知する
+  discordAnnounceIds?: string[];
+  // Discord に告知済みの Patreon の投稿ID（直近のぶんだけ）。二重の告知を防ぐ
+  patreonAnnouncedPostIds?: string[];
   feedDirty?: boolean; // feed.xml の再生成待ちフラグ（Cronが処理する）
   // 文字起こし待ち/処理中エピソードのID一覧（キュー取得の全件走査を避けるため）
   // undefined の場合は未構築を意味し、次回のキュー取得時に全件走査で初期化される
@@ -399,6 +407,8 @@ export interface EpisodeMeta {
   blueskyPostText: string | null; // 投稿テキスト（事前登録）
   blueskyPostEnabled: boolean; // 公開時にBlueskyに投稿するか
   blueskyPostedAt: string | null; // 投稿済みの場合の日時
+  // Discord に告知した日時（告知していなければ無い）
+  discordPostedAt?: string | null;
   // 参考リンク
   referenceLinks: ReferenceLink[];
   /**

@@ -26,6 +26,7 @@ import {
 } from "../services/r2";
 import { regenerateFeed } from "../services/feed";
 import { postEpisodeToBluesky } from "../services/bluesky";
+import { queueDiscordAnnouncement } from "../services/discord";
 import { triggerWebRebuild } from "../services/deploy";
 import { validateTranscriptData } from "../services/vtt";
 import { recountAfterRetake } from "./review-cards";
@@ -190,6 +191,8 @@ episodes.put("/:id", async (c) => {
     }
 
     const previousPublishStatus = meta.publishStatus;
+    // 今回の更新で初めて公開されたか（Discord への告知に使う）
+    let firstPublished = false;
 
     let needsMove = false;
     let newSlug = meta.slug || meta.id;
@@ -291,6 +294,7 @@ episodes.put("/:id", async (c) => {
           meta.publishStatus = "published";
           if (!meta.publishedAt) {
             meta.publishedAt = now.toISOString();
+            firstPublished = true;
           }
           // 新たに published になった場合は Bluesky に投稿
           if (previousPublishStatus !== "published") {
@@ -319,6 +323,9 @@ episodes.put("/:id", async (c) => {
 
     // 公開済みの場合は index.json を同期
     await syncPublishedIndex(c.env, meta);
+    if (firstPublished) {
+      await queueDiscordAnnouncement(c.env, meta.id);
+    }
 
     // 公開済みの場合はフィードを再生成してWebをリビルド
     // ただし applePodcastsUrl / spotifyUrl のみの更新はスキップ（RSSに含まれず、頻繁な更新があり得るため）
@@ -411,6 +418,8 @@ episodes.post("/:id/transcription-complete", async (c) => {
     if (!meta) {
       return c.json({ error: "Episode not found" }, 404);
     }
+    // この完了通知で初めて公開されたか（Discord への告知に使う）
+    let firstPublished = false;
 
     if (body.transcribeStatus === "completed") {
       // R2 から Whisper の生出力を読み込み
@@ -515,6 +524,7 @@ episodes.post("/:id/transcription-complete", async (c) => {
           // 既に publishedAt が設定されている場合は維持（RSSインポートなど）
           if (!meta.publishedAt) {
             meta.publishedAt = now.toISOString();
+            firstPublished = true;
           }
 
           // Bluesky に投稿（OGP画像のフォールバックとしてartworkUrlを渡す）
@@ -542,6 +552,9 @@ episodes.post("/:id/transcription-complete", async (c) => {
 
     await saveEpisodeMeta(c.env, meta);
     await syncPublishedIndex(c.env, meta);
+    if (firstPublished) {
+      await queueDiscordAnnouncement(c.env, meta.id);
+    }
 
     // 公開された場合はフィード再生成を予約する。
     //

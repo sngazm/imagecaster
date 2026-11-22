@@ -116,6 +116,8 @@ interface PodcastIndex {
     storageKey: string;
   }>;
   scheduledEpisodeIds?: string[];  // Cron 最適化用
+  discordAnnounceIds?: string[];   // Discord への告知待ち（ページが出たら Cron が告知）
+  patreonAnnouncedPostIds?: string[]; // Discord に告知済みの Patreon の投稿（直近のみ）
 }
 ```
 

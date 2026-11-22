@@ -34,6 +34,8 @@ pnpm test
 | `clip-posts.test.ts` | 切り抜きの投稿の骨組み（時刻、投稿先ごとの結果、失敗のやり直しと諦め、途中経過の持ち越し） |
 | `clip-post-bluesky.test.ts` | Bluesky への動画つき投稿（サービス認証の宛先、処理待ちの持ち越し、本文の上限） |
 | `clip-post-instagram.test.ts` | Instagram へのリールの投稿（公開 URL で渡す、処理待ちの持ち越し、二重公開の防止、トークンの更新） |
+| `discord.test.ts` | Discord への新着エピソードの告知（ページが出るまで待つ、失敗のやり直しと諦め、初めての公開だけ） |
+| `patreon.test.ts` | Patreon の投稿の告知（署名の検証、二重の告知の防止、id だけでも出せる） |
 | `review-cards.test.ts` | 確認カード（受け取り、決める、取り消す、取り直しで戻ってくる） |
 | `audio.test.ts` | 音声処理 |
 | `podcast.test.ts` | Podcast メタデータ |

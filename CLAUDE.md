@@ -78,6 +78,7 @@ pnpm test
   - `templates.test.ts` - テンプレートCRUD
   - `import.test.ts` - RSSインポート、デプロイ状況
   - `clip-posts.test.ts` / `clip-post-bluesky.test.ts` / `clip-post-instagram.test.ts` - 切り抜きの投稿（骨組み・手で出す投稿先・Bluesky・Instagram）
+  - `discord.test.ts` / `patreon.test.ts` - Discord への告知（新着エピソード・Patreon の投稿）
   - `review-cards.test.ts` - 確認カード（受け取り、決める、取り消す、取り直しで戻ってくる）
 
 ### 新機能追加時
@@ -226,6 +227,7 @@ await jwtVerify(jwt, JWKS, { audience: ACCESS_AUD });
 | POST | /api/transcription/reprocess-all | 全エピソードの整形やり直し |
 | GET | /api/deployments | デプロイ状況 |
 | GET | /api/health | ヘルスチェック（認証不要） |
+| POST | /api/webhooks/patreon | Patreon の Webhook（署名で確認。workers.dev の URL で受ける） |
 
 ※ RSSフィード (`/feed.xml`) は Pages で静的配信（R2 から取得してビルド時に生成）
 
@@ -299,6 +301,8 @@ podcast-bucket/
 - `R2_SECRET_ACCESS_KEY` - R2 APIシークレット
 - `BLUESKY_IDENTIFIER` - Blueskyアカウント
 - `BLUESKY_PASSWORD` - Blueskyアプリパスワード
+- `DISCORD_WEBHOOK_URL` - Discord の Webhook URL（新しいエピソードと Patreon の投稿の告知）
+- `PATREON_WEBHOOK_SECRET` - Patreon の Webhook の secret（署名の検証）
 - `INSTAGRAM_ACCESS_TOKEN` - Instagram の長期トークン（切り抜きのリール投稿。60 日で切れる）
 - `CLOUDFLARE_API_TOKEN` - CF API トークン
 

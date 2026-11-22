@@ -21,6 +21,8 @@ import { reviewCards, pendingReviewCards } from "./routes/review-cards";
 import { getIndex, saveIndex, findEpisodeBySlug, saveEpisodeMeta, syncPublishedIndex } from "./services/r2";
 import { regenerateFeed } from "./services/feed";
 import { postEpisodeToBluesky } from "./services/bluesky";
+import { queueDiscordAnnouncement, handleDiscordAnnouncements } from "./services/discord";
+import { handlePatreonWebhook } from "./services/patreon";
 import { triggerWebRebuild } from "./services/deploy";
 import { refineAndSave } from "./services/transcript-refine";
 
@@ -65,6 +67,23 @@ app.use(
 // ヘルスチェック（認証不要）
 app.get("/api/health", (c) => {
   return c.json({ status: "ok" });
+});
+
+// Patreon の Webhook（Access の認証は通らないので、署名で確かめる）
+//
+// caster.image.club は丸ごと Access の内側にあり、Patreon からは届かない。
+// 登録するのは workers.dev の方の URL。
+app.post("/api/webhooks/patreon", async (c) => {
+  const result = await handlePatreonWebhook(
+    c.env,
+    c.req.header("X-Patreon-Event"),
+    c.req.header("X-Patreon-Signature"),
+    await c.req.text()
+  );
+  if (result.status === "error") {
+    return c.json({ error: result.message }, result.httpStatus);
+  }
+  return c.json({ status: result.status });
 });
 
 // API ルート（認証必要）
@@ -337,6 +356,7 @@ async function handleScheduledPublish(env: Env): Promise<void> {
     }
 
     // 公開処理
+    const firstPublished = !meta.publishedAt;
     meta.publishStatus = "published";
     meta.publishedAt = now.toISOString();
 
@@ -348,6 +368,9 @@ async function handleScheduledPublish(env: Env): Promise<void> {
 
     await saveEpisodeMeta(env, meta);
     await syncPublishedIndex(env, meta);
+    if (firstPublished) {
+      await queueDiscordAnnouncement(env, meta.id);
+    }
     updated = true;
 
     console.log(`[Scheduled Publish] Published episode: ${meta.id}`);
@@ -439,6 +462,12 @@ export default {
       await handlePendingWebRebuild(env);
     } catch (err) {
       console.error("[Cron] Web rebuild error:", err);
+    }
+    // 公開サイトにページが出たエピソードを Discord に告知する
+    try {
+      await handleDiscordAnnouncements(env);
+    } catch (err) {
+      console.error("[Cron] Discord announcements error:", err);
     }
     // 描き終わった切り抜きを、予定の時刻に投稿する
     try {

@@ -58,6 +58,7 @@ export default defineConfig({
             { label: '文字起こし', slug: 'features/transcription' },
             { label: '話者分離と仕上げ', slug: 'features/speaker-separation' },
             { label: 'Bluesky 連携', slug: 'features/bluesky' },
+            { label: 'Discord への告知', slug: 'features/discord' },
             { label: 'RSS フィード', slug: 'features/rss' },
             { label: 'バックアップ', slug: 'features/backup' },
             { label: 'Spotify 連携', slug: 'features/spotify' },
