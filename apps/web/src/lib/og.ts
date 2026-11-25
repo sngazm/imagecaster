@@ -35,21 +35,21 @@ function splitEpisodeTitle(title: string): { number: string | null; rest: string
   return match ? { number: `#${match[1]}`, rest: match[2] } : { number: null, rest: title };
 }
 
+/** 2026/1/11 の形（JST） */
 function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("ja-JP", {
+  const parts = new Intl.DateTimeFormat("ja-JP", {
     year: "numeric",
-    month: "long",
+    month: "numeric",
     day: "numeric",
     timeZone: "Asia/Tokyo",
-  });
+  }).formatToParts(new Date(dateString));
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${get("year")}/${get("month")}/${get("day")}`;
 }
 
+/** 1 時間を超えても分で出す（66分） */
 function formatMinutes(seconds: number): string {
-  const minutes = Math.max(1, Math.round(seconds / 60));
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h === 0) return `${m}分`;
-  return m === 0 ? `${h}時間` : `${h}時間${m}分`;
+  return `${Math.max(1, Math.round(seconds / 60))}分`;
 }
 
 function hostOf(url: string): string {
