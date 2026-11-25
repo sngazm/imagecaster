@@ -50,7 +50,7 @@ export async function getStaticPaths() {
         : null;
       return {
         params: { id: episode.id },
-        props: { episode, websiteUrl, transcriptSegments, transcriptText, podcastArtworkUrl, prevEpisode, nextEpisode, spotifyUrl, speakerIcons },
+        props: { episode, websiteUrl, transcriptSegments, transcriptText, podcastArtworkUrl, ogImageUrl: getEpisodeOgImageUrl(episode, index.podcast), prevEpisode, nextEpisode, spotifyUrl, speakerIcons },
       };
     })
   );
@@ -63,6 +63,7 @@ let websiteUrl: string;
 let transcriptSegments: TranscriptSegment[] = [];
 let transcriptText: string = "";
 let podcastArtworkUrl: string;
+let ogImageUrl: string;
 let prevEpisode: EpisodeNav | null = null;
 let nextEpisode: EpisodeNav | null = null;
 let spotifyUrl: string | null = null;
@@ -75,6 +76,7 @@ if (Astro.props.episode) {
   transcriptSegments = Astro.props.transcriptSegments || [];
   transcriptText = Astro.props.transcriptText || "";
   podcastArtworkUrl = Astro.props.podcastArtworkUrl || "";
+  ogImageUrl = Astro.props.ogImageUrl;
   prevEpisode = Astro.props.prevEpisode || null;
   nextEpisode = Astro.props.nextEpisode || null;
   spotifyUrl = Astro.props.spotifyUrl || null;
@@ -89,6 +91,7 @@ if (Astro.props.episode) {
   episode = fetchedEpisode;
   websiteUrl = index.podcast.websiteUrl;
   podcastArtworkUrl = index.podcast.artworkUrl;
+  ogImageUrl = getEpisodeOgImageUrl(episode, index.podcast);
   spotifyUrl = index.podcast.spotifyUrl || null;
   speakerIcons = Object.fromEntries(
     [...(index.podcast.speakerIcons ?? []), ...(episode.speakerIcons ?? [])].map(
@@ -113,8 +116,6 @@ if (Astro.props.episode) {
 
 const description = processDescription(episode.description, episode, websiteUrl);
 
-// OGP画像（エピソードのアートワークURL、またはPodcastアートワークを使用）
-const ogImageUrl = getEpisodeOgImageUrl(episode.artworkUrl, podcastArtworkUrl);
 ---
 
 <Layout title={episode.title} description={description} ogImage={ogImageUrl} ogType="article">

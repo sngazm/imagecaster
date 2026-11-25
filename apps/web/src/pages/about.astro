@@ -8,7 +8,7 @@ const index = await getPodcastIndex();
 const podcast = index.podcast;
 
 // OGP画像（PodcastアートワークURLを直接使用）
-const ogImageUrl = getPodcastOgImageUrl(podcast.artworkUrl);
+const ogImageUrl = getPodcastOgImageUrl(podcast);
 ---
 
 <Layout title="番組について" description={podcast.description} ogImage={ogImageUrl}>

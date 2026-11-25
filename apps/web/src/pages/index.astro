@@ -17,7 +17,7 @@ const totalPages = Math.ceil(allEpisodes.length / EPISODES_PER_PAGE);
 const episodes = allEpisodes.slice(0, EPISODES_PER_PAGE);
 
 // OGP画像（PodcastアートワークURLを直接使用）
-const ogImageUrl = getPodcastOgImageUrl(podcast.artworkUrl);
+const ogImageUrl = getPodcastOgImageUrl(podcast);
 ---
 
 <Layout title={podcast.title} description={podcast.description} ogImage={ogImageUrl}>

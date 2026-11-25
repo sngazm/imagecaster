@@ -281,7 +281,7 @@ podcast-bucket/
 ├── index.json              # エピソード一覧 + Podcast設定
 ├── feed.xml                # RSSフィード
 └── assets/
-    └── artwork.jpg         # Podcastアートワーク（OGP画像としても使用）
+    └── artwork.jpg         # Podcastアートワーク（OGP画像の左にも入る）
 ```
 
 ## 環境変数
