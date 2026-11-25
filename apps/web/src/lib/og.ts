@@ -65,8 +65,7 @@ export function podcastOgCard(podcast: PodcastInfo): OgCard {
   return {
     title: name,
     subtitle: tagline ?? (stripHtml(podcast.description) || undefined),
-    footerLeft: podcast.author || undefined,
-    footerRight: hostOf(podcast.websiteUrl) || undefined,
+    meta: [podcast.author, hostOf(podcast.websiteUrl)].filter(Boolean).join("・") || undefined,
     artworkUrls: [podcast.artworkUrl],
   };
 }
@@ -74,15 +73,15 @@ export function podcastOgCard(podcast: PodcastInfo): OgCard {
 export function episodeOgCard(episode: Episode, podcast: PodcastInfo): OgCard {
   const { number, rest } = splitEpisodeTitle(episode.title);
   const date = episode.publishedAt || episode.publishAt;
-  const footerRight = [date ? formatDate(date) : "", episode.duration > 0 ? formatMinutes(episode.duration) : ""]
+  const meta = [date ? formatDate(date) : "", episode.duration > 0 ? formatMinutes(episode.duration) : ""]
     .filter(Boolean)
     .join("・");
 
   return {
     eyebrow: number ?? undefined,
     title: rest,
-    footerLeft: splitPodcastTitle(podcast.title).name,
-    footerRight: footerRight || undefined,
+    label: splitPodcastTitle(podcast.title).name,
+    meta: meta || undefined,
     // その回のアートワークが取れなければ番組のものを使う
     artworkUrls: [episode.artworkUrl, podcast.artworkUrl],
   };

@@ -1,7 +1,8 @@
 /**
  * OGP 画像（1200x630）をビルド時に描く
  *
- * 左にアートワーク、右にエピソード名。背景と差し色はアートワークから取るので、
+ * 左にアートワーク、右にエピソード名。SNS のカードで隠れたり読めなくなったりしないよう、
+ * 下の帯には何も置かず（SAFE_BOTTOM）、字は大きめに組む。背景と差し色はアートワークから取るので、
  * 回ごとのアートワークがあればその回の色になる。
  *
  * satori で SVG にし（文字はパスになる）、sharp で JPEG にする。
@@ -13,11 +14,20 @@ import sharp from "sharp";
 import { loadDefaultJapaneseParser } from "budoux";
 import { OG_WIDTH, OG_HEIGHT, type OgCard } from "./og-card";
 
-const PADDING = 72;
-const ART_SIZE = OG_HEIGHT - PADDING * 2; // 486
-const ART_RADIUS = 36;
-const GAP = 60;
-const TEXT_WIDTH = OG_WIDTH - PADDING * 2 - ART_SIZE - GAP; // 510
+/**
+ * 大事なものを置いてよい下端
+ *
+ * X はカードの左下に、ページのタイトルを黒い帯で重ねる。スマホの幅だと、帯の上端は
+ * 画像の下から 17% あたり（1200x630 では y=523）まで来る。それより下には、隠れて困るものを置かない。
+ * アートワークも文字もこの線より上に収め、下は余白にする。
+ */
+const SAFE_BOTTOM = 520;
+const SIDE = 64;
+const ART_TOP = 60;
+const ART_SIZE = SAFE_BOTTOM - ART_TOP; // 460
+const ART_RADIUS = 34;
+const GAP = 52;
+const TEXT_WIDTH = OG_WIDTH - SIDE * 2 - ART_SIZE - GAP; // 560
 
 const INK = "#18181b";
 const INK_MUTED = "#52525b";
@@ -418,15 +428,24 @@ function placeholderArt(accent: string, label: string): Node {
     h(
       "div",
       {
-        margin: 44,
+        margin: 40,
         color: "#ffffff",
-        fontSize: 52,
-        fontWeight: 900,
-        lineHeight: 1.15,
+        fontSize: 44,
+        fontWeight: 700,
+        lineHeight: 1.25,
       },
-      label
+      // 2 行ぶんまで。日本語は 700 までしか読み込んでいないので、太さは 700
+      truncate(label, ((ART_SIZE - 80) / 44) * 2 - 1)
     )
   );
+}
+
+/** 1 行に収まるよう、長ければ「…」で切る */
+function truncate(text: string, maxEm: number): string {
+  if (textWidth(text) <= maxEm) return text;
+  let cut = text;
+  while (cut.length > 1 && textWidth(`${cut}…`) > maxEm) cut = cut.slice(0, -1);
+  return `${cut}…`;
 }
 
 export async function renderOgImage(card: OgCard): Promise<Buffer> {
@@ -439,27 +458,50 @@ export async function renderOgImage(card: OgCard): Promise<Buffer> {
   }
   const accent = artwork?.accent ?? FALLBACK_ACCENT;
 
-  const TITLE_LINE_HEIGHT = 1.32;
-  const SUBTITLE_LINE_HEIGHT = 1.5;
+  // SNS のカードはスマホだと幅 340px ほどに縮む（3.5 分の 1）。そこで読める大きさを下限にする
+  const TITLE_LINE_HEIGHT = 1.3;
+  const SUBTITLE_SIZE = 32;
+  const SUBTITLE_LINE_HEIGHT = 1.45;
+  const EYEBROW_SIZE = 40;
+  const LABEL_SIZE = 28;
+  const META_SIZE = 28;
+  const HEAD_HEIGHT = 48;
+  const HEAD_GAP = 18;
+  const META_HEIGHT = 40;
+  const META_GAP = 18;
+
+  const hasHead = Boolean(card.eyebrow || card.label);
+  const eyebrowEm = card.eyebrow ? (textWidth(card.eyebrow) * EYEBROW_SIZE + 18) / LABEL_SIZE : 0;
+  const label = card.label ? truncate(card.label, (TEXT_WIDTH - 26) / LABEL_SIZE - eyebrowEm) : null;
+  const meta = card.meta ? truncate(card.meta, TEXT_WIDTH / META_SIZE) : null;
 
   const subtitle = card.subtitle
-    ? fitText(card.subtitle, [{ fontSize: 26, maxLines: 3 }], 26 * SUBTITLE_LINE_HEIGHT * 3, SUBTITLE_LINE_HEIGHT)
+    ? fitText(
+        card.subtitle,
+        [{ fontSize: SUBTITLE_SIZE, maxLines: 3 }],
+        SUBTITLE_SIZE * SUBTITLE_LINE_HEIGHT * 3,
+        SUBTITLE_LINE_HEIGHT
+      )
     : null;
   const subtitleHeight = subtitle
-    ? subtitle.lines.length * subtitle.fontSize * SUBTITLE_LINE_HEIGHT + 20
+    ? subtitle.lines.length * subtitle.fontSize * SUBTITLE_LINE_HEIGHT + 16
     : 0;
 
-  // 右の列の高さから、上の番号と下段のぶんを引いた残りがタイトルの場所
-  const titleSpace = ART_SIZE - (card.eyebrow ? 62 : 0) - 78 - subtitleHeight;
+  // 右の列の高さから、上の番号と下の日付のぶんを引いた残りがタイトルの場所
+  const titleSpace =
+    ART_SIZE -
+    (hasHead ? HEAD_HEIGHT + HEAD_GAP : 0) -
+    (meta ? META_HEIGHT + META_GAP : 0) -
+    subtitleHeight;
   const title = fitText(
     card.title,
     [
-      { fontSize: 66, maxLines: 3 },
-      { fontSize: 58, maxLines: 3 },
-      { fontSize: 52, maxLines: 4 },
-      { fontSize: 46, maxLines: 4 },
-      { fontSize: 41, maxLines: 5 },
-      { fontSize: 37, maxLines: 6 },
+      { fontSize: 72, maxLines: 3 },
+      { fontSize: 64, maxLines: 3 },
+      { fontSize: 56, maxLines: 4 },
+      { fontSize: 50, maxLines: 4 },
+      { fontSize: 45, maxLines: 5 },
+      { fontSize: 40, maxLines: 6 },
     ],
     titleSpace,
     TITLE_LINE_HEIGHT
@@ -471,82 +513,93 @@ export async function renderOgImage(card: OgCard): Promise<Buffer> {
         width: ART_SIZE,
         height: ART_SIZE,
         borderRadius: ART_RADIUS,
-        boxShadow: "0 30px 60px -18px rgba(24, 24, 27, 0.4), 0 0 0 1px rgba(24, 24, 27, 0.06)",
+        boxShadow: "0 26px 50px -18px rgba(24, 24, 27, 0.4), 0 0 0 1px rgba(24, 24, 27, 0.06)",
         flexShrink: 0,
       })
-    : placeholderArt(accent, card.footerLeft ?? "Podcast");
+    : placeholderArt(accent, card.label ?? card.title);
+
+  const head = hasHead
+    ? h(
+        "div",
+        {
+          display: "flex",
+          alignItems: "center",
+          height: HEAD_HEIGHT,
+          marginBottom: HEAD_GAP,
+        },
+        [
+          h("div", {
+            width: 10,
+            height: 38,
+            borderRadius: 5,
+            background: accent,
+            marginRight: 16,
+          }),
+          card.eyebrow
+            ? h(
+                "div",
+                {
+                  color: accent,
+                  fontSize: EYEBROW_SIZE,
+                  fontWeight: 900,
+                  letterSpacing: "0.02em",
+                  marginRight: 18,
+                  whiteSpace: "nowrap",
+                },
+                card.eyebrow
+              )
+            : null,
+          label
+            ? h(
+                "div",
+                { color: INK_MUTED, fontSize: LABEL_SIZE, fontWeight: 700, whiteSpace: "nowrap" },
+                label
+              )
+            : null,
+        ]
+      )
+    : null;
 
   const column = h(
     "div",
     {
       display: "flex",
       flexDirection: "column",
+      justifyContent: "center",
       width: TEXT_WIDTH,
       height: ART_SIZE,
       marginLeft: GAP,
     },
     [
-      h(
-        "div",
-        { display: "flex", flexDirection: "column", flexGrow: 1, justifyContent: "center" },
-        [
-          card.eyebrow
-            ? h(
-                "div",
-                {
-                  display: "flex",
-                  alignItems: "center",
-                  height: 42,
-                  marginBottom: 20,
-                  color: accent,
-                  fontSize: 34,
-                  fontWeight: 900,
-                  letterSpacing: "0.02em",
-                },
-                [
-                  h("div", {
-                    width: 10,
-                    height: 34,
-                    borderRadius: 5,
-                    background: accent,
-                    marginRight: 16,
-                  }),
-                  card.eyebrow,
-                ]
-              )
-            : null,
-          textBlock(title, TITLE_LINE_HEIGHT, {
-            color: INK,
-            fontWeight: 700,
-            letterSpacing: "-0.01em",
-          }),
-          subtitle
-            ? textBlock(subtitle, SUBTITLE_LINE_HEIGHT, {
-                color: INK_MUTED,
-                fontWeight: 500,
-                marginTop: 20,
-              })
-            : null,
-        ]
-      ),
-      h(
-        "div",
-        {
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          height: 54,
-          borderTop: "2px solid rgba(24, 24, 27, 0.12)",
-          paddingTop: 20,
-          fontSize: 24,
-          color: INK_MUTED,
-          fontWeight: 500,
-        },
-        [
-          h("div", { color: INK, fontWeight: 700, whiteSpace: "nowrap" }, card.footerLeft ?? ""),
-          h("div", { whiteSpace: "nowrap" }, card.footerRight ?? ""),
-        ]
-      ),
+      head,
+      textBlock(title, TITLE_LINE_HEIGHT, {
+        color: INK,
+        fontWeight: 700,
+        letterSpacing: "-0.01em",
+      }),
+      subtitle
+        ? textBlock(subtitle, SUBTITLE_LINE_HEIGHT, {
+            color: INK_MUTED,
+            fontWeight: 500,
+            marginTop: 16,
+          })
+        : null,
+      meta
+        ? h(
+            "div",
+            {
+              display: "flex",
+              alignItems: "center",
+              height: META_HEIGHT,
+              marginTop: META_GAP,
+              fontSize: META_SIZE,
+              color: INK_MUTED,
+              fontWeight: 500,
+              whiteSpace: "nowrap",
+            },
+            meta
+          )
+        : null,
     ]
   );
 
@@ -556,9 +609,10 @@ export async function renderOgImage(card: OgCard): Promise<Buffer> {
       width: OG_WIDTH,
       height: OG_HEIGHT,
       display: "flex",
-      alignItems: "center",
-      paddingLeft: PADDING,
-      paddingRight: PADDING,
+      alignItems: "flex-start",
+      paddingTop: ART_TOP,
+      paddingLeft: SIDE,
+      paddingRight: SIDE,
       fontFamily: FONT,
     },
     [art, column]
@@ -579,7 +633,7 @@ export async function renderOgImage(card: OgCard): Promise<Buffer> {
   return background
     .composite([
       { input: Buffer.from(svg) },
-      ...(artwork ? [{ input: artwork.image, left: PADDING, top: PADDING }] : []),
+      ...(artwork ? [{ input: artwork.image, left: SIDE, top: ART_TOP }] : []),
     ])
     .jpeg({ quality: 90, chromaSubsampling: "4:4:4" })
     .toBuffer();
