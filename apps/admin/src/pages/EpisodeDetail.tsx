@@ -15,6 +15,13 @@ import { ReferenceLinksEditor } from "../components/ReferenceLinksEditor";
 import { ReferenceLinkProposals } from "../components/ReferenceLinkProposals";
 import { getWebsiteUrl, getEnvironment } from "../lib/env";
 
+/** タイトルの入力欄を、中身の行数に合わせた高さにする */
+function fitTitleHeight(el: HTMLTextAreaElement | null) {
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight}px`;
+}
+
 // PublishStatus badge configuration
 const PUBLISH_STATUS_CONFIG: Record<PublishStatus, { label: string; badgeClass: string }> = {
   new: { label: "新規", badgeClass: "badge badge-default" },
@@ -470,17 +477,27 @@ export default function EpisodeDetail() {
           </svg>
           戻る
         </Link>
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1 min-w-0">
+        {/* スマホではタイトルの下にボタンと状態を回す。横に並べるとタイトルが半分の幅に押し込まれる */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="min-w-0 sm:flex-1">
             {isEditing ? (
-              <input
-                type="text"
+              // 長いタイトルが 1 行で切れないよう、折り返して全部見せる。改行は入れさせない
+              <textarea
+                ref={fitTitleHeight}
+                rows={1}
                 value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-                className="block w-full text-2xl font-bold bg-transparent border-b-2 border-[var(--color-accent)] focus:outline-none text-[var(--color-text-primary)]"
+                onChange={(e) => {
+                  setEditTitle(e.target.value.replace(/[\r\n]+/g, " "));
+                  fitTitleHeight(e.target);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") e.preventDefault();
+                }}
+                aria-label="タイトル"
+                className="block w-full resize-none overflow-hidden text-xl sm:text-2xl font-bold leading-snug bg-transparent border-b-2 border-[var(--color-accent)] focus:outline-none text-[var(--color-text-primary)]"
               />
             ) : (
-              <h1 className="text-2xl font-bold tracking-tight text-[var(--color-text-primary)]">{episode.title}</h1>
+              <h1 className="text-xl sm:text-2xl font-bold leading-snug tracking-tight break-words text-[var(--color-text-primary)]">{episode.title}</h1>
             )}
             {isEditing && canEditSlug && (
               <div className="mt-2">
@@ -489,15 +506,15 @@ export default function EpisodeDetail() {
                   type="text"
                   value={editSlug}
                   onChange={(e) => setEditSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
-                  className="ml-2 text-sm font-mono text-[var(--color-text-secondary)] bg-transparent border-b border-[var(--color-border)] focus:outline-none focus:border-[var(--color-accent)]"
+                  className="ml-2 max-w-full text-sm font-mono text-[var(--color-text-secondary)] bg-transparent border-b border-[var(--color-border)] focus:outline-none focus:border-[var(--color-accent)]"
                 />
               </div>
             )}
             {!isEditing && (
-              <p className="text-xs text-[var(--color-text-muted)] font-mono mt-1">{episode.slug || episode.id}</p>
+              <p className="text-xs text-[var(--color-text-muted)] font-mono mt-1 break-all">{episode.slug || episode.id}</p>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
             {/* Webページを開く */}
             {canShowWebLink && episodeWebUrl && (
               <a
