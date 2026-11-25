@@ -20,7 +20,7 @@ import { postClipToInstagram } from "./services/clip-post-instagram";
 import { reviewCards, pendingReviewCards } from "./routes/review-cards";
 import { getIndex, saveIndex, findEpisodeBySlug, saveEpisodeMeta, syncPublishedIndex } from "./services/r2";
 import { regenerateFeed } from "./services/feed";
-import { postEpisodeToBluesky } from "./services/bluesky";
+import { queueBlueskyPost, handleBlueskyPosts } from "./services/bluesky";
 import { queueDiscordAnnouncement, handleDiscordAnnouncements } from "./services/discord";
 import { handlePatreonWebhook } from "./services/patreon";
 import { triggerWebRebuild } from "./services/deploy";
@@ -360,11 +360,8 @@ async function handleScheduledPublish(env: Env): Promise<void> {
     meta.publishStatus = "published";
     meta.publishedAt = now.toISOString();
 
-    // Bluesky に投稿（OGP画像のフォールバックとしてartworkUrlを渡す）
-    const posted = await postEpisodeToBluesky(env, meta, env.WEBSITE_URL, index.podcast.artworkUrl);
-    if (posted) {
-      meta.blueskyPostedAt = now.toISOString();
-    }
+    // Bluesky への投稿を待ち行列に入れる（ページが出てから Cron が投稿する）
+    await queueBlueskyPost(env, meta);
 
     await saveEpisodeMeta(env, meta);
     await syncPublishedIndex(env, meta);
@@ -462,6 +459,12 @@ export default {
       await handlePendingWebRebuild(env);
     } catch (err) {
       console.error("[Cron] Web rebuild error:", err);
+    }
+    // 公開サイトにページが出たエピソードを Bluesky に投稿する
+    try {
+      await handleBlueskyPosts(env);
+    } catch (err) {
+      console.error("[Cron] Bluesky posts error:", err);
     }
     // 公開サイトにページが出たエピソードを Discord に告知する
     try {

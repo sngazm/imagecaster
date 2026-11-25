@@ -1,9 +1,11 @@
 ---
 import { stripHtml } from "../lib/api";
+import { OG_WIDTH, OG_HEIGHT } from "../lib/og-card";
 
 interface Props {
   title: string;
   description?: string;
+  /** ビルド時に描いた 1200x630 の画像（lib/og.ts が返す URL） */
   ogImage?: string;
   ogType?: "website" | "article";
 }
@@ -43,6 +45,9 @@ const absoluteOgImage = toAbsoluteUrl(ogImage);
       <>
         <meta property="og:image" content={absoluteOgImage} />
         <meta property="og:image:secure_url" content={absoluteOgImage} />
+        <meta property="og:image:type" content="image/jpeg" />
+        <meta property="og:image:width" content={String(OG_WIDTH)} />
+        <meta property="og:image:height" content={String(OG_HEIGHT)} />
         <meta property="og:image:alt" content={fullTitle} />
       </>
     )}

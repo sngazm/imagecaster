@@ -19,7 +19,7 @@ import {
 import {
   sanitizeSpeakerIcons, sanitizeSpeakerTracks } from "../services/transcript-refine";
 import { regenerateFeed } from "../services/feed";
-import { postEpisodeToBluesky } from "../services/bluesky";
+import { queueBlueskyPost } from "../services/bluesky";
 import { triggerWebRebuild } from "../services/deploy";
 import { getMp3Duration } from "../services/audio";
 
@@ -170,12 +170,8 @@ upload.post("/:id/upload-complete", async (c) => {
           meta.publishedAt = now.toISOString();
         }
 
-        // Bluesky に投稿（OGP画像のフォールバックとしてartworkUrlを渡す）
-        const index = await getIndex(c.env);
-        const posted = await postEpisodeToBluesky(c.env, meta, c.env.WEBSITE_URL, index.podcast.artworkUrl);
-        if (posted) {
-          meta.blueskyPostedAt = now.toISOString();
-        }
+        // Bluesky への投稿を待ち行列に入れる（ページが出てから Cron が投稿する）
+        await queueBlueskyPost(c.env, meta);
       } else {
         meta.publishStatus = "scheduled";
       }
@@ -273,12 +269,8 @@ upload.post("/:id/upload-from-url", async (c) => {
           meta.publishedAt = now.toISOString();
         }
 
-        // Bluesky に投稿（OGP画像のフォールバックとしてartworkUrlを渡す）
-        const index = await getIndex(c.env);
-        const posted = await postEpisodeToBluesky(c.env, meta, c.env.WEBSITE_URL, index.podcast.artworkUrl);
-        if (posted) {
-          meta.blueskyPostedAt = now.toISOString();
-        }
+        // Bluesky への投稿を待ち行列に入れる（ページが出てから Cron が投稿する）
+        await queueBlueskyPost(c.env, meta);
       } else {
         meta.publishStatus = "scheduled";
       }

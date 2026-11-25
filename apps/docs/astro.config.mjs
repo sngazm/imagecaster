@@ -63,6 +63,7 @@ export default defineConfig({
             { label: 'バックアップ', slug: 'features/backup' },
             { label: 'Spotify 連携', slug: 'features/spotify' },
             { label: '切り抜きの投稿', slug: 'features/clip-posting' },
+            { label: 'OGP 画像', slug: 'features/ogp' },
           ],
         },
         {
