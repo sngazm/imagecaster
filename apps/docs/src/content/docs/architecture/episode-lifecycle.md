@@ -83,7 +83,7 @@ new → uploading → draft → scheduled → published
 - Cron が `publishAt` を過ぎたエピソードを自動公開
 - `index.json` に追加され、RSS フィードに含まれる
 - 公開サイトのリビルドがトリガーされる
-- `blueskyPostEnabled: true` の場合、Bluesky に投稿
+- `blueskyPostEnabled: true` の場合、公開サイトにページが出てから Bluesky に投稿（Cron が確かめる）
 - 初めての公開なら、公開サイトにページが出たあとで Discord に告知（`DISCORD_WEBHOOK_URL` 設定時）
 
 ## 文字起こしステータス

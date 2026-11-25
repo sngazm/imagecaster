@@ -1,9 +1,22 @@
 /**
  * Bluesky API クライアント
  * AT Protocol を使用してBlueskyに投稿
+ *
+ * 公開した瞬間には投稿しない。公開サイトは静的ビルドなので、公開から数分はエピソードの
+ * ページも、そのページの OGP 画像（1200x630。ビルド時に描く）もまだ無い。
+ * その間に投稿すると、リンクを押しても何も出ないうえ、カードの画像に正方形のアートワークを
+ * 使うしかなく、Bluesky がそれを横長に切り抜いて上下が欠ける。
+ *
+ * そこで公開の時点では待ち行列（index.json の blueskyPostIds）に入れるだけにして、
+ * Cron がページが出たのを確かめてから、そのページの OGP 画像を付けて投稿する。
  */
 
 import type { Env, EpisodeMeta } from "../types";
+import { getIndex, saveIndex, findEpisodeBySlug, saveEpisodeMeta } from "./r2";
+import { fetchLiveEpisodePage, extractOgImageUrl } from "./episode-page";
+
+/** ページが出ないまま、これだけ経ったら諦める。古い回を後から投稿しないため */
+const GIVE_UP_AFTER_MS = 24 * 60 * 60 * 1000;
 
 const BLUESKY_API_URL = "https://bsky.social/xrpc";
 
@@ -179,7 +192,7 @@ async function createPost(
   episodeUrl?: string,
   episodeTitle?: string,
   episodeDescription?: string,
-  ogImageUrl?: string
+  imageUrls: string[] = []
 ): Promise<{ uri: string; cid: string }> {
   const facets = detectUrls(text);
 
@@ -195,10 +208,11 @@ async function createPost(
 
   // エピソードURLがある場合は外部リンクカードを追加
   if (episodeUrl && episodeTitle) {
-    // OGP画像があればアップロードしてサムネイルとして設定
+    // 先頭から順に試し、最初にアップロードできた画像をサムネイルにする
     let thumbBlob: BlobRef | null = null;
-    if (ogImageUrl) {
-      thumbBlob = await uploadImageBlob(session, ogImageUrl);
+    for (const imageUrl of imageUrls) {
+      thumbBlob = await uploadImageBlob(session, imageUrl);
+      if (thumbBlob) break;
     }
 
     record.embed = {
@@ -239,14 +253,14 @@ async function createPost(
  * @param env - 環境変数
  * @param meta - エピソードメタデータ
  * @param websiteUrl - ウェブサイトのベースURL
- * @param fallbackImageUrl - OGP画像がない場合のフォールバック画像URL（artworkUrl等）
+ * @param imageUrls - カードの画像の候補。先頭から順に試す（ページの OGP 画像 > アートワーク）
  * @returns 投稿成功時はtrue
  */
 export async function postEpisodeToBluesky(
   env: Env,
   meta: EpisodeMeta,
   websiteUrl: string,
-  fallbackImageUrl?: string
+  imageUrls: Array<string | null | undefined> = []
 ): Promise<boolean> {
   // 認証情報がない場合はスキップ
   if (!env.BLUESKY_IDENTIFIER || !env.BLUESKY_PASSWORD) {
@@ -282,9 +296,6 @@ export async function postEpisodeToBluesky(
       .replace(/\{\{TITLE\}\}/g, meta.title)
       .replace(/\{\{AUDIO_URL\}\}/g, meta.audioUrl || "");
 
-    // サムネイル画像URL（エピソード固有のアートワーク > Podcastアートワーク）
-    const ogImageUrl = meta.artworkUrl || fallbackImageUrl;
-
     // 投稿
     const result = await createPost(
       session,
@@ -292,7 +303,7 @@ export async function postEpisodeToBluesky(
       episodeUrl,
       meta.title,
       meta.description.slice(0, 300), // 説明文は300文字まで
-      ogImageUrl || undefined
+      imageUrls.filter((url): url is string => Boolean(url))
     );
 
     console.log(`Posted to Bluesky: ${result.uri}`);
@@ -301,4 +312,85 @@ export async function postEpisodeToBluesky(
     console.error("Failed to post to Bluesky:", error);
     return false;
   }
+}
+
+/**
+ * 公開されたエピソードを、Bluesky への投稿の待ち行列に入れる
+ *
+ * 投稿しない設定のもの・すでに投稿したものは入れない（待ち行列が溜まり続けるのを避ける）。
+ */
+export async function queueBlueskyPost(env: Env, meta: EpisodeMeta): Promise<void> {
+  if (!env.BLUESKY_IDENTIFIER || !env.BLUESKY_PASSWORD) return;
+  if (!meta.blueskyPostEnabled || !meta.blueskyPostText || meta.blueskyPostedAt) return;
+
+  const index = await getIndex(env);
+  const ids = index.blueskyPostIds ?? [];
+  if (ids.includes(meta.id)) return;
+
+  index.blueskyPostIds = [...ids, meta.id];
+  await saveIndex(env, index);
+}
+
+/**
+ * Cron 処理: 待ち行列のエピソードのうち、ページが出たものを Bluesky に投稿する
+ *
+ * ページがまだ無いもの・投稿に失敗したものは残して、次の回でやり直す。
+ */
+export async function handleBlueskyPosts(env: Env): Promise<void> {
+  if (!env.BLUESKY_IDENTIFIER || !env.BLUESKY_PASSWORD) return;
+
+  const index = await getIndex(env);
+  const ids = index.blueskyPostIds ?? [];
+  if (ids.length === 0) return;
+
+  const now = new Date();
+  const settled: string[] = [];
+
+  for (const id of ids) {
+    const meta = await findEpisodeBySlug(env, id);
+
+    // 消された・公開をやめた・投稿をやめた・すでに出したものは待たない
+    if (
+      !meta ||
+      meta.publishStatus !== "published" ||
+      !meta.blueskyPostEnabled ||
+      !meta.blueskyPostText ||
+      meta.blueskyPostedAt
+    ) {
+      settled.push(id);
+      continue;
+    }
+
+    const publishedAt = meta.publishedAt ? new Date(meta.publishedAt).getTime() : now.getTime();
+    const expired = now.getTime() - publishedAt > GIVE_UP_AFTER_MS;
+
+    const page = await fetchLiveEpisodePage(env.WEBSITE_URL, meta.slug);
+    const posted =
+      page !== null &&
+      (await postEpisodeToBluesky(env, meta, env.WEBSITE_URL, [
+        // ページの OGP 画像（横長）。取れなければアートワーク（正方形なので上下が切れる）
+        extractOgImageUrl(page),
+        meta.artworkUrl,
+        index.podcast.artworkUrl,
+      ]));
+
+    if (posted) {
+      meta.blueskyPostedAt = now.toISOString();
+      await saveEpisodeMeta(env, meta);
+      settled.push(id);
+      console.log(`[Bluesky] 投稿した: ${id}`);
+    } else if (expired) {
+      settled.push(id);
+      console.error(`[Bluesky] 24 時間たっても出せなかったので諦める: ${id}（ページ: ${page ? "あり" : "なし"}）`);
+    } else {
+      console.log(`[Bluesky] 次の回に持ち越す: ${id}（ページ: ${page ? "あり" : "なし"}）`);
+    }
+  }
+
+  if (settled.length === 0) return;
+
+  // 確認している間に別の公開で待ち行列が増えているかもしれないので読み直す
+  const current = await getIndex(env);
+  current.blueskyPostIds = (current.blueskyPostIds ?? []).filter((id) => !settled.includes(id));
+  await saveIndex(env, current);
 }

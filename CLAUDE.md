@@ -78,6 +78,7 @@ pnpm test
   - `templates.test.ts` - テンプレートCRUD
   - `import.test.ts` - RSSインポート、デプロイ状況
   - `clip-posts.test.ts` / `clip-post-bluesky.test.ts` / `clip-post-instagram.test.ts` - 切り抜きの投稿（骨組み・手で出す投稿先・Bluesky・Instagram）
+  - `bluesky.test.ts` - エピソードの Bluesky への投稿（ページが出てから、OGP 画像を付けて出す）
   - `discord.test.ts` / `patreon.test.ts` - Discord への告知（新着エピソード・Patreon の投稿）
   - `review-cards.test.ts` - 確認カード（受け取り、決める、取り消す、取り直しで戻ってくる）
 

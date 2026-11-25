@@ -313,6 +313,8 @@ export interface PodcastIndex {
     storageKey: string; // R2ディレクトリ名（推測不能）
   }>;
   scheduledEpisodeIds?: string[]; // 予約投稿待ちエピソードのID一覧（Cron最適化用）
+  // Bluesky への投稿待ちエピソードのID一覧。公開サイトにページが出たら Cron が投稿する
+  blueskyPostIds?: string[];
   // Discord への告知待ちエピソードのID一覧。公開サイトにページが出たら Cron が告知する
   discordAnnounceIds?: string[];
   // Discord に告知済みの Patreon の投稿ID（直近のぶんだけ）。二重の告知を防ぐ

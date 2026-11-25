@@ -11,19 +11,13 @@
 
 import type { Env, EpisodeMeta } from "../types";
 import { getIndex, saveIndex, findEpisodeBySlug, saveEpisodeMeta } from "./r2";
+import { episodePageUrl, fetchLiveEpisodePage } from "./episode-page";
 
 /** ページが出ないまま、これだけ経ったら諦める。古い回を後から告知しないため */
 const GIVE_UP_AFTER_MS = 24 * 60 * 60 * 1000;
 
 /** Discord の本文の上限 */
 export const CONTENT_LIMIT = 2000;
-
-/**
- * エピソードの公開ページの URL（公開サイトの正規の形に合わせて末尾に / を付ける）
- */
-export function episodePageUrl(websiteUrl: string, slug: string): string {
-  return `${websiteUrl.replace(/\/+$/, "")}/episodes/${slug}/`;
-}
 
 /**
  * 初めて公開されたエピソードを、告知の待ち行列に入れる
@@ -39,24 +33,6 @@ export async function queueDiscordAnnouncement(env: Env, episodeId: string): Pro
 
   index.discordAnnounceIds = [...ids, episodeId];
   await saveIndex(env, index);
-}
-
-/**
- * エピソードのページが公開サイトに出ているか
- *
- * 公開サイトは存在しないパスにもトップページを 200 で返すので、ステータスでは分からない。
- * 本文にそのエピソード自身の URL（og:url）が入っているかで見分ける。
- */
-export async function isEpisodePageLive(websiteUrl: string, slug: string): Promise<boolean> {
-  try {
-    const response = await fetch(episodePageUrl(websiteUrl, slug));
-    if (!response.ok) return false;
-    const html = await response.text();
-    return html.includes(`/episodes/${slug}/"`);
-  } catch (err) {
-    console.error(`[Discord] ページの確認に失敗: ${slug}`, err);
-    return false;
-  }
 }
 
 /**
@@ -124,7 +100,7 @@ export async function handleDiscordAnnouncements(env: Env): Promise<void> {
     const publishedAt = meta.publishedAt ? new Date(meta.publishedAt).getTime() : now.getTime();
     const expired = now.getTime() - publishedAt > GIVE_UP_AFTER_MS;
 
-    const live = await isEpisodePageLive(env.WEBSITE_URL, meta.slug);
+    const live = (await fetchLiveEpisodePage(env.WEBSITE_URL, meta.slug)) !== null;
     const posted = live && (await postToDiscord(
         env.DISCORD_WEBHOOK_URL,
         buildAnnouncement(meta, env.WEBSITE_URL),

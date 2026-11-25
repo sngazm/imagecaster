@@ -25,7 +25,7 @@ import {
   removeFromTranscriptionQueueIndex,
 } from "../services/r2";
 import { regenerateFeed } from "../services/feed";
-import { postEpisodeToBluesky } from "../services/bluesky";
+import { queueBlueskyPost } from "../services/bluesky";
 import { queueDiscordAnnouncement } from "../services/discord";
 import { triggerWebRebuild } from "../services/deploy";
 import { validateTranscriptData } from "../services/vtt";
@@ -296,13 +296,9 @@ episodes.put("/:id", async (c) => {
             meta.publishedAt = now.toISOString();
             firstPublished = true;
           }
-          // 新たに published になった場合は Bluesky に投稿
+          // 新たに published になった場合は Bluesky への投稿を待ち行列に入れる
           if (previousPublishStatus !== "published") {
-            const index = await getIndex(c.env);
-            const posted = await postEpisodeToBluesky(c.env, meta, c.env.WEBSITE_URL, index.podcast.artworkUrl);
-            if (posted) {
-              meta.blueskyPostedAt = now.toISOString();
-            }
+            await queueBlueskyPost(c.env, meta);
           }
         } else {
           meta.publishStatus = "scheduled";
@@ -527,12 +523,8 @@ episodes.post("/:id/transcription-complete", async (c) => {
             firstPublished = true;
           }
 
-          // Bluesky に投稿（OGP画像のフォールバックとしてartworkUrlを渡す）
-          const index = await getIndex(c.env);
-          const posted = await postEpisodeToBluesky(c.env, meta, c.env.WEBSITE_URL, index.podcast.artworkUrl);
-          if (posted) {
-            meta.blueskyPostedAt = now.toISOString();
-          }
+          // Bluesky への投稿を待ち行列に入れる（ページが出てから Cron が投稿する）
+          await queueBlueskyPost(c.env, meta);
         } else {
           meta.publishStatus = "scheduled";
         }
