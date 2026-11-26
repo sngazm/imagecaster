@@ -4,75 +4,103 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --font-sans: "Inter", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+  /* 英数字は Space Grotesk、和文は Zen Kaku Gothic New。Layout で読み込む */
+  --font-sans: "Space Grotesk", "Zen Kaku Gothic New", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
 
   /* ===============================================
-     Design System - Warmth & Approachability
-     Podcast向け: 読みやすく親しみやすいデザイン
+     生成りの地に墨の字。アートワークの 3 色（青緑・黄・朱）は、
+     点・線・再生ボタンにだけ使う。面では使わない。
      =============================================== */
 
-  /* Light Mode Colors */
-  --color-bg: #fafafa;
+  /* Light */
+  --color-bg: #fbf6ea;
   --color-bg-elevated: #ffffff;
-  --color-bg-subtle: #f5f5f5;
+  --color-bg-subtle: #f3ecdc;
 
-  --color-border: rgba(0, 0, 0, 0.08);
-  --color-border-subtle: rgba(0, 0, 0, 0.05);
+  --color-border: #e3dccb;
+  --color-border-subtle: #ede7d8;
 
-  --color-text: #18181b;
-  --color-text-secondary: #52525b;
-  --color-text-muted: #71717a;
-  --color-text-faint: #a1a1aa;
+  --color-text: #1c1b1a;
+  --color-text-secondary: #4d4942;
+  --color-text-muted: #6a655c;
+  --color-text-faint: #948e82;
 
-  /* Dark Mode Colors */
-  --color-bg-dark: #18181b;
-  --color-bg-elevated-dark: #27272a;
-  --color-bg-subtle-dark: #1f1f23;
+  /* Dark */
+  --color-bg-dark: #171614;
+  --color-bg-elevated-dark: #211f1c;
+  --color-bg-subtle-dark: #1d1b19;
 
-  --color-border-dark: rgba(255, 255, 255, 0.1);
-  --color-border-subtle-dark: rgba(255, 255, 255, 0.06);
+  --color-border-dark: #37342f;
+  --color-border-subtle-dark: #2a2825;
 
-  --color-text-dark: #fafafa;
-  --color-text-secondary-dark: #a1a1aa;
-  --color-text-muted-dark: #71717a;
-  --color-text-faint-dark: #52525b;
+  --color-text-dark: #f3eee2;
+  --color-text-secondary-dark: #cdc6b8;
+  --color-text-muted-dark: #a39d90;
+  --color-text-faint-dark: #7b766c;
 
-  /* Accent Colors */
-  --color-accent: #3b82f6;
-  --color-accent-hover: #2563eb;
+  /* 区切りの強い線・ボタンの縁。字と同じ墨 */
+  --color-ink: #1c1b1a;
+  --color-ink-dark: #f3eee2;
 
-  /* Semantic Colors */
-  --color-success: #22c55e;
-  --color-warning: #f59e0b;
-  --color-error: #ef4444;
+  /* リンクなど、字として使う差し色（青緑を読める濃さにしたもの）。
+     ダークでは下の .dark で明るい方に差し替える */
+  --color-accent: #0b6f6c;
+  --color-accent-hover: #095a57;
 
-  /* Platform Colors */
-  --color-rss: #f97316;
-  --color-apple: #a855f7;
-  --color-spotify: #22c55e;
+  /* アートワークの 3 色。字には使わない */
+  --color-brand-teal: #12a5a1;
+  --color-brand-yellow: #f5c52e;
+  --color-brand-red: #e2472b;
+  /* 朱を字で使うとき */
+  --color-brand-red-text: #b7341c;
 
-  /* Speaker Colors - 文字起こしの話者を見分けるための色
-     タイムスタンプが accent（青）なので、話者色には青系を使わない */
-  --color-speaker-1: #ea580c;
-  --color-speaker-2: #7c3aed;
-  --color-speaker-3: #059669;
-  --color-speaker-4: #db2777;
+  /* Semantic */
+  --color-success: #12a5a1;
+  --color-warning: #f5c52e;
+  --color-error: #b7341c;
 
-  --color-speaker-1-dark: #fb923c;
-  --color-speaker-2-dark: #c084fc;
-  --color-speaker-3-dark: #34d399;
-  --color-speaker-4-dark: #f472b6;
+  /* 話者の色。登場順。名前の字と、名前の前の点に使う */
+  --color-speaker-1: #b7341c;
+  --color-speaker-2: #0b6f6c;
+  --color-speaker-3: #8a6a00;
+  --color-speaker-4: #7c3aed;
 
-  /* Shadows - Subtle single shadow approach */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.04), 0 4px 6px rgba(0, 0, 0, 0.03);
+  --color-speaker-1-dark: #ff8a70;
+  --color-speaker-2-dark: #5fd4cf;
+  --color-speaker-3-dark: #f5c52e;
+  --color-speaker-4-dark: #c084fc;
 
-  /* Border Radius - Soft system */
   --radius-sm: 6px;
-  --radius: 8px;
-  --radius-lg: 12px;
+  --radius: 10px;
+  --radius-lg: 14px;
   --radius-xl: 16px;
+}
+
+.dark {
+  --color-accent: #5fd4cf;
+  --color-accent-hover: #8be3df;
+  --color-brand-red-text: #ff8a70;
+  --color-error: #ff8a70;
+}
+
+body {
+  font-feature-settings: "palt";
+}
+
+/* 数字の桁をそろえる */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 見出しの下の強い線 */
+.rule-heading {
+  padding-bottom: 0.625rem;
+  border-bottom: 1.5px solid var(--color-ink);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+.dark .rule-heading {
+  border-bottom-color: var(--color-ink-dark);
 }
 
 /* エピソード概要のpタグにマージンを追加（brとの区別を明確にする） */
@@ -87,9 +115,13 @@
 .prose a {
   overflow-wrap: break-word;
   word-break: break-all;
+  color: var(--color-accent);
   text-decoration: underline;
-  text-underline-offset: 2px;
-  opacity: 0.7;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.prose a:hover {
+  color: var(--color-accent-hover);
 }
 
 /* モバイルで input/textarea/select にフォーカスした際の自動ズームを防ぐ

@@ -28,6 +28,12 @@ function toAbsoluteUrl(url: string | undefined): string | undefined {
 }
 
 const absoluteOgImage = toAbsoluteUrl(ogImage);
+
+// いまどのページにいるか（ナビの下線）
+const path = Astro.url.pathname;
+const isAbout = path.startsWith("/about");
+const isSearch = path.startsWith("/search");
+const isEpisodes = !isAbout && !isSearch;
 ---
 
 <!doctype html>
@@ -57,6 +63,12 @@ const absoluteOgImage = toAbsoluteUrl(ogImage);
     <meta name="twitter:description" content={plainDescription} />
     {absoluteOgImage && <meta name="twitter:image" content={absoluteOgImage} />}
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap"
+    />
     <link rel="alternate" type="application/rss+xml" title={siteTitle} href="/feed.xml" />
     <meta name="color-scheme" content="light dark" />
     <title>{fullTitle}</title>
@@ -74,87 +86,82 @@ const absoluteOgImage = toAbsoluteUrl(ogImage);
   </head>
   <body class="min-h-screen bg-bg text-text dark:bg-bg-dark dark:text-text-dark">
     <div class="flex min-h-screen flex-col">
-      <header class="sticky top-0 z-50 border-b border-border bg-bg-elevated/95 backdrop-blur-md dark:border-border-dark dark:bg-bg-elevated-dark/95">
-        <div class="mx-auto flex h-14 max-w-4xl items-center justify-between px-4">
-          <a href="/" class="text-lg font-semibold tracking-tight text-text transition-colors hover:text-text-secondary dark:text-text-dark dark:hover:text-text-secondary-dark">
-            {siteTitle}
+      {/* アートワークの 3 色。番組の印はここと再生ボタンだけ */}
+      <div class="grid h-1 grid-cols-[5fr_2fr_1fr]" aria-hidden="true">
+        <span class="bg-brand-teal"></span>
+        <span class="bg-brand-yellow"></span>
+        <span class="bg-brand-red"></span>
+      </div>
+
+      <header class="mx-auto flex w-full max-w-[1000px] items-center justify-between gap-3 py-2 pl-5 pr-1 sm:px-8 sm:py-4">
+        <a href="/" class="whitespace-nowrap text-base font-bold tracking-tight text-text transition-colors hover:text-accent dark:text-text-dark sm:text-lg">
+          {siteTitle}
+        </a>
+        <nav class="flex items-center whitespace-nowrap text-[13px] font-medium sm:gap-5 sm:text-sm">
+          <a
+            href="/"
+            class:list={[
+              "flex min-h-11 items-center px-2 transition-colors hover:text-accent sm:px-0",
+              isEpisodes ? "text-text dark:text-text-dark" : "text-text-muted dark:text-text-muted-dark",
+            ]}
+          >
+            <span class:list={[isEpisodes && "border-b-2 border-ink pb-0.5 dark:border-ink-dark"]}>エピソード</span>
           </a>
-          <nav class="flex items-center gap-1 md:gap-2">
-            <a href="/" class="hidden rounded-md px-3 py-1.5 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-subtle hover:text-text dark:text-text-secondary-dark dark:hover:bg-bg-subtle-dark dark:hover:text-text-dark sm:block">
-              エピソード
-            </a>
-            <a href="/about" class="hidden rounded-md px-3 py-1.5 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-subtle hover:text-text dark:text-text-secondary-dark dark:hover:bg-bg-subtle-dark dark:hover:text-text-dark sm:block">
-              番組について
-            </a>
+          <a
+            href="/about"
+            class:list={[
+              "flex min-h-11 items-center px-2 transition-colors hover:text-accent sm:px-0",
+              isAbout ? "text-text dark:text-text-dark" : "text-text-muted dark:text-text-muted-dark",
+            ]}
+          >
+            <span class:list={[isAbout && "border-b-2 border-ink pb-0.5 dark:border-ink-dark"]}>番組について</span>
+          </a>
+          <a
+            href="/search"
+            aria-label="検索"
+            class:list={[
+              "flex h-11 w-10 items-center justify-center transition-colors hover:text-accent sm:w-auto sm:gap-1.5",
+              isSearch ? "text-text dark:text-text-dark" : "text-text-muted dark:text-text-muted-dark",
+            ]}
+          >
+            <svg class="h-[18px] w-[18px] sm:h-4 sm:w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="11" cy="11" r="7"></circle>
+              <path d="M20 20l-3.5-3.5"></path>
+            </svg>
+            <span class:list={["hidden sm:inline", isSearch && "border-b-2 border-ink pb-0.5 dark:border-ink-dark"]}>検索</span>
+          </a>
 
-            <!-- 検索フォーム -->
-            <form id="header-search-form" action="/search" method="get" class="relative">
-              <input
-                type="text"
-                name="q"
-                placeholder="検索..."
-                class="h-8 w-28 rounded-lg border border-border bg-bg-subtle pl-8 pr-3 text-sm text-text placeholder-text-muted transition-all focus:w-44 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 dark:border-border-dark dark:bg-bg-subtle-dark dark:text-text-dark dark:placeholder-text-muted-dark md:w-36 md:focus:w-52"
-              />
-              <svg
-                class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-muted dark:text-text-muted-dark"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-            </form>
-
-            <a
-              href="/feed.xml"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="flex h-8 w-8 items-center justify-center rounded-lg bg-rss text-white transition-opacity hover:opacity-90 sm:w-auto sm:gap-1.5 sm:px-3"
-            >
-              <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M6.18 15.64a2.18 2.18 0 1 1 0 4.36 2.18 2.18 0 0 1 0-4.36m0-12a14.18 14.18 0 0 1 14.18 14.18h-3.27A10.91 10.91 0 0 0 6.18 6.91V3.64m0 6.55a7.64 7.64 0 0 1 7.64 7.63H10.5a4.36 4.36 0 0 0-4.32-4.36v-3.27Z"/>
-              </svg>
-              <span class="hidden text-sm font-medium sm:inline">RSS</span>
-            </a>
-
-            <!-- テーマ切り替えボタン -->
-            <button
-              id="theme-toggle"
-              type="button"
-              class="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-bg-subtle hover:text-text dark:text-text-muted-dark dark:hover:bg-bg-subtle-dark dark:hover:text-text-dark"
-              aria-label="テーマ切り替え"
-              title="テーマ切り替え"
-            >
-              <!-- ライト固定: 太陽アイコン -->
-              <svg id="theme-icon-light" class="hidden h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-              </svg>
-              <!-- ダーク固定: 月アイコン -->
-              <svg id="theme-icon-dark" class="hidden h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-              </svg>
-              <!-- システム: モニターアイコン -->
-              <svg id="theme-icon-system" class="hidden h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-            </button>
-          </nav>
-        </div>
+          <!-- テーマ切り替えボタン -->
+          <button
+            id="theme-toggle"
+            type="button"
+            class="flex h-11 w-10 items-center justify-center text-text-muted transition-colors hover:text-accent dark:text-text-muted-dark sm:w-8"
+            aria-label="テーマ切り替え"
+            title="テーマ切り替え"
+          >
+            <!-- ライト固定: 太陽アイコン -->
+            <svg id="theme-icon-light" class="hidden h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+            <!-- ダーク固定: 月アイコン -->
+            <svg id="theme-icon-dark" class="hidden h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+            </svg>
+            <!-- システム: モニターアイコン -->
+            <svg id="theme-icon-system" class="hidden h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </button>
+        </nav>
       </header>
 
       <main class="flex-1">
         <slot />
       </main>
 
-      <footer class="border-t border-border py-6 dark:border-border-dark">
-        <div class="mx-auto max-w-4xl px-4 text-center text-sm text-text-muted dark:text-text-muted-dark">
-          <p>© {new Date().getFullYear()} {siteTitle}</p>
-        </div>
+      <footer class="mx-auto flex w-full max-w-[1000px] flex-wrap items-center justify-between gap-2 border-t border-border px-5 py-6 text-xs text-text-muted dark:border-border-dark dark:text-text-muted-dark sm:px-8">
+        <p>© {new Date().getFullYear()} {siteTitle}</p>
+        <a href="/feed.xml" class="transition-colors hover:text-accent">RSS</a>
       </footer>
     </div>
 

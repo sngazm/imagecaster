@@ -36,53 +36,44 @@ const pageNumbers = getPageNumbers();
 ---
 
 {totalPages > 1 && (
-  <nav class="mt-6 flex items-center justify-center gap-1.5" aria-label="ページネーション">
+  <nav class="tabular flex items-center gap-0.5 font-medium" aria-label="ページネーション">
     {currentPage > 1 && (
       <a
         href={getPageUrl(currentPage - 1)}
-        class="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elevated px-2.5 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-bg-subtle dark:border-border-dark dark:bg-bg-elevated-dark dark:text-text-secondary-dark dark:hover:bg-bg-subtle-dark"
+        class="flex min-h-11 items-center px-2 text-text-muted transition-colors hover:text-accent dark:text-text-muted-dark"
         aria-label="前のページ"
       >
-        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-        </svg>
-        前へ
+        ←
       </a>
     )}
 
-    <div class="flex items-center gap-1">
-      {pageNumbers.map((item, index) => {
-        if (item === "ellipsis") {
-          return <span class="px-1.5 text-xs text-text-faint dark:text-text-faint-dark">...</span>;
-        }
+    {pageNumbers.map((item) => {
+      if (item === "ellipsis") {
+        return <span class="px-1 text-text-faint dark:text-text-faint-dark">…</span>;
+      }
 
-        const isCurrentPage = item === currentPage;
-        return (
-          <a
-            href={getPageUrl(item)}
-            class={`inline-flex h-7 w-7 items-center justify-center rounded-md text-xs font-medium transition-colors ${
-              isCurrentPage
-                ? "bg-accent text-white"
-                : "border border-border bg-bg-elevated text-text-secondary hover:bg-bg-subtle dark:border-border-dark dark:bg-bg-elevated-dark dark:text-text-secondary-dark dark:hover:bg-bg-subtle-dark"
-            }`}
-            aria-current={isCurrentPage ? "page" : undefined}
-          >
-            {item}
-          </a>
-        );
-      })}
-    </div>
+      const isCurrentPage = item === currentPage;
+      return (
+        <a
+          href={getPageUrl(item)}
+          class:list={[
+            "flex min-h-11 min-w-8 items-center justify-center px-1 transition-colors hover:text-accent",
+            isCurrentPage ? "font-bold text-text dark:text-text-dark" : "text-text-muted dark:text-text-muted-dark",
+          ]}
+          aria-current={isCurrentPage ? "page" : undefined}
+        >
+          <span class:list={[isCurrentPage && "border-b-2 border-ink pb-0.5 dark:border-ink-dark"]}>{item}</span>
+        </a>
+      );
+    })}
 
     {currentPage < totalPages && (
       <a
         href={getPageUrl(currentPage + 1)}
-        class="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elevated px-2.5 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-bg-subtle dark:border-border-dark dark:bg-bg-elevated-dark dark:text-text-secondary-dark dark:hover:bg-bg-subtle-dark"
+        class="flex min-h-11 items-center px-2 font-bold text-accent transition-colors hover:text-accent-hover"
         aria-label="次のページ"
       >
-        次へ
-        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-        </svg>
+        次へ →
       </a>
     )}
   </nav>

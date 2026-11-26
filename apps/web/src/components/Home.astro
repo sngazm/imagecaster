@@ -1,0 +1,102 @@
+---
+import EpisodeRow from "./EpisodeRow.astro";
+import Phrased from "./Phrased.astro";
+import Pagination from "./Pagination.astro";
+import SubscribeLinks from "./SubscribeLinks.astro";
+import type { Episode, PodcastInfo } from "../lib/types";
+import { episodeMeta, splitEpisodeTitle, splitPodcastTitle } from "../lib/titles";
+
+interface Props {
+  podcast: PodcastInfo;
+  /** このページに出す回（新しい順） */
+  episodes: Episode[];
+  /** 全部で何回あるか */
+  total: number;
+  currentPage: number;
+  totalPages: number;
+}
+
+const { podcast, episodes, total, currentPage, totalPages } = Astro.props;
+const { name, tagline } = splitPodcastTitle(podcast.title);
+
+// 1 ページ目だけ、いちばん新しい回を大きく出す
+const featured = currentPage === 1 ? episodes[0] : undefined;
+const rest = featured ? episodes.slice(1) : episodes;
+const featuredTitle = featured ? splitEpisodeTitle(featured.title) : null;
+---
+
+<div class="mx-auto max-w-[1000px] px-5 pb-14 sm:px-8 sm:pb-20">
+  <!-- 番組の紹介 -->
+  <section class="flex flex-col gap-3.5 pb-7 pt-4 sm:flex-row-reverse sm:items-center sm:justify-between sm:gap-14 sm:pb-14 sm:pt-10">
+    <div class="flex items-center gap-4 sm:block">
+      {podcast.artworkUrl && (
+        <img
+          src={podcast.artworkUrl}
+          alt={`${name} のアートワーク`}
+          width="268"
+          height="268"
+          class="h-[84px] w-[84px] shrink-0 rounded-xl border-[1.5px] border-ink object-cover dark:border-ink-dark sm:h-[268px] sm:w-[268px] sm:rounded-2xl"
+        />
+      )}
+      {/* スマホでは絵の横に見出しを置く */}
+      <div class="flex flex-col gap-1 sm:hidden">
+        <span class="text-[11px] font-medium tracking-wide text-text-muted dark:text-text-muted-dark">Podcast</span>
+        <h1 class="text-[19px] font-bold leading-snug"><Phrased text={tagline ?? name} /></h1>
+      </div>
+    </div>
+
+    <div class="flex min-w-0 flex-col gap-3.5 sm:max-w-[520px] sm:gap-[18px]">
+      <span class="hidden text-[13px] font-medium tracking-wide text-text-muted dark:text-text-muted-dark sm:block">Podcast</span>
+      <h1 class="hidden text-[42px] font-bold leading-[1.3] tracking-tight sm:block"><Phrased text={tagline ?? name} /></h1>
+      <p class="text-[13px] leading-relaxed text-text-secondary dark:text-text-secondary-dark sm:text-[15px] sm:leading-[1.75]">
+        {podcast.description}
+      </p>
+      <SubscribeLinks podcast={podcast} />
+    </div>
+  </section>
+
+  {episodes.length === 0 ? (
+    <p class="border-t-[1.5px] border-ink py-10 text-center text-sm text-text-muted dark:border-ink-dark dark:text-text-muted-dark">
+      まだエピソードがありません
+    </p>
+  ) : (
+    <>
+      {featured && featuredTitle && (
+        <a
+          href={`/episodes/${featured.id}`}
+          class="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 border-y-[1.5px] border-ink py-[18px] dark:border-ink-dark sm:grid-cols-[8.25rem_minmax(0,1fr)_auto] sm:gap-x-7 sm:py-7"
+        >
+          <span class="flex items-baseline gap-2.5 sm:flex-col sm:gap-0.5">
+            <span class="order-2 text-[11px] font-bold tracking-wider text-brand-red-text sm:order-1 sm:text-xs">最新回</span>
+            <span class="tabular order-1 text-[34px] font-bold leading-none tracking-tighter sm:order-2 sm:text-[56px]">
+              {featuredTitle.number ?? ""}
+            </span>
+          </span>
+          <span
+            class="col-start-2 row-start-1 flex h-11 w-11 items-center justify-center rounded-full border-[1.5px] border-ink bg-brand-yellow text-ink transition-transform group-hover:scale-105 sm:col-start-3 sm:h-[60px] sm:w-[60px]"
+            aria-hidden="true"
+          >
+            <svg class="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"></path></svg>
+          </span>
+          <span class="col-span-2 flex min-w-0 flex-col gap-1.5 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:gap-2">
+            <span class="break-words text-base font-bold leading-[1.55] transition-colors group-hover:text-accent sm:text-2xl sm:leading-[1.5]">
+              <Phrased text={featuredTitle.rest} />
+            </span>
+            <time class="tabular text-xs text-text-muted dark:text-text-muted-dark sm:text-[13px]" datetime={featured.publishedAt || featured.publishAt}>
+              {episodeMeta(featured)}
+            </time>
+          </span>
+        </a>
+      )}
+
+      <div class:list={["grid sm:grid-cols-2 sm:gap-x-14", !featured && "border-t-[1.5px] border-ink dark:border-ink-dark"]}>
+        {rest.map((episode, index) => <EpisodeRow episode={episode} index={index} />)}
+      </div>
+
+      <div class="flex items-center justify-between pt-5 text-[13px] sm:pt-6 sm:text-sm">
+        <span class="tabular text-text-muted dark:text-text-muted-dark">{total} 回</span>
+        <Pagination currentPage={currentPage} totalPages={totalPages} />
+      </div>
+    </>
+  )}
+</div>

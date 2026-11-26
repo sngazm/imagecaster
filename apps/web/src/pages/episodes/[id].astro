@@ -1,8 +1,10 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import { getPublishedEpisodes, getEpisodeBySlug, formatDuration, formatDate, formatFileSize, processDescription, getPodcastIndex, getTranscriptSegments, segmentsToText } from "../../lib/api";
+import { getPublishedEpisodes, getEpisodeBySlug, formatDuration, formatFileSize, processDescription, getPodcastIndex, getTranscriptSegments, segmentsToText } from "../../lib/api";
 import { getEpisodeOgImageUrl } from "../../lib/og";
+import { episodeMeta, splitEpisodeTitle } from "../../lib/titles";
 import Captions from "../../components/Captions.astro";
+import Phrased from "../../components/Phrased.astro";
 import Transcript from "../../components/Transcript.astro";
 import ClaudeImpression from "../../components/ClaudeImpression.astro";
 import type { Episode, TranscriptSegment } from "../../lib/types";
@@ -116,188 +118,153 @@ if (Astro.props.episode) {
 
 const description = processDescription(episode.description, episode, websiteUrl);
 
+const title = splitEpisodeTitle(episode.title);
+const audioSrc = episode.audioUrl || episode.sourceAudioUrl || "";
+
 ---
 
 <Layout title={episode.title} description={description} ogImage={ogImageUrl} ogType="article">
-  <article class="mx-auto max-w-4xl px-4 py-8 sm:py-10" data-pagefind-body>
-    <!-- ヘッダー -->
-    <header class="mb-6">
-      <div class="mb-3">
-        <a
-          href="/"
-          class="inline-flex items-center gap-1 text-xs font-medium text-text-muted transition-colors hover:text-text dark:text-text-muted-dark dark:hover:text-text-dark"
-        >
-          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-          </svg>
-          エピソード一覧
-        </a>
-      </div>
-
-      <div class="mb-5 flex flex-col gap-4 items-center sm:flex-row sm:items-start">
-        {(episode.artworkUrl || podcastArtworkUrl) && (
-          <a class="shrink-0" href="/">
-            <img
-              src={episode.artworkUrl || podcastArtworkUrl}
-              alt={episode.title}
-              class="h-28 w-28 shrink-0 rounded-lg shadow-md sm:h-32 sm:w-32"
-            />
-          </a>
-        )}
-        <div class="text-center sm:text-left">
-          <time class="text-xs font-medium text-text-muted dark:text-text-muted-dark" datetime={episode.publishedAt || episode.publishAt}>
-            {formatDate(episode.publishedAt || episode.publishAt)}
+  <article class="mx-auto max-w-[720px] px-5 pb-14 pt-2 sm:px-8 sm:pb-20 sm:pt-6" data-pagefind-body>
+    <!-- 見出し -->
+    <header class="flex items-start justify-between gap-5">
+      <div class="min-w-0">
+        <div class="flex items-baseline gap-3">
+          {title.number && (
+            <span class="tabular text-lg font-bold tracking-tight sm:text-[22px]">{title.number}</span>
+          )}
+          <time class="tabular text-xs text-text-muted dark:text-text-muted-dark sm:text-[13px]" datetime={episode.publishedAt || episode.publishAt}>
+            {episodeMeta(episode)}
           </time>
-          <h1 class="mt-1.5 text-lg font-semibold leading-snug text-text dark:text-text-dark sm:text-xl md:text-2xl">
-            {episode.title}
-          </h1>
         </div>
+        <h1 class="mt-1.5 break-words text-xl font-bold leading-[1.55] sm:mt-2 sm:text-[32px] sm:leading-[1.5]">
+          <Phrased text={title.rest} />
+        </h1>
       </div>
+      {/* その回だけのアートワークがあるときだけ出す。番組のものは繰り返さない */}
+      {episode.artworkUrl && (
+        <img
+          src={episode.artworkUrl}
+          alt=""
+          width="112"
+          height="112"
+          class="h-16 w-16 shrink-0 rounded-xl border-[1.5px] border-ink object-cover dark:border-ink-dark sm:h-28 sm:w-28"
+        />
+      )}
     </header>
 
-    <!-- オーディオプレイヤー -->
+    <!-- プレイヤー -->
     {/* audioUrlがあればそれを使い、なければsourceAudioUrl（RSSインポート時の外部URL）を使用 */}
-    <div class="mb-6 rounded-lg border border-border bg-bg-elevated p-4 dark:border-border-dark dark:bg-bg-elevated-dark">
-      <audio id="audio-player" controls class="mb-3 w-full" preload="metadata" data-duration={episode.duration}>
-        <source src={episode.audioUrl || episode.sourceAudioUrl || ""} type="audio/mpeg" />
-        お使いのブラウザはオーディオ再生に対応していません。
-      </audio>
+    <audio id="audio-player" class="hidden" preload="metadata" data-duration={episode.duration}>
+      <source src={audioSrc} type="audio/mpeg" />
+    </audio>
+
+    <div
+      id="player"
+      class="mt-5 rounded-xl border-[1.5px] border-ink bg-bg-elevated dark:border-ink-dark dark:bg-bg-elevated-dark sm:mt-7 sm:rounded-[14px]"
+    >
+      <div class="flex items-center gap-3 py-2 pl-2 pr-3.5 sm:gap-4 sm:py-3 sm:pl-3 sm:pr-5">
+        <button
+          type="button"
+          data-player-toggle
+          aria-label="再生"
+          class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-[1.5px] border-ink bg-brand-yellow text-ink transition-transform hover:scale-105 sm:h-12 sm:w-12"
+        >
+          <svg data-icon-play class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>
+          <svg data-icon-pause class="hidden h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"></path></svg>
+        </button>
+        <input
+          type="range"
+          data-player-seek
+          min="0"
+          max={episode.duration || 0}
+          value="0"
+          step="1"
+          aria-label="再生位置"
+          class="player-seek min-w-0 flex-1"
+        />
+        <span data-player-clock class="tabular shrink-0 text-xs text-text-muted dark:text-text-muted-dark sm:text-[13px]">
+          0:00 / {formatDuration(episode.duration)}
+        </span>
+        <button
+          type="button"
+          data-player-rate
+          aria-label="再生速度"
+          class="tabular hidden h-11 shrink-0 items-center px-1 text-[13px] font-medium text-text-muted transition-colors hover:text-accent dark:text-text-muted-dark sm:flex"
+        >
+          1.0×
+        </button>
+      </div>
 
       {transcriptSegments.length > 0 && <Captions icons={speakerIcons} />}
+    </div>
 
-      <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-text-muted dark:text-text-muted-dark">
-        <span class="flex items-center gap-1">
-          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          {formatDuration(episode.duration)}
-        </span>
-        <span class="flex items-center gap-1">
-          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-          </svg>
-          {formatFileSize(episode.fileSize)}
-        </span>
-        <a
-          href={episode.audioUrl || episode.sourceAudioUrl || ""}
-          download
-          class="flex items-center gap-1 text-accent hover:text-accent-hover"
-        >
-          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          ダウンロード
+    <div class="mt-1.5 flex flex-wrap gap-x-4 whitespace-nowrap text-[13px] font-bold sm:mt-2.5 sm:gap-x-6 sm:text-sm">
+      {spotifyUrl && (
+        <a href={spotifyUrl} target="_blank" rel="noopener noreferrer" class="flex min-h-11 items-center text-accent transition-colors hover:text-accent-hover">
+          Spotify で聴く
         </a>
-        {episode.applePodcastsUrl && (
-          <a
-            href={episode.applePodcastsUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="flex items-center gap-1 rounded-md bg-apple px-2 py-1 text-white transition-opacity hover:opacity-90"
-          >
-            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M5.34 0A5.328 5.328 0 000 5.34v13.32A5.328 5.328 0 005.34 24h13.32A5.328 5.328 0 0024 18.66V5.34A5.328 5.328 0 0018.66 0zm6.525 2.568c2.336 0 4.448.902 6.056 2.587 1.224 1.272 1.912 2.619 2.264 4.392.12.59.12 2.2.007 2.864a8.506 8.506 0 01-3.24 5.296c-.608.46-2.096 1.261-2.336 1.261-.088 0-.096-.091-.056-.46.072-.592.144-.715.48-.856.536-.224 1.448-.874 2.008-1.435a7.644 7.644 0 002.008-3.536c.208-.824.184-2.656-.048-3.504-.728-2.696-2.928-4.792-5.624-5.352-.784-.16-2.208-.16-3 0-2.728.56-4.984 2.76-5.672 5.528-.184.752-.184 2.584 0 3.336.456 1.832 1.64 3.512 3.192 4.512.304.2.672.408.824.472.336.144.408.264.472.856.04.36.03.464-.056.464-.056 0-.464-.176-.896-.384l-.04-.03c-2.472-1.216-4.056-3.274-4.632-6.012-.144-.706-.168-2.392-.03-3.04.36-1.74 1.048-3.1 2.192-4.304 1.648-1.737 3.768-2.656 6.128-2.656zm.134 2.81c.409.004.803.04 1.106.106 2.784.62 4.76 3.408 4.376 6.174-.152 1.114-.536 2.03-1.216 2.88-.336.43-1.152 1.15-1.296 1.15-.023 0-.048-.272-.048-.603v-.605l.416-.496c1.568-1.878 1.456-4.502-.256-6.224-.664-.67-1.432-1.064-2.424-1.246-.64-.118-.776-.118-1.448-.008-1.02.167-1.81.562-2.512 1.256-1.72 1.704-1.832 4.342-.264 6.222l.413.496v.608c0 .336-.027.608-.06.608-.03 0-.264-.16-.512-.36l-.034-.011c-.832-.664-1.568-1.842-1.872-2.997-.184-.698-.184-2.024.008-2.72.504-1.878 1.888-3.335 3.808-4.019.41-.145 1.133-.22 1.814-.211zm-.13 2.99c.31 0 .62.06.844.178.488.253.888.745 1.04 1.259.464 1.578-1.208 2.96-2.72 2.254h-.015c-.712-.331-1.096-.956-1.104-1.77 0-.733.408-1.371 1.112-1.745.224-.117.534-.176.844-.176zm-.011 4.728c.988-.004 1.706.349 1.97.97.198.464.124 1.932-.218 4.302-.232 1.656-.36 2.074-.68 2.356-.44.39-1.064.498-1.656.288h-.003c-.716-.257-.87-.605-1.164-2.644-.341-2.37-.416-3.838-.218-4.302.262-.616.974-.966 1.97-.97z"/>
-            </svg>
-            Apple
-          </a>
-        )}
-        {spotifyUrl && (
-          <a
-            href={spotifyUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="flex items-center gap-1 rounded-md bg-spotify px-2 py-1 text-white transition-opacity hover:opacity-90"
-          >
-            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
-            </svg>
-            Spotify
-          </a>
-        )}
-      </div>
+      )}
+      {episode.applePodcastsUrl && (
+        <a href={episode.applePodcastsUrl} target="_blank" rel="noopener noreferrer" class="flex min-h-11 items-center text-accent transition-colors hover:text-accent-hover">
+          Apple Podcasts で聴く
+        </a>
+      )}
+      <a href={audioSrc} download class="flex min-h-11 items-center font-medium text-text-muted transition-colors hover:text-accent dark:text-text-muted-dark">
+        ダウンロード<span class="hidden sm:inline">（{formatFileSize(episode.fileSize)}）</span>
+      </a>
     </div>
 
-    <!-- 説明 -->
-    <div class="rounded-lg border border-border bg-bg-elevated p-4 dark:border-border-dark dark:bg-bg-elevated-dark">
-      <h2 class="mb-3 text-sm font-semibold text-text dark:text-text-dark">
-        エピソード概要
-      </h2>
-      <div class="prose prose-sm prose-zinc dark:prose-invert max-w-none text-text-secondary dark:text-text-secondary-dark" set:html={description} />
+    <!-- 概要 -->
+    <div
+      class="prose mt-3 max-w-none text-[15px] leading-[1.85] text-text dark:text-text-dark sm:mt-5 sm:text-base sm:leading-[1.9]"
+      set:html={description}
+    />
 
-      {episode.claudeImpression && (
-        <ClaudeImpression impression={episode.claudeImpression} />
-      )}
+    {episode.claudeImpression && (
+      <ClaudeImpression impression={episode.claudeImpression} />
+    )}
 
-      {transcriptSegments.length > 0 && (
-        <Transcript segments={transcriptSegments} icons={speakerIcons} />
-      )}
-    </div>
+    {transcriptSegments.length > 0 && (
+      <Transcript segments={transcriptSegments} icons={speakerIcons} />
+    )}
 
-    <!-- シェア・外部リンク -->
-    <div class="mt-6 flex flex-wrap items-center gap-3">
-      <span class="text-xs font-medium text-text-muted dark:text-text-muted-dark">シェア:</span>
+    <!-- シェア -->
+    <div class="mt-10 flex flex-wrap items-center gap-x-5 border-t border-border text-[13px] dark:border-border-dark sm:mt-12">
       <a
         href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(Astro.url.href)}&text=${encodeURIComponent(episode.title)}`}
         target="_blank"
         rel="noopener noreferrer"
-        class="rounded-md bg-bg-subtle p-1.5 text-text-muted transition-colors hover:bg-border hover:text-text dark:bg-bg-subtle-dark dark:text-text-muted-dark dark:hover:bg-border-dark dark:hover:text-text-dark"
-        aria-label="X (Twitter) でシェア"
+        class="flex min-h-11 items-center text-text-muted transition-colors hover:text-accent dark:text-text-muted-dark"
       >
-        <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-        </svg>
+        X でシェア
       </a>
       <button
         type="button"
-        onclick={`navigator.clipboard.writeText('${Astro.url.href}'); alert('URLをコピーしました')`}
-        class="rounded-md bg-bg-subtle p-1.5 text-text-muted transition-colors hover:bg-border hover:text-text dark:bg-bg-subtle-dark dark:text-text-muted-dark dark:hover:bg-border-dark dark:hover:text-text-dark"
-        aria-label="URLをコピー"
+        id="copy-url-btn"
+        data-url={Astro.url.href}
+        class="flex min-h-11 items-center text-text-muted transition-colors hover:text-accent dark:text-text-muted-dark"
       >
-        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-        </svg>
+        URL をコピー
       </button>
     </div>
 
-    <!-- 前後のエピソードナビゲーション -->
+    <!-- 前後のエピソード -->
     {(prevEpisode || nextEpisode) && (
-      <nav class="mt-8 border-t border-border pt-6 dark:border-border-dark">
-        <div class="grid gap-3 sm:grid-cols-2">
-          {prevEpisode ? (
-            <a
-              href={`/episodes/${prevEpisode.id}`}
-              class="group flex flex-col rounded-lg border border-border bg-bg-elevated p-3 transition-colors hover:border-border-subtle hover:bg-bg-subtle dark:border-border-dark dark:bg-bg-elevated-dark dark:hover:border-border-subtle-dark dark:hover:bg-bg-subtle-dark"
-            >
-              <span class="mb-1 flex items-center gap-1 text-[10px] font-medium text-text-muted dark:text-text-muted-dark">
-                <svg class="h-2.5 w-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-                </svg>
-                前のエピソード
-              </span>
-              <span class="text-xs font-medium text-text group-hover:text-accent dark:text-text-dark dark:group-hover:text-accent line-clamp-2">
-                {prevEpisode.title}
-              </span>
-            </a>
-          ) : (
-            <div></div>
-          )}
-          {nextEpisode && (
-            <a
-              href={`/episodes/${nextEpisode.id}`}
-              class="group flex flex-col items-end rounded-lg border border-border bg-bg-elevated p-3 text-right transition-colors hover:border-border-subtle hover:bg-bg-subtle dark:border-border-dark dark:bg-bg-elevated-dark dark:hover:border-border-subtle-dark dark:hover:bg-bg-subtle-dark"
-            >
-              <span class="mb-1 flex items-center gap-1 text-[10px] font-medium text-text-muted dark:text-text-muted-dark">
-                次のエピソード
-                <svg class="h-2.5 w-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                </svg>
-              </span>
-              <span class="text-xs font-medium text-text group-hover:text-accent dark:text-text-dark dark:group-hover:text-accent line-clamp-2">
-                {nextEpisode.title}
-              </span>
-            </a>
-          )}
-        </div>
+      <nav class="grid border-t-[1.5px] border-ink dark:border-ink-dark sm:grid-cols-2 sm:gap-x-14" aria-label="前後のエピソード">
+        {prevEpisode ? (
+          <a href={`/episodes/${prevEpisode.id}`} class="group flex flex-col gap-1 border-b border-border py-4 dark:border-border-dark sm:border-b-0">
+            <span class="text-xs text-text-muted dark:text-text-muted-dark">← 前のエピソード</span>
+            <span class="line-clamp-2 text-sm font-bold leading-normal transition-colors group-hover:text-accent">{prevEpisode.title}</span>
+          </a>
+        ) : (
+          <div class="hidden sm:block"></div>
+        )}
+        {nextEpisode && (
+          <a href={`/episodes/${nextEpisode.id}`} class="group flex flex-col gap-1 py-4 sm:items-end sm:text-right">
+            <span class="text-xs text-text-muted dark:text-text-muted-dark">次のエピソード →</span>
+            <span class="line-clamp-2 text-sm font-bold leading-normal transition-colors group-hover:text-accent">{nextEpisode.title}</span>
+          </a>
+        )}
       </nav>
     )}
 
@@ -308,7 +275,96 @@ const description = processDescription(episode.description, episode, websiteUrl)
       </div>
     )}
   </article>
+
+  {/*
+    下に固定する再生バー。上のプレイヤーが画面の外に出ている間だけ出す。
+    文字起こしを読み進めても、止める・戻すに手が届くように
+  */}
+  <div
+    id="player-bar"
+    class="fixed inset-x-0 bottom-0 z-40 hidden border-t-[1.5px] border-ink bg-bg-elevated dark:border-ink-dark dark:bg-bg-elevated-dark"
+  >
+    <div class="mx-auto flex max-w-[720px] items-center gap-3 py-2 pl-2.5 pr-4 sm:px-8">
+      <button
+        type="button"
+        data-player-toggle
+        aria-label="再生"
+        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-[1.5px] border-ink bg-brand-yellow text-ink"
+      >
+        <svg data-icon-play class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>
+        <svg data-icon-pause class="hidden h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"></path></svg>
+      </button>
+      <div class="flex min-w-0 flex-1 flex-col gap-1">
+        <p id="player-bar-caption" class="truncate text-xs text-text-secondary dark:text-text-secondary-dark">{title.rest}</p>
+        <input type="range" data-player-seek min="0" max={episode.duration || 0} value="0" step="1" aria-label="再生位置" class="player-seek" />
+      </div>
+      <span data-player-clock class="tabular shrink-0 text-xs text-text-muted dark:text-text-muted-dark">0:00</span>
+    </div>
+  </div>
 </Layout>
+
+<style is:global>
+  /* 再生位置のつまみ。進んだぶんを青緑で塗る（--played はスクリプトが入れる） */
+  .player-seek {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 1.5rem;
+    background: transparent;
+    cursor: pointer;
+    --played: 0%;
+  }
+  .player-seek::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 2px;
+    background: linear-gradient(
+      to right,
+      var(--color-brand-teal) var(--played),
+      var(--color-border) var(--played)
+    );
+  }
+  .player-seek::-moz-range-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--color-border);
+  }
+  .player-seek::-moz-range-progress {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--color-brand-teal);
+  }
+  .player-seek::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    margin-top: -4px;
+    border-radius: 50%;
+    background: var(--color-ink);
+  }
+  .player-seek::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--color-ink);
+  }
+  .dark .player-seek::-webkit-slider-runnable-track {
+    background: linear-gradient(
+      to right,
+      var(--color-brand-teal) var(--played),
+      var(--color-border-dark) var(--played)
+    );
+  }
+  .dark .player-seek::-moz-range-track {
+    background: var(--color-border-dark);
+  }
+  /* 知らない擬似要素が混ざると規則ごと捨てられるので、ブラウザごとに分けて書く */
+  .dark .player-seek::-webkit-slider-thumb {
+    background: var(--color-ink-dark);
+  }
+  .dark .player-seek::-moz-range-thumb {
+    background: var(--color-ink-dark);
+  }
+</style>
 
 <script>
   import { toCaptions, type Caption } from '../../lib/captions';
@@ -335,22 +391,19 @@ const description = processDescription(episode.description, episode, websiteUrl)
   }
 
   const audio = document.getElementById('audio-player') as HTMLAudioElement | null;
-  const playback = document.getElementById('transcript-playback');
-  const stopButton = document.getElementById('stop-button') as HTMLButtonElement | null;
-  const clock = document.getElementById('transcript-clock');
   const transcriptSegments = document.querySelectorAll('.transcript-segment');
 
-  if (audio && playback && stopButton) {
-    // 再生中は、止めるボタンと現在位置を出す。文字起こしを読みながら聞くときに、
-    // プレイヤーまで目を戻さずに済むように
-    const show = () => {
-      playback.classList.remove('hidden');
-      playback.classList.add('flex');
-    };
-    const hide = () => {
-      playback.classList.add('hidden');
-      playback.classList.remove('flex');
-    };
+  // --- プレイヤー ---
+  //
+  // 上の本体と、下に固定するバーの 2 か所に同じ操作がある。どちらも同じ audio を動かし、
+  // 表示は audio の出来事から両方まとめて書く。
+  if (audio) {
+    const toggles = [...document.querySelectorAll<HTMLButtonElement>('[data-player-toggle]')];
+    const seeks = [...document.querySelectorAll<HTMLInputElement>('[data-player-seek]')];
+    const clocks = [...document.querySelectorAll<HTMLElement>('[data-player-clock]')];
+    const rateButton = document.querySelector<HTMLButtonElement>('[data-player-rate]');
+    const player = document.getElementById('player');
+    const bar = document.getElementById('player-bar');
 
     // 長さはメタデータが来るまで取れないので、それまでは meta の値で埋める
     const totalSeconds = () =>
@@ -358,27 +411,95 @@ const description = processDescription(episode.description, episode, websiteUrl)
         ? audio.duration
         : Number(audio.dataset.duration) || 0;
 
-    const tick = () => {
-      if (clock) {
-        clock.textContent = `${formatClock(audio.currentTime)} / ${formatClock(totalSeconds())}`;
-      }
+    // つまみを動かしている間は、再生に合わせて位置を書き戻さない
+    let seeking = false;
+
+    const paint = () => {
+      const total = totalSeconds();
+      const now = audio.currentTime;
+      const played = total > 0 ? `${Math.min(100, (now / total) * 100)}%` : '0%';
+
+      seeks.forEach((seek) => {
+        seek.max = String(Math.floor(total));
+        if (!seeking) seek.value = String(Math.floor(now));
+        seek.style.setProperty('--played', played);
+      });
+      clocks.forEach((clock, index) => {
+        // 上の本体には全体の長さも出す。下のバーは狭いので現在位置だけ
+        clock.textContent =
+          index === 0 ? `${formatClock(now)} / ${formatClock(total)}` : formatClock(now);
+      });
     };
 
-    audio.addEventListener('play', () => {
-      show();
-      tick();
-    });
-    audio.addEventListener('pause', hide);
-    audio.addEventListener('ended', hide);
-    audio.addEventListener('timeupdate', tick);
-    audio.addEventListener('durationchange', tick);
+    const paintToggle = () => {
+      const playing = !audio.paused && !audio.ended;
+      toggles.forEach((toggle) => {
+        toggle.setAttribute('aria-label', playing ? '一時停止' : '再生');
+        toggle.querySelector('[data-icon-play]')?.classList.toggle('hidden', playing);
+        toggle.querySelector('[data-icon-pause]')?.classList.toggle('hidden', !playing);
+      });
+    };
 
-    // 止めるボタンで再生を止め、先頭に戻す
-    stopButton.addEventListener('click', () => {
-      audio.pause();
-      audio.currentTime = 0;
+    toggles.forEach((toggle) =>
+      toggle.addEventListener('click', () => {
+        if (audio.paused) void audio.play();
+        else audio.pause();
+      })
+    );
+
+    seeks.forEach((seek) => {
+      seek.addEventListener('input', () => {
+        seeking = true;
+        const total = totalSeconds();
+        seek.style.setProperty('--played', total > 0 ? `${(Number(seek.value) / total) * 100}%` : '0%');
+      });
+      seek.addEventListener('change', () => {
+        audio.currentTime = Number(seek.value);
+        seeking = false;
+        paint();
+      });
     });
+
+    const RATES = [1, 1.25, 1.5, 2];
+    rateButton?.addEventListener('click', () => {
+      const next = RATES[(RATES.indexOf(audio.playbackRate) + 1) % RATES.length];
+      audio.playbackRate = next;
+      rateButton.textContent = `${next.toFixed(next % 1 === 0 ? 1 : 2).replace(/0$/, '')}×`;
+    });
+
+    ['play', 'pause', 'ended'].forEach((name) => audio.addEventListener(name, paintToggle));
+    ['timeupdate', 'durationchange', 'loadedmetadata'].forEach((name) =>
+      audio.addEventListener(name, paint)
+    );
+    paint();
+
+    // 下のバーは、一度でも再生していて、上の本体が見えていないときだけ出す。
+    // 聞いていない人の画面には何も足さない
+    let started = false;
+    let playerVisible = true;
+    const paintBar = () => bar?.classList.toggle('hidden', !started || playerVisible);
+
+    audio.addEventListener('play', () => {
+      started = true;
+      paintBar();
+    });
+    if (player && 'IntersectionObserver' in window) {
+      new IntersectionObserver(([entry]) => {
+        playerVisible = entry.isIntersecting;
+        paintBar();
+      }).observe(player);
+    }
   }
+
+  // URL をコピー
+  const copyUrl = document.getElementById('copy-url-btn');
+  copyUrl?.addEventListener('click', async () => {
+    await navigator.clipboard.writeText(copyUrl.dataset.url ?? location.href);
+    copyUrl.textContent = 'コピーしました';
+    setTimeout(() => {
+      copyUrl.textContent = 'URL をコピー';
+    }, 2000);
+  });
 
   // 字幕と、再生中の行のハイライト
   //
@@ -549,6 +670,10 @@ const description = processDescription(episode.description, episode, websiteUrl)
 
       // 止めても消さない。読みかけを消さないため
       render(found);
+
+      // 下のバーには、いま喋っている一文を出す
+      const barCaption = document.getElementById('player-bar-caption');
+      if (barCaption && found >= 0) barCaption.textContent = captions[found].text;
     });
 
     const clearHighlight = () => highlight(-1);

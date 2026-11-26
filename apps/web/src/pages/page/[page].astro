@@ -1,8 +1,6 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import EpisodeCard from "../../components/EpisodeCard.astro";
-import SubscribeSection from "../../components/SubscribeSection.astro";
-import Pagination from "../../components/Pagination.astro";
+import Home from "../../components/Home.astro";
 import { getPublishedEpisodes, getPodcastIndex } from "../../lib/api";
 import { getPodcastOgImageUrl } from "../../lib/og";
 import type { Episode, PodcastInfo } from "../../lib/types";
@@ -52,62 +50,5 @@ const ogImageUrl = getPodcastOgImageUrl(podcast);
 ---
 
 <Layout title={`${podcast.title} - ページ ${currentPage}`} description={podcast.description} ogImage={ogImageUrl}>
-  <div class="mx-auto max-w-4xl px-4 py-8 sm:py-10">
-    <!-- ヒーローセクション -->
-    <section class="mb-10">
-      <div class="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
-        {podcast.artworkUrl && (
-          <a href="/" class="shrink-0">
-            <img
-              src={podcast.artworkUrl}
-              alt={podcast.title}
-              class="h-40 w-40 rounded-xl shadow-md sm:h-36 sm:w-36"
-            />
-          </a>
-        )}
-        <div class="text-left">
-          <h1 class="mb-2 text-lg text-center font-semibold tracking-tight text-text dark:text-text-dark sm:text-xl sm:text-left">
-            <a href="/" class="transition-colors hover:text-accent">{podcast.title}</a>
-          </h1>
-          <p class="text-sm leading-relaxed text-text-secondary dark:text-text-secondary-dark">
-            {podcast.description}
-          </p>
-        </div>
-      </div>
-    </section>
-
-    <div class="grid gap-6 lg:grid-cols-3 lg:gap-8">
-      <!-- エピソード一覧 -->
-      <div class="min-w-0 lg:col-span-2">
-        <h2 class="mb-4 text-base font-semibold text-text dark:text-text-dark">
-          エピソード
-          <span class="ml-1.5 text-sm font-normal text-text-muted dark:text-text-muted-dark">({allEpisodesCount})</span>
-        </h2>
-
-        <div class="space-y-3">
-          {episodes.map((episode) => (
-            <EpisodeCard episode={episode} websiteUrl={podcast.websiteUrl} />
-          ))}
-        </div>
-
-        <Pagination currentPage={currentPage} totalPages={totalPages} />
-      </div>
-
-      <!-- サイドバー -->
-      <aside class="space-y-4">
-        <SubscribeSection podcast={podcast} />
-
-        {podcast.author && (
-          <section class="rounded-lg border border-border bg-bg-elevated p-4 dark:border-border-dark dark:bg-bg-elevated-dark">
-            <h2 class="mb-2 text-sm font-semibold text-text dark:text-text-dark">
-              ホスト
-            </h2>
-            <p class="text-sm text-text-secondary dark:text-text-secondary-dark">
-              {podcast.author}
-            </p>
-          </section>
-        )}
-      </aside>
-    </div>
-  </div>
+  <Home podcast={podcast} episodes={episodes} total={allEpisodesCount} currentPage={currentPage} totalPages={totalPages} />
 </Layout>

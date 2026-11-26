@@ -1,0 +1,65 @@
+---
+import type { PodcastInfo } from "../lib/types";
+
+interface Props {
+  podcast: PodcastInfo;
+}
+
+const { podcast } = Astro.props;
+
+// RSS フィードの絶対URLを構築
+const feedPath = "/feed.xml";
+const absoluteFeedUrl = podcast.websiteUrl ? `${podcast.websiteUrl}${feedPath}` : feedPath;
+---
+
+{/*
+  購読のリンク。色付きのバッジは並べない。いちばん使われる 1 つを墨で塗り、
+  残りは縁だけ、RSS は字だけにして、押す順番が見た目で分かるようにする
+*/}
+<div class="flex flex-wrap items-center gap-2 text-[13px] font-bold sm:gap-2.5 sm:text-sm">
+  {podcast.applePodcastsUrl && (
+    <a
+      href={podcast.applePodcastsUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      class="inline-flex min-h-11 flex-1 items-center justify-center rounded-[10px] bg-ink px-5 text-bg transition-opacity hover:opacity-85 dark:bg-ink-dark dark:text-bg-dark sm:flex-none"
+    >
+      Apple Podcasts
+    </a>
+  )}
+  {podcast.spotifyUrl && (
+    <a
+      href={podcast.spotifyUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      class="inline-flex min-h-11 flex-1 items-center justify-center rounded-[10px] border-[1.5px] border-ink px-5 text-text transition-colors hover:bg-bg-subtle dark:border-ink-dark dark:text-text-dark dark:hover:bg-bg-subtle-dark sm:flex-none"
+    >
+      Spotify
+    </a>
+  )}
+  <button
+    type="button"
+    id="copy-rss-btn"
+    data-feed-url={absoluteFeedUrl}
+    title="RSS の URL をコピー"
+    class="inline-flex min-h-11 items-center px-3 font-medium text-text-muted transition-colors hover:text-accent dark:text-text-muted-dark"
+  >
+    <span id="copy-rss-text">RSS</span>
+  </button>
+</div>
+
+<script>
+  const copyBtn = document.getElementById('copy-rss-btn');
+  const copyText = document.getElementById('copy-rss-text');
+
+  copyBtn?.addEventListener('click', async () => {
+    const feedUrl = copyBtn.getAttribute('data-feed-url');
+    if (!feedUrl || !copyText) return;
+
+    await navigator.clipboard.writeText(feedUrl);
+    copyText.textContent = 'URL をコピーしました';
+    setTimeout(() => {
+      copyText.textContent = 'RSS';
+    }, 2000);
+  });
+</script>

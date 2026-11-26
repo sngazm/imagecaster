@@ -40,51 +40,23 @@ function speakerClass(speaker: string): string {
 }
 ---
 
-<details open class="mt-4 border-t border-border pt-4 dark:border-border-dark group">
-  <summary
-    class="cursor-pointer list-none inline-flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent-hover select-none"
-  >
+<details open class="group mt-9 sm:mt-12">
+  <summary class="rule-heading flex cursor-pointer list-none items-center justify-between select-none">
+    文字起こし
     <svg
-      class="h-4 w-4 transition-transform group-open:rotate-90"
+      class="h-4 w-4 text-text-muted transition-transform group-open:rotate-90 dark:text-text-muted-dark"
       fill="none"
       stroke="currentColor"
       viewBox="0 0 24 24"
+      aria-hidden="true"
     >
-      <path
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        stroke-width="2"
-        d="M9 5l7 7-7 7"
-      />
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
     </svg>
-    文字起こし
   </summary>
-
-  <!--
-    再生中だけ出る操作列。止めるボタンと、いまどこを聞いているか。
-    文字起こしを読みながら聞くときに、プレイヤーまで目を戻さずに残りが分かる
-  -->
-  <div
-    id="transcript-playback"
-    class="mt-2 hidden items-center gap-2 text-xs text-text-secondary dark:text-text-secondary-dark"
-  >
-    <button
-      id="stop-button"
-      type="button"
-      aria-label="再生を止める"
-      title="再生を止める"
-      class="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border bg-bg-elevated transition-colors hover:border-accent hover:text-accent dark:border-border-dark dark:bg-bg-elevated-dark"
-    >
-      <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="7" y="7" width="10" height="10" rx="1.5" />
-      </svg>
-    </button>
-    <span id="transcript-clock" class="font-mono tabular-nums">0:00:00 / 0:00:00</span>
-  </div>
 
   <div
     id="transcript-container"
-    class="mt-3 max-h-96 overflow-y-auto overflow-x-hidden pr-2"
+    class="mt-3 max-h-[28rem] overflow-y-auto overflow-x-hidden pr-1"
   >
     {
       segments.map((segment, index) => {
@@ -96,7 +68,7 @@ function speakerClass(speaker: string): string {
         return (
           <div
             class:list={[
-              "transcript-segment group flex w-full gap-3 px-2 py-1 text-left rounded transition-colors hover:bg-accent/10 dark:hover:bg-accent/20 cursor-pointer",
+              "transcript-segment group flex w-full gap-2.5 px-1.5 py-1 text-left rounded-md transition-colors hover:bg-bg-subtle dark:hover:bg-bg-subtle-dark cursor-pointer",
               isNewSpeaker && index > 0 && "mt-3",
             ]}
             data-time={segment.start}
@@ -121,7 +93,7 @@ function speakerClass(speaker: string): string {
                         />
                       ) : (
                         <span
-                          class={`block truncate text-[11px] font-medium leading-tight ${speakerClass(name)}`}
+                          class={`block truncate text-[11px] font-bold leading-tight ${speakerClass(name)}`}
                         >
                           {name}
                         </span>
@@ -129,7 +101,7 @@ function speakerClass(speaker: string): string {
                     )}
               </span>
             )}
-            <span class="transcript-text cursor-text text-sm leading-relaxed text-text-secondary dark:text-text-secondary-dark group-hover:text-text dark:group-hover:text-text-dark transition-colors">
+            <span class="transcript-text cursor-text text-[14.5px] leading-[1.8] text-text dark:text-text-dark sm:text-[15px]">
               {segment.text}
             </span>
           </div>
@@ -142,7 +114,7 @@ function speakerClass(speaker: string): string {
 <style>
   /* 再生中の行。読んでいる邪魔にならない濃さにする */
   .transcript-segment.is-playing {
-    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    background: color-mix(in srgb, var(--color-brand-yellow) 28%, transparent);
   }
 
   @media (prefers-reduced-motion: no-preference) {

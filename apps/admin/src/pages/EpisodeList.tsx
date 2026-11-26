@@ -23,15 +23,23 @@ const TRANSCRIBE_STATUS_CONFIG: Record<TranscribeStatus, { label: string; badgeC
   skipped: { label: "スキップ済み", badgeClass: "badge badge-default" },
 };
 
-function formatDate(dateString: string | null): string {
-  if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("ja-JP", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+/** 2026/11/23 の形 */
+function formatDay(dateString: string | null): string {
+  if (!dateString) return "—";
+  const d = new Date(dateString);
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+/** 11/28 6:00 の形。予約の日時に使う */
+function formatSoon(dateString: string): string {
+  const d = new Date(dateString);
+  return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/** 「#12 タイトル」の形なら、番号（12）とタイトルに分ける */
+function splitTitle(title: string): { number: string | null; rest: string } {
+  const match = title.match(/^[#＃]\s?(\d[\d\-.]*)\s+(.+)$/);
+  return match ? { number: match[1], rest: match[2] } : { number: null, rest: title };
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -78,15 +86,17 @@ export default function EpisodeList() {
   }, []);
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-8">
-      {/* Page Header - Clean and minimal */}
-      <header className="mb-6">
-        <h1 className="text-xl font-semibold tracking-tight text-[var(--color-text-primary)]">
+    <div className="max-w-4xl mx-auto px-5 md:px-6 py-5 md:py-8">
+      <header className="mb-5 md:mb-6 flex items-center justify-between gap-4">
+        <h1 className="text-lg md:text-2xl font-bold tracking-tight text-[var(--color-text-primary)]">
           エピソード
         </h1>
-        <p className="text-sm text-[var(--color-text-muted)] mt-1">
-          {episodes.length > 0 ? `${episodes.length}件のエピソード` : "エピソードを作成しましょう"}
-        </p>
+        {/* PC は上のナビに同じボタンがある */}
+        <div className="md:hidden">
+          <Link to="/new" className="btn btn-primary text-sm">
+            新規
+          </Link>
+        </div>
       </header>
 
       <ReviewInbox />
@@ -134,46 +144,46 @@ export default function EpisodeList() {
 
       {/* Episode List */}
       {!isLoading && !error && episodes.length > 0 && (
-        <div className="space-y-2">
+        <div>
+          <div className="rule-heading flex items-baseline justify-between">
+            <span>すべて {episodes.length}</span>
+          </div>
           {currentEpisodes.map((ep) => {
             const publishStatus = PUBLISH_STATUS_CONFIG[ep.publishStatus];
             const transcribeStatus = TRANSCRIBE_STATUS_CONFIG[ep.transcribeStatus];
+            const { number, rest } = splitTitle(ep.title);
+            // 公開の状態は 1 つにまとめて出す。予約は日時、公開済みは日付を添える
+            const publishLabel =
+              ep.publishStatus === "scheduled" && ep.publishAt
+                ? `予約 ${formatSoon(ep.publishAt)}`
+                : ep.publishStatus === "published"
+                  ? `公開済み・${formatDay(ep.publishAt)}`
+                  : publishStatus.label;
+            // 文字起こしは、済んでいる・飛ばした回では出さない。手が要るときだけ出す
+            const showTranscribe = !["completed", "skipped"].includes(ep.transcribeStatus);
             return (
               <Link
                 key={ep.id}
                 to={`/episodes/${ep.id}`}
-                className="card flex items-center gap-4 p-4 hover:bg-[var(--color-bg-elevated)] hover:border-[var(--color-border-strong)] transition-all group"
+                className="grid grid-cols-[2.5rem_minmax(0,1fr)] md:grid-cols-[3rem_minmax(0,1fr)_auto] gap-x-2 md:gap-x-4 items-baseline py-3 md:py-0 md:min-h-[52px] md:items-center border-b border-[var(--color-border)] hover:bg-[var(--color-bg-elevated)] transition-colors"
               >
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-medium text-[var(--color-text-primary)] truncate transition-colors">
-                    {ep.title}
-                  </h3>
-                  <p className="text-xs text-[var(--color-text-muted)] mt-1 font-mono">
-                    {ep.publishStatus === "scheduled" && ep.publishAt
-                      ? `公開予定: ${formatDate(ep.publishAt)}`
-                      : ep.publishAt
-                        ? formatDate(ep.publishAt)
-                        : "—"}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={transcribeStatus.badgeClass}>
-                    {transcribeStatus.label}
-                  </span>
-                  <span className={publishStatus.badgeClass}>
-                    {publishStatus.label}
-                  </span>
-                </div>
-                <svg className="w-4 h-4 text-[var(--color-text-faint)] group-hover:text-[var(--color-text-secondary)] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
+                <span className="text-[13px] md:text-sm font-bold tracking-tight tabular-nums">{number ?? ""}</span>
+                <span className="min-w-0 text-sm md:text-[15px] font-medium leading-relaxed md:truncate line-clamp-2 md:line-clamp-none">
+                  {rest}
+                </span>
+                <span className="col-start-2 md:col-start-3 mt-1 md:mt-0 flex flex-wrap items-center gap-x-4">
+                  {showTranscribe && (
+                    <span className={transcribeStatus.badgeClass}>{transcribeStatus.label}</span>
+                  )}
+                  <span className={publishStatus.badgeClass}>{publishLabel}</span>
+                </span>
               </Link>
             );
           })}
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-1 pt-6 mt-4 border-t border-[var(--color-border)]">
+            <div className="flex items-center justify-center gap-1 pt-5">
               <button
                 onClick={() => goToPage(currentPage - 1)}
                 disabled={currentPage === 1}
@@ -211,7 +221,7 @@ export default function EpisodeList() {
                       onClick={() => goToPage(page)}
                       className={`min-w-[32px] h-8 px-2 rounded-md text-sm font-medium transition-all ${
                         page === currentPage
-                          ? "bg-[var(--color-accent)] text-white"
+                          ? "font-bold text-[var(--color-text-primary)] underline underline-offset-4 decoration-2"
                           : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-hover)]"
                       }`}
                     >
