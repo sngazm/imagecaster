@@ -331,6 +331,31 @@ function formatReferenceLinks(links: Episode["referenceLinks"]): string {
 }
 
 /**
+ * 説明文を、参考リンクの置き場所（{{REFERENCE_LINKS}}）の前と後ろに分ける
+ *
+ * 公開サイトでは参考リンクを本文に流し込まず、表にして出す。そのために置き場所で
+ * 本文を割り、直前にある「■参考リンク」の見出しも外す（表のほうに見出しがある）。
+ * 置き場所が無い説明文なら null。
+ */
+export function splitDescriptionAtReferenceLinks(
+  description: string
+): { before: string; after: string } | null {
+  const match = description.match(
+    /(?:<(?:p|div)>\s*)?\{\{REFERENCE_LINKS\}\}(?:\s*<\/(?:p|div)>)?/
+  );
+  if (!match || match.index === undefined) return null;
+
+  const before = description
+    .slice(0, match.index)
+    // 見出しだけの段落
+    .replace(/<p>\s*<strong>[^<]*リンク[^<]*<\/strong>\s*<\/p>\s*$/, "")
+    // 本文の段落の末尾に、改行して見出しを書いている形
+    .replace(/(?:<br\s*\/?>\s*)*<strong>[^<]*リンク[^<]*<\/strong>\s*<\/p>\s*$/, "</p>");
+
+  return { before, after: description.slice(match.index + match[0].length) };
+}
+
+/**
  * 説明文のプレースホルダーを置換
  * {{TRANSCRIPT_URL}} - 文字起こしページへのリンク
  * {{EPISODE_URL}} - エピソードページへのリンク
