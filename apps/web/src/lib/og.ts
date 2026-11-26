@@ -7,6 +7,7 @@
 import { stripHtml } from "./api";
 import type { Episode, PodcastInfo } from "./types";
 import { OG_DESIGN_VERSION, type OgCard } from "./og-card";
+import { episodeMeta, splitEpisodeTitle, splitPodcastTitle } from "./titles";
 
 /**
  * 中身が変わったら URL も変わるようにする
@@ -21,35 +22,6 @@ function versionOf(card: OgCard): string {
     hash = ((hash << 5) + hash + text.charCodeAt(i)) >>> 0;
   }
   return hash.toString(36);
-}
-
-/** 「番組名 - ひとこと」の形なら、番組名とひとことに分ける */
-function splitPodcastTitle(title: string): { name: string; tagline: string | null } {
-  const match = title.match(/^(.+?)\s+[-–—|｜]\s+(.+)$/);
-  return match ? { name: match[1], tagline: match[2] } : { name: title, tagline: null };
-}
-
-/** 「#12 タイトル」の形なら、番号とタイトルに分ける */
-function splitEpisodeTitle(title: string): { number: string | null; rest: string } {
-  const match = title.match(/^[#＃]\s?(\d[\d\-.]*)\s+(.+)$/);
-  return match ? { number: `#${match[1]}`, rest: match[2] } : { number: null, rest: title };
-}
-
-/** 2026/1/11 の形（JST） */
-function formatDate(dateString: string): string {
-  const parts = new Intl.DateTimeFormat("ja-JP", {
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-    timeZone: "Asia/Tokyo",
-  }).formatToParts(new Date(dateString));
-  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
-  return `${get("year")}/${get("month")}/${get("day")}`;
-}
-
-/** 1 時間を超えても分で出す（66分） */
-function formatMinutes(seconds: number): string {
-  return `${Math.max(1, Math.round(seconds / 60))}分`;
 }
 
 function hostOf(url: string): string {
@@ -72,13 +44,10 @@ export function podcastOgCard(podcast: PodcastInfo): OgCard {
 
 export function episodeOgCard(episode: Episode, podcast: PodcastInfo): OgCard {
   const { number, rest } = splitEpisodeTitle(episode.title);
-  const date = episode.publishedAt || episode.publishAt;
-  const meta = [date ? formatDate(date) : "", episode.duration > 0 ? formatMinutes(episode.duration) : ""]
-    .filter(Boolean)
-    .join("・");
+  const meta = episodeMeta(episode);
 
   return {
-    eyebrow: number ?? undefined,
+    eyebrow: number ? `#${number}` : undefined,
     title: rest,
     label: splitPodcastTitle(podcast.title).name,
     meta: meta || undefined,

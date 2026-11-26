@@ -1,0 +1,26 @@
+---
+import { loadDefaultJapaneseParser } from "budoux";
+
+interface Props {
+  text: string;
+}
+
+/**
+ * 文節の切れ目でだけ折り返す文
+ *
+ * 見出しが「表／現の雑談」のように語の途中で折れるのを防ぐ。文節（BudouX）の間に
+ * <wbr> を置き、CSS の word-break: keep-all でそこ以外では折らせない。
+ * 1 文節が行に入らないときは overflow-wrap が効いて途中で折れる。
+ */
+const parser = loadDefaultJapaneseParser();
+const phrases = parser.parse(Astro.props.text);
+---
+
+<span class="phrased">{phrases.map((phrase, index) => <>{index > 0 && <wbr />}{phrase}</>)}</span>
+
+<style is:global>
+  .phrased {
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+</style>

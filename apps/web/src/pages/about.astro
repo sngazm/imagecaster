@@ -1,6 +1,6 @@
 ---
 import Layout from "../layouts/Layout.astro";
-import SubscribeSection from "../components/SubscribeSection.astro";
+import SubscribeLinks from "../components/SubscribeLinks.astro";
 import { getPodcastIndex } from "../lib/api";
 import { getPodcastOgImageUrl } from "../lib/og";
 
@@ -12,76 +12,61 @@ const ogImageUrl = getPodcastOgImageUrl(podcast);
 ---
 
 <Layout title="番組について" description={podcast.description} ogImage={ogImageUrl}>
-  <div class="mx-auto max-w-4xl px-4 py-8 sm:py-10">
-    <div class="grid gap-6 lg:grid-cols-3 lg:gap-8">
-      <div class="lg:col-span-2">
-        <article class="rounded-lg border border-border bg-bg-elevated p-5 dark:border-border-dark dark:bg-bg-elevated-dark">
-          <div class="mb-6 flex items-start gap-4">
-            {podcast.artworkUrl && (
-              <img
-                src={podcast.artworkUrl}
-                alt={podcast.title}
-                class="h-24 w-24 shrink-0 rounded-lg shadow-md"
-              />
-            )}
-            <div>
-              <h1 class="mb-1 text-xl font-semibold text-text dark:text-text-dark">
-                {podcast.title}
-              </h1>
-              {podcast.author && (
-                <p class="text-sm text-text-secondary dark:text-text-secondary-dark">
-                  by {podcast.author}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div class="prose prose-sm prose-zinc dark:prose-invert max-w-none">
-            <h2 class="text-base font-semibold">番組について</h2>
-            <p class="text-text-secondary dark:text-text-secondary-dark">{podcast.description}</p>
-
-            <h2 class="text-base font-semibold">番組情報</h2>
-            <dl class="grid grid-cols-2 gap-3 not-prose">
-              {podcast.category && (
-                <>
-                  <dt class="text-xs font-medium text-text-muted dark:text-text-muted-dark">カテゴリ</dt>
-                  <dd class="text-xs text-text dark:text-text-dark">{podcast.category}</dd>
-                </>
-              )}
-              {podcast.language && (
-                <>
-                  <dt class="text-xs font-medium text-text-muted dark:text-text-muted-dark">言語</dt>
-                  <dd class="text-xs text-text dark:text-text-dark">{podcast.language}</dd>
-                </>
-              )}
-              {podcast.email && (
-                <>
-                  <dt class="text-xs font-medium text-text-muted dark:text-text-muted-dark">お問い合わせ</dt>
-                  <dd class="text-xs">
-                    <a href={`mailto:${podcast.email}`} class="text-accent hover:text-accent-hover">
-                      {podcast.email}
-                    </a>
-                  </dd>
-                </>
-              )}
-              {podcast.websiteUrl && (
-                <>
-                  <dt class="text-xs font-medium text-text-muted dark:text-text-muted-dark">ウェブサイト</dt>
-                  <dd class="text-xs">
-                    <a href={podcast.websiteUrl} target="_blank" rel="noopener noreferrer" class="text-accent hover:text-accent-hover">
-                      {podcast.websiteUrl}
-                    </a>
-                  </dd>
-                </>
-              )}
-            </dl>
-          </div>
-        </article>
+  <div class="mx-auto max-w-[720px] px-5 pb-14 pt-4 sm:px-8 sm:pb-20 sm:pt-10">
+    <div class="flex items-center gap-4 sm:gap-6">
+      {podcast.artworkUrl && (
+        <img
+          src={podcast.artworkUrl}
+          alt=""
+          width="112"
+          height="112"
+          class="h-20 w-20 shrink-0 rounded-xl border-[1.5px] border-ink object-cover dark:border-ink-dark sm:h-28 sm:w-28"
+        />
+      )}
+      <div class="min-w-0">
+        <h1 class="text-xl font-bold leading-snug sm:text-[28px]">{podcast.title}</h1>
+        {podcast.author && (
+          <p class="mt-1 text-[13px] text-text-muted dark:text-text-muted-dark sm:text-sm">{podcast.author}</p>
+        )}
       </div>
-
-      <aside>
-        <SubscribeSection podcast={podcast} />
-      </aside>
     </div>
+
+    <p class="mt-6 text-[15px] leading-[1.85] sm:mt-8 sm:text-base sm:leading-[1.9]">{podcast.description}</p>
+
+    <div class="mt-6">
+      <SubscribeLinks podcast={podcast} />
+    </div>
+
+    <h2 class="rule-heading mt-10 sm:mt-12">番組情報</h2>
+    <dl class="grid grid-cols-[6.5rem_minmax(0,1fr)] text-[13px] sm:text-sm">
+      {podcast.category && (
+        <>
+          <dt class="border-b border-border py-3 text-text-muted dark:border-border-dark dark:text-text-muted-dark">カテゴリ</dt>
+          <dd class="border-b border-border py-3 dark:border-border-dark">{podcast.category}</dd>
+        </>
+      )}
+      {podcast.language && (
+        <>
+          <dt class="border-b border-border py-3 text-text-muted dark:border-border-dark dark:text-text-muted-dark">言語</dt>
+          <dd class="border-b border-border py-3 dark:border-border-dark">{podcast.language}</dd>
+        </>
+      )}
+      {podcast.email && (
+        <>
+          <dt class="border-b border-border py-3 text-text-muted dark:border-border-dark dark:text-text-muted-dark">お問い合わせ</dt>
+          <dd class="border-b border-border py-3 dark:border-border-dark">
+            <a href={`mailto:${podcast.email}`} class="font-bold text-accent hover:text-accent-hover">{podcast.email}</a>
+          </dd>
+        </>
+      )}
+      {podcast.websiteUrl && (
+        <>
+          <dt class="border-b border-border py-3 text-text-muted dark:border-border-dark dark:text-text-muted-dark">ウェブサイト</dt>
+          <dd class="break-all border-b border-border py-3 dark:border-border-dark">
+            <a href={podcast.websiteUrl} target="_blank" rel="noopener noreferrer" class="font-bold text-accent hover:text-accent-hover">{podcast.websiteUrl}</a>
+          </dd>
+        </>
+      )}
+    </dl>
   </div>
 </Layout>
