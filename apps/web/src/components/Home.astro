@@ -67,7 +67,7 @@ const featuredTitle = featured ? splitEpisodeTitle(featured.title) : null;
           class="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 border-y-[1.5px] border-ink py-[18px] dark:border-ink-dark sm:grid-cols-[8.25rem_minmax(0,1fr)_auto] sm:gap-x-7 sm:py-7"
         >
           <span class="flex items-baseline gap-2.5 sm:flex-col sm:gap-0.5">
-            <span class="order-2 text-[11px] font-bold tracking-wider text-brand-red-text sm:order-1 sm:text-xs">最新回</span>
+            <span class="order-2 text-[11px] font-bold tracking-wider text-brand-red-text sm:order-1 sm:text-xs">最新エピソード</span>
             <span class="tabular order-1 text-[34px] font-bold leading-none tracking-tighter sm:order-2 sm:text-[56px]">
               {featuredTitle.number ?? ""}
             </span>
@@ -94,7 +94,7 @@ const featuredTitle = featured ? splitEpisodeTitle(featured.title) : null;
       </div>
 
       <div class="flex items-center justify-between pt-5 text-[13px] sm:pt-6 sm:text-sm">
-        <span class="tabular text-text-muted dark:text-text-muted-dark">{total} 回</span>
+        <span class="tabular text-text-muted dark:text-text-muted-dark">全 {total} 回</span>
         <Pagination currentPage={currentPage} totalPages={totalPages} />
       </div>
     </>

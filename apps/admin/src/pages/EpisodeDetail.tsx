@@ -795,21 +795,21 @@ export default function EpisodeDetail() {
 
           {/* 詳細情報。箱を並べず、1 つの表にまとめる */}
           <div>
-            <h2 className="rule-heading">この回のこと</h2>
+            <h2 className="rule-heading">この回について</h2>
             <dl className="grid grid-cols-[6.5rem_minmax(0,1fr)] text-[13px] md:text-sm">
-              <dt className="py-2.5 border-b border-[var(--color-border)] text-[var(--color-text-muted)]">長さ</dt>
+              <dt className="py-2.5 border-b border-[var(--color-border)] text-[var(--color-text-muted)]">再生時間</dt>
               <dd className="py-2.5 border-b border-[var(--color-border)] tabular-nums">
                 {formatDuration(episode.duration)}・{formatFileSize(episode.fileSize)}
               </dd>
               <dt className="py-2.5 border-b border-[var(--color-border)] text-[var(--color-text-muted)]">
-                {episode.publishStatus === "scheduled" ? "公開予定" : "公開"}
+                {episode.publishStatus === "scheduled" ? "公開予定日" : "公開日"}
               </dt>
               <dd className="py-2.5 border-b border-[var(--color-border)] tabular-nums">
                 {episode.publishStatus === "scheduled"
                   ? formatDate(episode.publishAt)
                   : formatDate(episode.publishedAt)}
               </dd>
-              <dt className="py-2.5 border-b border-[var(--color-border)] text-[var(--color-text-muted)]">作成</dt>
+              <dt className="py-2.5 border-b border-[var(--color-border)] text-[var(--color-text-muted)]">作成日</dt>
               <dd className="py-2.5 border-b border-[var(--color-border)] tabular-nums">{formatDate(episode.createdAt)}</dd>
             </dl>
           </div>
