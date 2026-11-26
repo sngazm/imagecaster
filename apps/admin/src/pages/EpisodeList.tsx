@@ -146,7 +146,7 @@ export default function EpisodeList() {
       {!isLoading && !error && episodes.length > 0 && (
         <div>
           <div className="rule-heading flex items-baseline justify-between">
-            <span>すべて {episodes.length}</span>
+            <span>全 {episodes.length} 件</span>
           </div>
           {currentEpisodes.map((ep) => {
             const publishStatus = PUBLISH_STATUS_CONFIG[ep.publishStatus];

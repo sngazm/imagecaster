@@ -41,7 +41,7 @@ export function ReviewInbox() {
           aria-hidden="true"
         />
         <div className="min-w-0">
-          <h2 className="text-sm md:text-[15px] font-bold">聞いて決める箇所が {total} 件あります</h2>
+          <h2 className="text-sm md:text-[15px] font-bold">音声を聞いて確かめたい箇所が {total} 件あります</h2>
           <p className="text-xs md:text-[13px] text-[var(--color-text-muted)] flex flex-wrap gap-x-3">
             {episodes.map((e) => (
               <Link
@@ -50,7 +50,7 @@ export function ReviewInbox() {
                 className="hover:text-[var(--color-accent)] tabular-nums"
                 title={e.title}
               >
-                {shortName(e.title)} に {e.open} 件
+                {shortName(e.title)}：{e.open} 件
               </Link>
             ))}
           </p>
@@ -60,7 +60,7 @@ export function ReviewInbox() {
         to={`/episodes/${episodes[0].episodeId}/review`}
         className="flex items-center min-h-[44px] text-sm font-bold text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] whitespace-nowrap"
       >
-        はじめる →
+        確認する →
       </Link>
     </section>
   );
