@@ -1,6 +1,6 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import { getPublishedEpisodes, getEpisodeBySlug, formatDuration, formatFileSize, processDescription, getPodcastIndex, getTranscriptSegments, segmentsToText } from "../../lib/api";
+import { getPublishedEpisodes, getEpisodeBySlug, formatDuration, formatFileSize, processDescription, splitDescriptionAtReferenceLinks, getPodcastIndex, getTranscriptSegments, segmentsToText } from "../../lib/api";
 import { getEpisodeOgImageUrl } from "../../lib/og";
 import { episodeMeta, splitEpisodeTitle } from "../../lib/titles";
 import Captions from "../../components/Captions.astro";
@@ -118,6 +118,34 @@ if (Astro.props.episode) {
 
 const description = processDescription(episode.description, episode, websiteUrl);
 
+// 参考リンクは本文に流し込まず、表にして出す。本文は置き場所の前と後ろに分ける。
+// 置き場所が無い説明文では、本文のあとに表を置く
+const referenceLinks = episode.referenceLinks ?? [];
+const parts = referenceLinks.length > 0 ? splitDescriptionAtReferenceLinks(episode.description) : null;
+const descriptionBefore = parts ? processDescription(parts.before, episode, websiteUrl) : description;
+const descriptionAfter = parts ? processDescription(parts.after, episode, websiteUrl) : "";
+
+/**
+ * 取り込んだページのタイトルには、&amp; のような実体参照がそのまま入っていることがある。
+ * そのまま出すと「IoT &amp; Multi-Cloud」と見えるので、字に戻す
+ */
+function decodeEntities(text: string): string {
+  return text
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
 const title = splitEpisodeTitle(episode.title);
 const audioSrc = episode.audioUrl || episode.sourceAudioUrl || "";
 
@@ -217,8 +245,37 @@ const audioSrc = episode.audioUrl || episode.sourceAudioUrl || "";
     <!-- 概要 -->
     <div
       class="prose mt-3 max-w-none text-[15px] leading-[1.85] text-text dark:text-text-dark sm:mt-5 sm:text-base sm:leading-[1.9]"
-      set:html={description}
+      set:html={descriptionBefore}
     />
+
+    {/* 参考リンク。本文に URL を流し込まず、表にする */}
+    {referenceLinks.length > 0 && (
+      <section class="mt-9 sm:mt-12">
+        <h2 class="rule-heading">話に出てきたもの</h2>
+        <ul>
+          {referenceLinks.map((link) => (
+            <li>
+              <a
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="group flex flex-col gap-0.5 border-b border-border py-3 dark:border-border-dark sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
+              >
+                <span class="break-words text-sm leading-normal transition-colors group-hover:text-accent sm:text-[15px]">{decodeEntities(link.title) || link.url}</span>
+                <span class="shrink-0 text-xs text-text-muted dark:text-text-muted-dark sm:text-[13px]">{hostOf(link.url)}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
+
+    {descriptionAfter && (
+      <div
+        class="prose mt-9 max-w-none text-[15px] leading-[1.85] text-text dark:text-text-dark sm:mt-12 sm:text-base sm:leading-[1.9]"
+        set:html={descriptionAfter}
+      />
+    )}
 
     {episode.claudeImpression && (
       <ClaudeImpression impression={episode.claudeImpression} />
