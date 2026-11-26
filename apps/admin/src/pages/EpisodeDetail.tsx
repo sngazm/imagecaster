@@ -469,8 +469,8 @@ export default function EpisodeDetail() {
   const canShowWebLink = episode.publishStatus === "published" || episode.publishStatus === "scheduled";
 
   return (
-    <div className="max-w-6xl mx-auto px-6 py-10">
-      <header className="mb-8">
+    <div className="max-w-6xl mx-auto px-5 md:px-6 py-4 md:py-8 pb-24 md:pb-8">
+      <header className="mb-6 md:mb-8">
         <Link to="/" className="inline-flex items-center gap-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors mb-4">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -494,10 +494,10 @@ export default function EpisodeDetail() {
                   if (e.key === "Enter") e.preventDefault();
                 }}
                 aria-label="タイトル"
-                className="block w-full resize-none overflow-hidden text-xl sm:text-2xl font-bold leading-snug bg-transparent border-b-2 border-[var(--color-accent)] focus:outline-none text-[var(--color-text-primary)]"
+                className="block w-full resize-none overflow-hidden text-lg sm:text-[26px] font-bold leading-normal bg-transparent border-b-2 border-[var(--color-ink)] focus:outline-none text-[var(--color-text-primary)]"
               />
             ) : (
-              <h1 className="text-xl sm:text-2xl font-bold leading-snug tracking-tight break-words text-[var(--color-text-primary)]">{episode.title}</h1>
+              <h1 className="text-lg sm:text-[26px] font-bold leading-normal break-words text-[var(--color-text-primary)]">{episode.title}</h1>
             )}
             {isEditing && canEditSlug && (
               <div className="mt-2">
@@ -793,38 +793,25 @@ export default function EpisodeDetail() {
             </div>
           ) : null}
 
-          {/* 詳細情報 */}
-          <div className="card p-6">
-            <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-4 flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              詳細情報
-            </h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-[var(--color-bg-elevated)] rounded-lg p-4">
-                <div className="text-xs text-[var(--color-text-muted)] mb-1">再生時間</div>
-                <div className="text-[var(--color-text-primary)] font-medium">{formatDuration(episode.duration)}</div>
-              </div>
-              <div className="bg-[var(--color-bg-elevated)] rounded-lg p-4">
-                <div className="text-xs text-[var(--color-text-muted)] mb-1">ファイルサイズ</div>
-                <div className="text-[var(--color-text-primary)] font-medium">{formatFileSize(episode.fileSize)}</div>
-              </div>
-              <div className="bg-[var(--color-bg-elevated)] rounded-lg p-4">
-                <div className="text-xs text-[var(--color-text-muted)] mb-1">作成日</div>
-                <div className="text-[var(--color-text-primary)] font-medium">{formatDate(episode.createdAt)}</div>
-              </div>
-              <div className="bg-[var(--color-bg-elevated)] rounded-lg p-4">
-                <div className="text-xs text-[var(--color-text-muted)] mb-1">
-                  {episode.publishStatus === "scheduled" ? "公開予定日" : "公開日"}
-                </div>
-                <div className="text-[var(--color-text-primary)] font-medium">
-                  {episode.publishStatus === "scheduled"
-                    ? formatDate(episode.publishAt)
-                    : formatDate(episode.publishedAt)}
-                </div>
-              </div>
-            </div>
+          {/* 詳細情報。箱を並べず、1 つの表にまとめる */}
+          <div>
+            <h2 className="rule-heading">この回のこと</h2>
+            <dl className="grid grid-cols-[6.5rem_minmax(0,1fr)] text-[13px] md:text-sm">
+              <dt className="py-2.5 border-b border-[var(--color-border)] text-[var(--color-text-muted)]">長さ</dt>
+              <dd className="py-2.5 border-b border-[var(--color-border)] tabular-nums">
+                {formatDuration(episode.duration)}・{formatFileSize(episode.fileSize)}
+              </dd>
+              <dt className="py-2.5 border-b border-[var(--color-border)] text-[var(--color-text-muted)]">
+                {episode.publishStatus === "scheduled" ? "公開予定" : "公開"}
+              </dt>
+              <dd className="py-2.5 border-b border-[var(--color-border)] tabular-nums">
+                {episode.publishStatus === "scheduled"
+                  ? formatDate(episode.publishAt)
+                  : formatDate(episode.publishedAt)}
+              </dd>
+              <dt className="py-2.5 border-b border-[var(--color-border)] text-[var(--color-text-muted)]">作成</dt>
+              <dd className="py-2.5 border-b border-[var(--color-border)] tabular-nums">{formatDate(episode.createdAt)}</dd>
+            </dl>
           </div>
 
           {/* 説明 */}
@@ -1348,28 +1335,28 @@ export default function EpisodeDetail() {
             )}
           </div>
 
-          {/* 編集・保存ボタン */}
-          <div className="card p-6 space-y-3">
+          {/* 編集・保存ボタン。スマホでは画面の下（タブの上）に固定して、長い画面でも押せるようにする */}
+          <div className="action-bar fixed md:static inset-x-0 bottom-[calc(var(--bottom-tabs-height)+env(safe-area-inset-bottom))] z-30 flex md:flex-col gap-2 md:gap-3 px-4 py-2.5 md:p-0 bg-[var(--color-bg-base)] border-t-[1.5px] md:border-t-0 border-[var(--color-ink)]">
             {isEditing ? (
               ["draft", "scheduled", "published"].includes(episode.publishStatus) ? (
                 <>
                   <button
                     onClick={() => handleSave(false)}
                     disabled={isSaving}
-                    className="btn btn-primary w-full py-3"
+                    className="btn btn-primary flex-1 md:w-full py-2.5 md:py-3"
                   >
                     {isSaving ? "保存中..." : (!editPublishAt || new Date(editPublishAt) <= new Date() ? "今すぐ公開" : "公開予約")}
                   </button>
                   <button
                     onClick={() => handleSave(true)}
                     disabled={isSaving}
-                    className="btn btn-secondary w-full py-3"
+                    className="btn btn-secondary flex-1 md:w-full py-2.5 md:py-3"
                   >
                     {isSaving ? "保存中..." : "下書き保存"}
                   </button>
                   <button
                     onClick={handleCancelEdit}
-                    className="btn btn-secondary w-full py-3"
+                    className="btn btn-secondary flex-1 md:w-full py-2.5 md:py-3"
                   >
                     キャンセル
                   </button>
@@ -1379,13 +1366,13 @@ export default function EpisodeDetail() {
                   <button
                     onClick={() => handleSave()}
                     disabled={isSaving}
-                    className="btn btn-primary w-full py-3"
+                    className="btn btn-primary flex-1 md:w-full py-2.5 md:py-3"
                   >
                     {isSaving ? "保存中..." : "保存"}
                   </button>
                   <button
                     onClick={handleCancelEdit}
-                    className="btn btn-secondary w-full py-3"
+                    className="btn btn-secondary flex-1 md:w-full py-2.5 md:py-3"
                   >
                     キャンセル
                   </button>
@@ -1394,27 +1381,21 @@ export default function EpisodeDetail() {
             ) : (
               <button
                 onClick={() => setIsEditing(true)}
-                className="btn btn-secondary w-full py-3"
+                className="btn btn-primary flex-1 md:w-full py-2.5 md:py-3"
               >
                 編集
               </button>
             )}
           </div>
 
-          {/* 削除 */}
-          <div className="border border-[var(--color-error)] bg-[var(--color-error-muted)] rounded-xl p-6">
-            <h2 className="text-sm font-medium text-[var(--color-error)] mb-2">危険な操作</h2>
-            <p className="text-[var(--color-text-muted)] text-sm mb-4">
-              エピソードを削除すると、音声ファイルと文字起こしも削除されます。この操作は取り消せません。
-            </p>
-            <button
-              onClick={handleDelete}
-              disabled={isDeleting}
-              className="w-full py-2 bg-[var(--color-error-muted)] hover:bg-[var(--color-error)] text-[var(--color-error)] hover:text-white border border-[var(--color-error)] font-medium rounded-lg transition-all disabled:opacity-50"
-            >
-              {isDeleting ? "削除中..." : "エピソードを削除"}
-            </button>
-          </div>
+          {/* 削除。赤い箱で目立たせない。押すと確認が出る（音声と文字起こしも消える） */}
+          <button
+            onClick={handleDelete}
+            disabled={isDeleting}
+            className="self-start min-h-[44px] text-[13px] text-[var(--color-error)] hover:underline disabled:opacity-50"
+          >
+            {isDeleting ? "削除中..." : "このエピソードを削除…"}
+          </button>
         </div>
       </div>
     </div>

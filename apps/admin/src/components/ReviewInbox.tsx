@@ -3,10 +3,13 @@ import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 
 /**
- * 確認待ちのカードがある回の一覧
+ * 確認待ちのカードがある回の案内
  *
  * 機械が決められなかった箇所は、人が音声を聞けば数秒で決まるものが多い。溜まっていることに
  * 気づけるよう、エピソード一覧の上に出す。無ければ何も描かない。
+ *
+ * 1 行の案内にする。押すと最初の回のカードが開く。回が複数あるときは、
+ * どの回に何件あるかを添え、それぞれも押せる。
  */
 export function ReviewInbox() {
   const [episodes, setEpisodes] = useState<
@@ -27,27 +30,38 @@ export function ReviewInbox() {
 
   const total = episodes.reduce((sum, e) => sum + e.open, 0);
 
+  /** 「#293 タイトル」から番号だけ取る。無ければタイトルの頭 */
+  const shortName = (title: string) => title.match(/^[#＃]\s?\d[\d\-.]*/)?.[0] ?? title.slice(0, 12);
+
   return (
-    <section className="card mb-6 p-4">
-      <h2 className="text-sm font-medium">
-        音声を聞いて確かめたい箇所が {total} 件あります
-      </h2>
-      <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-        機械が決められなかった行です。1 件 10 秒ほどで決められます。
-      </p>
-      <ul className="mt-3 space-y-1">
-        {episodes.map((e) => (
-          <li key={e.episodeId}>
-            <Link
-              to={`/episodes/${e.episodeId}/review`}
-              className="flex items-center gap-3 rounded px-2 py-1.5 text-sm hover:bg-[var(--color-bg-hover)]"
-            >
-              <span className="min-w-0 flex-1 truncate">{e.title}</span>
-              <span className="badge badge-accent tabular-nums">{e.open} 件</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
+    <section className="mb-6 md:mb-8 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-xl border-[1.5px] border-[var(--color-ink)] px-4 py-3 md:px-5 md:py-4">
+      <div className="flex items-start gap-3 min-w-0">
+        <span
+          className="mt-[7px] h-2 w-2 shrink-0 rounded-full bg-[var(--color-brand-teal)]"
+          aria-hidden="true"
+        />
+        <div className="min-w-0">
+          <h2 className="text-sm md:text-[15px] font-bold">聞いて決める箇所が {total} 件あります</h2>
+          <p className="text-xs md:text-[13px] text-[var(--color-text-muted)] flex flex-wrap gap-x-3">
+            {episodes.map((e) => (
+              <Link
+                key={e.episodeId}
+                to={`/episodes/${e.episodeId}/review`}
+                className="hover:text-[var(--color-accent)] tabular-nums"
+                title={e.title}
+              >
+                {shortName(e.title)} に {e.open} 件
+              </Link>
+            ))}
+          </p>
+        </div>
+      </div>
+      <Link
+        to={`/episodes/${episodes[0].episodeId}/review`}
+        className="flex items-center min-h-[44px] text-sm font-bold text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] whitespace-nowrap"
+      >
+        はじめる →
+      </Link>
     </section>
   );
 }

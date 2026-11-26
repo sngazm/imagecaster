@@ -32,7 +32,7 @@ export function EnvironmentBadge() {
 
   if (env === "local") {
     return (
-      <div className="fixed top-3 right-3 z-50 flex items-center gap-2 px-3 py-1.5 bg-[var(--color-accent)]/20 border border-[var(--color-accent)]/50 rounded-lg text-[var(--color-accent)] text-xs font-medium backdrop-blur-sm">
+      <div className="fixed bottom-20 left-3 md:bottom-3 z-50 flex items-center gap-2 px-3 py-1.5 bg-[var(--color-accent)]/20 border border-[var(--color-accent)]/50 rounded-lg text-[var(--color-accent)] text-xs font-medium backdrop-blur-sm">
         <BranchIcon className="w-4 h-4 flex-shrink-0" />
         <span>dev</span>
       </div>
@@ -50,7 +50,7 @@ export function EnvironmentBadge() {
 
   return (
     <div
-      className="fixed top-3 right-3 z-50 flex items-center gap-2 px-3 py-1.5 bg-amber-500/20 border border-amber-500/50 rounded-lg text-amber-300 text-xs font-medium backdrop-blur-sm max-w-[280px] group cursor-default"
+      className="fixed bottom-20 left-3 md:bottom-3 z-50 flex items-center gap-2 px-3 py-1.5 bg-amber-500/20 border border-amber-500/50 rounded-lg text-[var(--color-warning)] text-xs font-medium backdrop-blur-sm max-w-[280px] group cursor-default"
       title={label}
     >
       <BranchIcon className="w-4 h-4 flex-shrink-0" />

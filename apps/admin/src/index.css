@@ -1,96 +1,107 @@
 @import "tailwindcss";
 
 /* ==========================================================================
-   Design Tokens - Precision & Density style inspired by Linear/Raycast
-   Based on 4px grid system with borders-only depth strategy
+   配色
+   白い地に墨の字、区切りは細い線。公開サイトと同じ 3 色（青緑・黄・朱）を、
+   状態の点・進み具合・いちばん大事なボタンにだけ使う。面では使わない。
+   管理画面は道具なので、地は生成りではなく白にする。
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
-   Dark Theme (Default)
+   Light
    -------------------------------------------------------------------------- */
 :root,
-[data-theme="dark"] {
-  color-scheme: dark;
-
-  /* Color Palette - Cool zinc foundation with violet accent */
-  --color-bg-base: #09090b;        /* zinc-950 */
-  --color-bg-elevated: #18181b;    /* zinc-900 */
-  --color-bg-surface: rgba(24, 24, 27, 0.5);  /* zinc-900/50 */
-  --color-bg-hover: #27272a;       /* zinc-800 */
-  --color-bg-active: #3f3f46;      /* zinc-700 */
-
-  --color-border: rgba(255, 255, 255, 0.08);
-  --color-border-subtle: rgba(255, 255, 255, 0.05);
-  --color-border-strong: rgba(255, 255, 255, 0.12);
-
-  --color-text-primary: #fafafa;   /* zinc-50 */
-  --color-text-secondary: #a1a1aa; /* zinc-400 */
-  --color-text-muted: #71717a;     /* zinc-500 */
-  --color-text-faint: #52525b;     /* zinc-600 */
-
-  --color-accent: #8b5cf6;         /* violet-500 */
-  --color-accent-hover: #a78bfa;   /* violet-400 */
-  --color-accent-muted: rgba(139, 92, 246, 0.15);
-
-  /* Semantic Colors */
-  --color-success: #34d399;        /* emerald-400 */
-  --color-success-muted: rgba(52, 211, 153, 0.1);
-  --color-warning: #fbbf24;        /* amber-400 */
-  --color-warning-muted: rgba(251, 191, 36, 0.1);
-  --color-error: #f87171;          /* red-400 */
-  --color-error-muted: rgba(248, 113, 113, 0.1);
-  --color-info: #60a5fa;           /* blue-400 */
-  --color-info-muted: rgba(96, 165, 250, 0.1);
-
-  /* Speaker Colors - 文字起こしの話者を見分けるための色
-     accent が violet なので、話者色には violet 系を使わない */
-  --color-speaker-1: #fb923c;      /* orange-400 */
-  --color-speaker-2: #34d399;      /* emerald-400 */
-  --color-speaker-3: #60a5fa;      /* blue-400 */
-  --color-speaker-4: #f472b6;      /* pink-400 */
-}
-
-/* --------------------------------------------------------------------------
-   Light Theme
-   -------------------------------------------------------------------------- */
 [data-theme="light"] {
   color-scheme: light;
 
-  /* Color Palette - Clean white foundation */
   --color-bg-base: #ffffff;
-  --color-bg-elevated: #f4f4f5;    /* zinc-100 */
-  --color-bg-surface: rgba(244, 244, 245, 0.5);
-  --color-bg-hover: #e4e4e7;       /* zinc-200 */
-  --color-bg-active: #d4d4d8;      /* zinc-300 */
+  --color-bg-elevated: #faf7ef;
+  --color-bg-surface: transparent;
+  --color-bg-hover: #f3ecdc;
+  --color-bg-active: #e9e1cd;
 
-  --color-border: rgba(0, 0, 0, 0.08);
-  --color-border-subtle: rgba(0, 0, 0, 0.05);
-  --color-border-strong: rgba(0, 0, 0, 0.12);
+  --color-border: #e3dccb;
+  --color-border-subtle: #ede7d8;
+  --color-border-strong: #cfc7b4;
 
-  --color-text-primary: #18181b;   /* zinc-900 */
-  --color-text-secondary: #52525b; /* zinc-600 */
-  --color-text-muted: #71717a;     /* zinc-500 */
-  --color-text-faint: #a1a1aa;     /* zinc-400 */
+  --color-text-primary: #1c1b1a;
+  --color-text-secondary: #4d4942;
+  --color-text-muted: #6a655c;
+  --color-text-faint: #948e82;
 
-  --color-accent: #7c3aed;         /* violet-600 */
-  --color-accent-hover: #6d28d9;   /* violet-700 */
-  --color-accent-muted: rgba(124, 58, 237, 0.1);
+  /* 強い線・ボタンの縁。字と同じ墨 */
+  --color-ink: #1c1b1a;
 
-  /* Semantic Colors - slightly darker for light bg */
-  --color-success: #10b981;        /* emerald-500 */
-  --color-success-muted: rgba(16, 185, 129, 0.1);
-  --color-warning: #f59e0b;        /* amber-500 */
-  --color-warning-muted: rgba(245, 158, 11, 0.1);
-  --color-error: #ef4444;          /* red-500 */
-  --color-error-muted: rgba(239, 68, 68, 0.1);
-  --color-info: #3b82f6;           /* blue-500 */
-  --color-info-muted: rgba(59, 130, 246, 0.1);
+  /* リンクや選択中など、字として使う差し色（青緑を読める濃さにしたもの） */
+  --color-accent: #0b6f6c;
+  --color-accent-hover: #095a57;
+  --color-accent-muted: rgba(18, 165, 161, 0.12);
 
-  /* Speaker Colors */
-  --color-speaker-1: #ea580c;      /* orange-600 */
-  --color-speaker-2: #059669;      /* emerald-600 */
-  --color-speaker-3: #2563eb;      /* blue-600 */
-  --color-speaker-4: #db2777;      /* pink-600 */
+  /* 3 色。字には使わない */
+  --color-brand-teal: #12a5a1;
+  --color-brand-yellow: #f5c52e;
+  --color-brand-red: #e2472b;
+
+  --color-success: #0b6f6c;
+  --color-success-muted: rgba(18, 165, 161, 0.12);
+  --color-warning: #8a6a00;
+  --color-warning-muted: rgba(245, 197, 46, 0.2);
+  --color-error: #b7341c;
+  --color-error-muted: rgba(226, 71, 43, 0.1);
+  --color-info: #4d4942;
+  --color-info-muted: rgba(28, 27, 26, 0.06);
+
+  /* 話者の色。登場順 */
+  --color-speaker-1: #b7341c;
+  --color-speaker-2: #0b6f6c;
+  --color-speaker-3: #8a6a00;
+  --color-speaker-4: #7c3aed;
+}
+
+/* --------------------------------------------------------------------------
+   Dark
+   -------------------------------------------------------------------------- */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-bg-base: #171614;
+  --color-bg-elevated: #211f1c;
+  --color-bg-surface: transparent;
+  --color-bg-hover: #2a2825;
+  --color-bg-active: #37342f;
+
+  --color-border: #37342f;
+  --color-border-subtle: #2a2825;
+  --color-border-strong: #4d4942;
+
+  --color-text-primary: #f3eee2;
+  --color-text-secondary: #cdc6b8;
+  --color-text-muted: #a39d90;
+  --color-text-faint: #7b766c;
+
+  --color-ink: #f3eee2;
+
+  --color-accent: #5fd4cf;
+  --color-accent-hover: #8be3df;
+  --color-accent-muted: rgba(95, 212, 207, 0.14);
+
+  --color-brand-teal: #12a5a1;
+  --color-brand-yellow: #f5c52e;
+  --color-brand-red: #e2472b;
+
+  --color-success: #5fd4cf;
+  --color-success-muted: rgba(95, 212, 207, 0.14);
+  --color-warning: #f5c52e;
+  --color-warning-muted: rgba(245, 197, 46, 0.14);
+  --color-error: #ff8a70;
+  --color-error-muted: rgba(226, 71, 43, 0.16);
+  --color-info: #cdc6b8;
+  --color-info-muted: rgba(243, 238, 226, 0.08);
+
+  --color-speaker-1: #ff8a70;
+  --color-speaker-2: #5fd4cf;
+  --color-speaker-3: #f5c52e;
+  --color-speaker-4: #c084fc;
 }
 
 /* --------------------------------------------------------------------------
@@ -109,10 +120,10 @@
   --space-12: 48px;
 
   /* Border Radius - Sharp system (technical feel) */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 12px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
   --radius-full: 9999px;
 
   /* Typography Scale */
@@ -142,12 +153,9 @@
   --transition-slow: 200ms;
   --ease-out: cubic-bezier(0.25, 1, 0.5, 1);
 
-  /* Sidebar */
-  --sidebar-width: 240px;
-  --sidebar-collapsed-width: 64px;
-
-  /* Mobile */
-  --mobile-header-height: 56px;
+  /* 上のナビと、スマホの下のタブ */
+  --topnav-height: 60px;
+  --bottom-tabs-height: 56px;
 }
 
 /* ==========================================================================
@@ -155,7 +163,9 @@
    ========================================================================== */
 
 body {
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  /* 英数字は Space Grotesk、和文は Zen Kaku Gothic New。index.html で読み込む */
+  font-family: "Space Grotesk", "Zen Kaku Gothic New", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+  font-feature-settings: "palt";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -170,7 +180,7 @@ body {
    Component Styles
    ========================================================================== */
 
-/* Card - borders-only approach */
+/* 箱。塗りは付けず、細い線だけで囲む */
 .card {
   background: var(--color-bg-surface);
   border: 1px solid var(--color-border);
@@ -183,16 +193,37 @@ body {
   border-radius: var(--radius-lg);
 }
 
+/* 見出しの下の強い線 */
+.rule-heading {
+  padding-bottom: 10px;
+  border-bottom: 1.5px solid var(--color-ink);
+  font-size: var(--text-base);
+  font-weight: var(--font-bold);
+  color: var(--color-text-primary);
+}
+
 /* Button base styles */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  font-weight: var(--font-medium);
+  min-height: 40px;
+  font-weight: var(--font-bold);
   border-radius: var(--radius-md);
+  border: 1.5px solid transparent;
+  white-space: nowrap;
   transition: all var(--transition-base) var(--ease-out);
   cursor: pointer;
+}
+
+/* スマホで下に固定する操作の列。3 つ並んでも字が折れない大きさにする */
+@media (max-width: 767px) {
+  .action-bar .btn {
+    padding-left: var(--space-2);
+    padding-right: var(--space-2);
+    font-size: var(--text-base);
+  }
 }
 
 .btn:disabled {
@@ -200,27 +231,28 @@ body {
   cursor: not-allowed;
 }
 
-/* Primary button */
+/* いちばん大事な操作。黄に墨の縁 */
 .btn-primary {
-  background: var(--color-accent);
-  color: white;
-  padding: var(--space-2) var(--space-4);
+  background: var(--color-brand-yellow);
+  color: #1c1b1a;
+  border-color: var(--color-ink);
+  padding: var(--space-2) var(--space-5);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--color-accent-hover);
+  filter: brightness(0.95);
 }
 
-/* Secondary button */
+/* 二番目の操作。縁だけ */
 .btn-secondary {
-  background: var(--color-bg-hover);
-  color: var(--color-text-secondary);
+  background: transparent;
+  color: var(--color-text-primary);
+  border-color: var(--color-ink);
   padding: var(--space-2) var(--space-4);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: var(--color-bg-active);
-  color: var(--color-text-primary);
+  background: var(--color-bg-hover);
 }
 
 /* Ghost button */
@@ -228,6 +260,7 @@ body {
   background: transparent;
   color: var(--color-text-secondary);
   padding: var(--space-2);
+  font-weight: var(--font-medium);
 }
 
 .btn-ghost:hover:not(:disabled) {
@@ -239,8 +272,8 @@ body {
 .input {
   width: 100%;
   padding: var(--space-2) var(--space-3);
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
   color: var(--color-text-primary);
   font-size: var(--text-md);
@@ -253,7 +286,8 @@ body {
 
 .input:focus {
   outline: none;
-  border-color: var(--color-accent);
+  border-color: var(--color-ink);
+  box-shadow: 0 0 0 3px var(--color-accent-muted);
 }
 
 .input:disabled {
@@ -270,23 +304,37 @@ body {
   margin-bottom: var(--space-2);
 }
 
-/* Badge styles */
+/* 状態の印。色付きの札はやめ、小さな点と字で出す */
 .badge {
   display: inline-flex;
   align-items: center;
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--text-xs);
+  gap: 7px;
+  font-size: var(--text-sm);
   font-weight: var(--font-medium);
-  border-radius: var(--radius-full);
+  white-space: nowrap;
+  color: var(--color-text-muted);
 }
 
-/* Status badges */
-.badge-default { background: var(--color-bg-hover); color: var(--color-text-secondary); }
-.badge-success { background: var(--color-success-muted); color: var(--color-success); }
-.badge-warning { background: var(--color-warning-muted); color: var(--color-warning); }
-.badge-error { background: var(--color-error-muted); color: var(--color-error); }
-.badge-info { background: var(--color-info-muted); color: var(--color-info); }
-.badge-accent { background: var(--color-accent-muted); color: var(--color-accent); }
+.badge::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-border-strong);
+}
+
+.badge-default { color: var(--color-text-muted); }
+.badge-success { color: var(--color-text-secondary); }
+.badge-success::before { background: var(--color-brand-teal); }
+.badge-warning { color: var(--color-text-primary); font-weight: var(--font-bold); }
+.badge-warning::before { background: var(--color-brand-yellow); }
+.badge-error { color: var(--color-error); font-weight: var(--font-bold); }
+.badge-error::before { background: var(--color-brand-red); }
+.badge-info { color: var(--color-text-primary); font-weight: var(--font-bold); }
+.badge-info::before { background: var(--color-brand-yellow); }
+.badge-accent { color: var(--color-accent); font-weight: var(--font-bold); }
+.badge-accent::before { background: var(--color-brand-teal); }
 
 /* ==========================================================================
    Prose Styles (for rich text content)
@@ -336,9 +384,10 @@ body {
 .prose a {
   overflow-wrap: break-word;
   word-break: break-all;
+  color: var(--color-accent);
   text-decoration: underline;
-  text-underline-offset: 2px;
-  opacity: 0.7;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
 }
 
 /* ==========================================================================
@@ -378,120 +427,131 @@ body {
 }
 
 /* ==========================================================================
-   Mobile Header Styles
+   枠組み
+   PC は上にナビを置き、スマホは下にタブを置く。サイドバーは使わない。
    ========================================================================== */
 
-.mobile-header {
-  display: none;
+/* アートワークの 3 色の帯 */
+.brand-stripe {
+  display: grid;
+  grid-template-columns: 5fr 2fr 1fr;
+  height: 4px;
+}
+.brand-stripe > :nth-child(1) { background: var(--color-brand-teal); }
+.brand-stripe > :nth-child(2) { background: var(--color-brand-yellow); }
+.brand-stripe > :nth-child(3) { background: var(--color-brand-red); }
+
+.topnav {
   position: sticky;
   top: 0;
   z-index: 40;
-  height: var(--mobile-header-height);
-  padding: 0 var(--space-4);
   background: var(--color-bg-base);
   border-bottom: 1px solid var(--color-border);
+}
+
+.topnav-inner {
+  display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-4);
+  max-width: 72rem;
+  min-height: var(--topnav-height);
+  margin: 0 auto;
+  padding: 0 var(--space-6);
 }
 
 @media (max-width: 767px) {
-  .mobile-header {
-    display: flex;
+  .topnav-inner {
+    min-height: 52px;
+    padding: 0 var(--space-2) 0 var(--space-5);
   }
 }
 
-/* ==========================================================================
-   Sidebar Navigation Styles
-   ========================================================================== */
-
-.sidebar {
-  width: var(--sidebar-width);
-  background: var(--color-bg-base);
-  border-right: 1px solid var(--color-border);
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  position: fixed;
-  left: 0;
-  top: 0;
-  z-index: 50;
-  transition: transform var(--transition-slow) var(--ease-out);
-}
-
-/* モバイルでサイドバーを画面外に隠す */
-@media (max-width: 767px) {
-  .sidebar {
-    transform: translateX(-100%);
-  }
-
-  .sidebar.open {
-    transform: translateX(0);
-  }
-}
-
-/* サイドバーオーバーレイ（モバイル用） */
-.sidebar-overlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 45;
-  opacity: 0;
-  transition: opacity var(--transition-slow) var(--ease-out);
-  pointer-events: none;
-}
-
-@media (max-width: 767px) {
-  .sidebar-overlay {
-    display: block;
-  }
-
-  .sidebar-overlay.open {
-    opacity: 1;
-    pointer-events: auto;
-  }
-}
-
-.sidebar-nav-item {
+.topnav-link {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-md);
-  color: var(--color-text-secondary);
+  gap: 6px;
+  min-height: 44px;
   font-size: var(--text-md);
   font-weight: var(--font-medium);
-  transition: all var(--transition-base) var(--ease-out);
-  margin: 0 var(--space-2);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  transition: color var(--transition-base) var(--ease-out);
 }
 
-.sidebar-nav-item:hover {
-  background: var(--color-bg-hover);
-  color: var(--color-text-primary);
-}
-
-.sidebar-nav-item.active {
-  background: var(--color-accent-muted);
+.topnav-link:hover {
   color: var(--color-accent);
 }
 
-.sidebar-nav-item svg {
+.topnav-link.active {
+  color: var(--color-text-primary);
+}
+
+.topnav-link.active > span:first-child {
+  padding-bottom: 2px;
+  border-bottom: 2px solid var(--color-ink);
+}
+
+/* 確認待ちの件数など */
+.nav-count {
+  color: var(--color-error);
+  font-weight: var(--font-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.bottom-tabs {
+  display: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  background: var(--color-bg-base);
+  border-top: 1.5px solid var(--color-ink);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.bottom-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: var(--bottom-tabs-height);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* 選択中の印。黄の短い線 */
+.bottom-tab::before {
+  content: "";
   width: 18px;
-  height: 18px;
-  flex-shrink: 0;
+  height: 3px;
+  border-radius: 2px;
 }
 
-/* Main content area with sidebar */
+.bottom-tab.active {
+  color: var(--color-text-primary);
+  font-weight: var(--font-bold);
+}
+
+.bottom-tab.active::before {
+  background: var(--color-brand-yellow);
+}
+
 .main-content {
-  margin-left: var(--sidebar-width);
-  min-height: 100vh;
+  min-height: calc(100vh - var(--topnav-height));
 }
 
-/* モバイルではサイドバー分のマージンを削除 */
 @media (max-width: 767px) {
+  .bottom-tabs {
+    display: grid;
+  }
+
+  /* 下のタブに隠れないよう、ページの下を空ける */
   .main-content {
-    margin-left: 0;
-    min-height: calc(100vh - var(--mobile-header-height));
+    padding-bottom: calc(var(--bottom-tabs-height) + env(safe-area-inset-bottom) + var(--space-4));
   }
 }
 
@@ -511,7 +571,7 @@ body {
   .task-tray {
     left: var(--space-3);
     right: var(--space-3);
-    bottom: var(--space-3);
+    bottom: calc(var(--bottom-tabs-height) + env(safe-area-inset-bottom) + var(--space-3));
     width: auto;
   }
 }
