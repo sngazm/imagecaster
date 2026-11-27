@@ -18,11 +18,11 @@ const DOTS = ["bg-brand-teal", "bg-brand-yellow", "bg-brand-red"];
 
 <a
   href={`/episodes/${episode.id}`}
-  class="group grid grid-cols-[3.25rem_minmax(0,1fr)] gap-x-2 border-b border-border py-3.5 dark:border-border-dark sm:grid-cols-[3.75rem_minmax(0,1fr)] sm:gap-x-3 sm:py-5"
+  class="group grid grid-cols-[3.75rem_minmax(0,1fr)] gap-x-2 border-b border-border py-3.5 dark:border-border-dark sm:grid-cols-[4.5rem_minmax(0,1fr)] sm:gap-x-3 sm:py-5"
 >
   <span class="tabular flex h-[1.45rem] items-center gap-1.5 text-[13px] font-bold tracking-tight sm:h-[1.6rem] sm:gap-2 sm:text-[15px]">
     <span class:list={["h-1.5 w-1.5 shrink-0 rounded-full sm:h-[7px] sm:w-[7px]", DOTS[index % DOTS.length]]} aria-hidden="true"></span>
-    {number}
+    {number ? `#${number}` : ""}
   </span>
   <span class="flex min-w-0 flex-col gap-0.5 sm:gap-1">
     <span class="break-words text-[14.5px] font-bold leading-[1.55] transition-colors group-hover:text-accent sm:text-base">

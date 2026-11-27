@@ -158,7 +158,7 @@ const audioSrc = episode.audioUrl || episode.sourceAudioUrl || "";
       <div class="min-w-0">
         <div class="flex items-baseline gap-3">
           {title.number && (
-            <span class="tabular text-lg font-bold tracking-tight sm:text-[22px]">{title.number}</span>
+            <span class="tabular text-lg font-bold tracking-tight sm:text-[22px]">#{title.number}</span>
           )}
           <time class="tabular text-xs text-text-muted dark:text-text-muted-dark sm:text-[13px]" datetime={episode.publishedAt || episode.publishAt}>
             {episodeMeta(episode)}

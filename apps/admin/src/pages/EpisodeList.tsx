@@ -44,6 +44,18 @@ function splitTitle(title: string): { number: string | null; rest: string } {
 
 const ITEMS_PER_PAGE = 10;
 
+// 一覧の絞り込み。手を入れる回（予約・下書き・文字起こし中）をすぐ出せるようにする
+type FilterKey = "all" | "scheduled" | "draft" | "transcribing";
+
+const FILTERS: { key: FilterKey; label: string; match: (ep: Episode) => boolean }[] = [
+  { key: "all", label: "すべて", match: () => true },
+  { key: "scheduled", label: "予約", match: (ep) => ep.publishStatus === "scheduled" },
+  // 公開日時が決まっていないもの。作りかけ（新規・アップロード中）も含める
+  { key: "draft", label: "下書き", match: (ep) => ["new", "uploading", "draft"].includes(ep.publishStatus) },
+  // 文字起こしが終わっていないもの。順番待ちも含める
+  { key: "transcribing", label: "文字起こし中", match: (ep) => ["pending", "transcribing"].includes(ep.transcribeStatus) },
+];
+
 export default function EpisodeList() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [episodes, setEpisodes] = useState<Episode[]>([]);
@@ -53,16 +65,27 @@ export default function EpisodeList() {
   // URLクエリパラメータからページ番号を取得
   const currentPage = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
 
+  // 絞り込みも URL に持つ。戻る・再読み込みで同じ一覧に戻れる
+  const filter = FILTERS.find((f) => f.key === searchParams.get("filter")) ?? FILTERS[0];
+  const filteredEpisodes = episodes.filter(filter.match);
+
+  const paramsFor = (filterKey: FilterKey, page: number) => {
+    const params: Record<string, string> = {};
+    if (filterKey !== "all") params.filter = filterKey;
+    if (page > 1) params.page = String(page);
+    return params;
+  };
+
   // ページネーション計算
-  const totalPages = Math.ceil(episodes.length / ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(filteredEpisodes.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const endIndex = startIndex + ITEMS_PER_PAGE;
-  const currentEpisodes = episodes.slice(startIndex, endIndex);
+  const currentEpisodes = filteredEpisodes.slice(startIndex, endIndex);
 
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
       // URLクエリパラメータを更新（ブラウザ履歴に追加）
-      setSearchParams(page === 1 ? {} : { page: String(page) });
+      setSearchParams(paramsFor(filter.key, page));
       // ページトップにスクロール
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -145,9 +168,37 @@ export default function EpisodeList() {
       {/* Episode List */}
       {!isLoading && !error && episodes.length > 0 && (
         <div>
-          <div className="rule-heading flex items-baseline justify-between">
-            <span>全 {episodes.length} 件</span>
+          <div
+            role="tablist"
+            aria-label="絞り込み"
+            className="rule-heading flex items-baseline gap-x-5 overflow-x-auto whitespace-nowrap"
+          >
+            {FILTERS.map((f) => {
+              const count = episodes.filter(f.match).length;
+              const selected = f.key === filter.key;
+              return (
+                <button
+                  key={f.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setSearchParams(paramsFor(f.key, 1))}
+                  className={`-my-2 py-2 cursor-pointer transition-colors ${
+                    selected
+                      ? "font-bold text-[var(--color-text-primary)]"
+                      : "font-normal text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+                  }`}
+                >
+                  {f.label} <span className="tabular-nums">{count}</span>
+                </button>
+              );
+            })}
           </div>
+          {filteredEpisodes.length === 0 && (
+            <p className="py-10 text-center text-sm text-[var(--color-text-muted)]">
+              {filter.label}のエピソードはありません
+            </p>
+          )}
           {currentEpisodes.map((ep) => {
             const publishStatus = PUBLISH_STATUS_CONFIG[ep.publishStatus];
             const transcribeStatus = TRANSCRIBE_STATUS_CONFIG[ep.transcribeStatus];
@@ -165,9 +216,9 @@ export default function EpisodeList() {
               <Link
                 key={ep.id}
                 to={`/episodes/${ep.id}`}
-                className="grid grid-cols-[2.5rem_minmax(0,1fr)] md:grid-cols-[3rem_minmax(0,1fr)_auto] gap-x-2 md:gap-x-4 items-baseline py-3 md:py-0 md:min-h-[52px] md:items-center border-b border-[var(--color-border)] hover:bg-[var(--color-bg-elevated)] transition-colors"
+                className="grid grid-cols-[3rem_minmax(0,1fr)] md:grid-cols-[3.5rem_minmax(0,1fr)_auto] gap-x-2 md:gap-x-4 items-baseline py-3 md:py-0 md:min-h-[52px] md:items-center border-b border-[var(--color-border)] hover:bg-[var(--color-bg-elevated)] transition-colors"
               >
-                <span className="text-[13px] md:text-sm font-bold tracking-tight tabular-nums">{number ?? ""}</span>
+                <span className="text-[13px] md:text-sm font-bold tracking-tight tabular-nums">{number ? `#${number}` : ""}</span>
                 <span className="min-w-0 text-sm md:text-[15px] font-medium leading-relaxed md:truncate line-clamp-2 md:line-clamp-none">
                   {rest}
                 </span>
@@ -245,9 +296,9 @@ export default function EpisodeList() {
           )}
 
           {/* Page Info */}
-          {episodes.length > 0 && (
+          {filteredEpisodes.length > 0 && (
             <p className="text-center text-xs text-[var(--color-text-muted)] mt-3 font-mono">
-              {startIndex + 1}〜{Math.min(endIndex, episodes.length)} / {episodes.length}
+              {startIndex + 1}〜{Math.min(endIndex, filteredEpisodes.length)} / {filteredEpisodes.length}
             </p>
           )}
         </div>
