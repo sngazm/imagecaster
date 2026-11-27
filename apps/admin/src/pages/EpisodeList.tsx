@@ -216,9 +216,9 @@ export default function EpisodeList() {
               <Link
                 key={ep.id}
                 to={`/episodes/${ep.id}`}
-                className="grid grid-cols-[2.5rem_minmax(0,1fr)] md:grid-cols-[3rem_minmax(0,1fr)_auto] gap-x-2 md:gap-x-4 items-baseline py-3 md:py-0 md:min-h-[52px] md:items-center border-b border-[var(--color-border)] hover:bg-[var(--color-bg-elevated)] transition-colors"
+                className="grid grid-cols-[3rem_minmax(0,1fr)] md:grid-cols-[3.5rem_minmax(0,1fr)_auto] gap-x-2 md:gap-x-4 items-baseline py-3 md:py-0 md:min-h-[52px] md:items-center border-b border-[var(--color-border)] hover:bg-[var(--color-bg-elevated)] transition-colors"
               >
-                <span className="text-[13px] md:text-sm font-bold tracking-tight tabular-nums">{number ?? ""}</span>
+                <span className="text-[13px] md:text-sm font-bold tracking-tight tabular-nums">{number ? `#${number}` : ""}</span>
                 <span className="min-w-0 text-sm md:text-[15px] font-medium leading-relaxed md:truncate line-clamp-2 md:line-clamp-none">
                   {rest}
                 </span>
